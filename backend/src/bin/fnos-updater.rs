@@ -9,12 +9,16 @@ async fn main() {
     if args.len() == 4 && args[1] == "--verify" {
         match ting_reader::update::validate_fpk(std::path::Path::new(&args[2]), &args[3]) {
             Ok(()) => println!("Package verified"),
-            Err(error) => { eprintln!("{error}"); std::process::exit(1); }
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
         }
         return;
     }
     if !((args.len() == 2 && matches!(args[1].as_str(), "install" | "status"))
-        || (args.len() == 3 && args[1] == "apply")) {
+        || (args.len() == 3 && args[1] == "apply"))
+    {
         std::process::exit(2);
     }
     match ting_reader::update::root_main(&args[1], args.get(2).map(String::as_str)).await {

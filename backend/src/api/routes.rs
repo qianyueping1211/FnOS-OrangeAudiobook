@@ -504,10 +504,23 @@ pub fn build_api_routes(state: AppState) -> Router {
             put(update_notification_webhook).delete(delete_notification_webhook),
         )
         .route("/api/system/check-update", get(check_update))
-        .route("/api/system/updates", get(crate::api::handlers::system::updates::status))
-        .route("/api/system/updates/check", post(crate::api::handlers::system::updates::check))
-        .route("/api/system/updates/token", put(crate::api::handlers::system::updates::token).delete(crate::api::handlers::system::updates::delete_token))
-        .route("/api/system/updates/install", post(crate::api::handlers::system::updates::install))
+        .route(
+            "/api/system/updates",
+            get(crate::api::handlers::system::updates::status),
+        )
+        .route(
+            "/api/system/updates/check",
+            post(crate::api::handlers::system::updates::check),
+        )
+        .route(
+            "/api/system/updates/token",
+            put(crate::api::handlers::system::updates::token)
+                .delete(crate::api::handlers::system::updates::delete_token),
+        )
+        .route(
+            "/api/system/updates/install",
+            post(crate::api::handlers::system::updates::install),
+        )
         .route(
             "/api/system/logs",
             get(get_system_logs).delete(clear_system_logs),

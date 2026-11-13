@@ -1,8 +1,8 @@
 use crate::core::app::error::{ExternalErrorKind, InputErrorKind};
 mod diagnostics;
-pub mod updates;
 mod statistics;
 mod tasks;
+pub mod updates;
 pub use diagnostics::{get_metrics, health_check};
 pub use statistics::get_admin_statistics;
 pub use tasks::{batch_delete_tasks, cancel_task, clear_tasks, delete_task, get_task, list_tasks};

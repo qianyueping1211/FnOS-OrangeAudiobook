@@ -94,10 +94,17 @@ impl ApiServer {
         // Native fnOS windows only use the unified Unix socket gateway.
         #[cfg(unix)]
         if std::env::var("FNNAS_GATEWAY_ONLY").as_deref() == Ok("1") {
-            let path = self.config.gateway_socket.as_ref()
+            let path = self
+                .config
+                .gateway_socket
+                .as_ref()
                 .ok_or_else(|| anyhow::anyhow!("Gateway-only mode requires a Unix socket"))?;
-            if let Some(parent) = path.parent() { std::fs::create_dir_all(parent)?; }
-            if path.exists() { std::fs::remove_file(path)?; }
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            if path.exists() {
+                std::fs::remove_file(path)?;
+            }
             let listener = tokio::net::UnixListener::bind(path)?;
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o660))?;
