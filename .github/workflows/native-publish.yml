@@ -1,4 +1,5 @@
 name: Native FPK Build and Release
+# Only the standard x86_64 native fnOS package is published.
 
 on:
   workflow_dispatch:

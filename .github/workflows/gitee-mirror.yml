@@ -9,7 +9,7 @@ on:
   release:
     types: [published, edited]
   workflow_run:
-    workflows: ["Docker Build, Push and FPK Release", "Native FPK Build and Release"]
+    workflows: ["Native FPK Build and Release"]
     types: [completed]
   workflow_dispatch:
   workflow_call:
