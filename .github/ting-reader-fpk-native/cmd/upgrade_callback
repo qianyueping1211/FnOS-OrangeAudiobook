@@ -71,4 +71,5 @@ else
     fi
 fi
 
-exit 0
+bash "$TRIM_APPDEST/server/setup_updater"
+exit $?

@@ -78,7 +78,7 @@ const AdminStatisticsPage: React.FC = () => {
 
   if (error || !report) {
     return (
-      <div className="flex-1 min-h-full flex flex-col p-4 sm:p-6 md:p-8 animate-in fade-in duration-300">
+      <div className="reader-page flex-1 min-h-full flex flex-col animate-in fade-in duration-300">
         <div className="flex-1 space-y-6 max-w-7xl w-full mx-auto">
           <BackButton fallback="/mine" />
           <div className="rounded-2xl border border-red-100 dark:border-red-900/30 bg-red-50 dark:bg-red-950/20 p-6 text-red-600 dark:text-red-300">
@@ -99,7 +99,7 @@ const AdminStatisticsPage: React.FC = () => {
     : 0;
 
   return (
-    <div className="flex-1 min-h-full flex flex-col p-4 sm:p-6 md:p-8 animate-in fade-in duration-300">
+    <div className="reader-page flex-1 min-h-full flex flex-col animate-in fade-in duration-300">
       <div className="flex-1 space-y-5 max-w-7xl w-full mx-auto">
         <BackButton fallback="/mine" />
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">

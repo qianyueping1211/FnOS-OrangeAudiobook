@@ -575,7 +575,7 @@ const BookDetailPage: React.FC = () => {
 
   return (
     <div 
-      className="flex-1 min-h-full flex flex-col p-4 sm:p-6 md:p-8 animate-in slide-in-from-bottom-4 duration-500"
+      className="reader-page flex-1 min-h-full flex flex-col animate-in slide-in-from-bottom-4 duration-500"
     >
       <div className="flex-1 max-w-6xl mx-auto space-y-8 w-full">
         {/* Header */}

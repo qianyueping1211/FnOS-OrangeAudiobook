@@ -1,5 +1,5 @@
 appname               = ting-reader
-version               = 2.0.6
+version               = 2.1.0
 display_name          = ${common.displayName}
 desc                  = ${common.desc}
 arch                  = x86
@@ -10,3 +10,5 @@ distributor           = ${common.distributor}
 distributor_url       = ${common.distributorUrl}
 desktop_uidir         = ui
 desktop_applaunchname = ting-reader.main
+
+checkport             = false

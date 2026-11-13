@@ -4579,7 +4579,7 @@ dependencies = [
 
 [[package]]
 name = "ting_reader"
-version = "2.0.7"
+version = "2.1.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -4596,6 +4596,7 @@ dependencies = [
  "deno_core",
  "dirs",
  "ed25519-dalek",
+ "flate2",
  "futures",
  "hostname",
  "hyper 1.11.1",

@@ -40,7 +40,7 @@ const FavoritesPage: React.FC = () => {
   }
 
   return (
-    <div className="flex-1 min-h-full flex flex-col p-4 sm:p-6 md:p-8 animate-in fade-in duration-500">
+    <div className="reader-page flex-1 min-h-full flex flex-col animate-in fade-in duration-500">
       <div className="flex-1 space-y-6">
         <BackButton fallback="/mine" />
 

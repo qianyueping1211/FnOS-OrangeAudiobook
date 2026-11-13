@@ -1,7 +1,7 @@
 import { apiErrorMessage } from '../../core/api/errors';
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import apiClient from "../../core/api/client";
 import type { Book, Playlist, User as UserInfo } from "../../core/types";
 import type { HistorySummary } from "../../core/api/reading";
@@ -17,14 +17,27 @@ import {
   Heart,
   History,
   Info,
+  Database,
+  Puzzle,
+  Users,
+  Terminal,
+  LogOut,
+  ArrowUpCircle,
   Key,
   Save,
   Settings,
   User,
 } from "lucide-react";
 
+import { useClientExtensions } from '../../core/hooks/useClientExtensions';
+import PluginExtensionIcon from '../../shared/pluginExtensions/PluginExtensionIcon';
+
 const MyPage: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const logout = useAuthStore(state => state.logout);
+  const { registry } = useClientExtensions();
+  const pluginPages = registry.bySlot['app.sidebar_page'] || [];
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
   const currentChapter = usePlayerStore((state) => state.currentChapter);
@@ -112,8 +125,9 @@ const MyPage: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 min-h-full flex flex-col p-4 sm:p-6 md:p-8 animate-in fade-in duration-500">
+    <div className="reader-page flex-1 min-h-full flex flex-col animate-in fade-in duration-500">
       <div className="flex-1 space-y-6 max-w-5xl w-full mx-auto">
+        <header className="reader-settings-title"><h1>{t('reader.settings')}</h1><p>{t('reader.tagline')}</p></header>
         <section className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 md:p-6 shadow-sm">
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-2xl bg-primary-100 dark:bg-primary-900/30 text-primary-600 flex items-center justify-center text-2xl font-bold shrink-0">
@@ -123,9 +137,9 @@ const MyPage: React.FC = () => {
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 {t("nav.mine")}
               </p>
-              <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white truncate">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white truncate">
                 {user?.username || t("mine.defaultUser")}
-              </h1>
+              </h2>
               <p className="text-sm text-slate-500 mt-1">{t("mine.intro")}</p>
             </div>
           </div>
@@ -291,6 +305,27 @@ const MyPage: React.FC = () => {
             )}
           </div>
         </section>
+
+        {user?.role === 'admin' && <section className="space-y-3">
+          <SectionHeader title={t('nav.admin')} />
+          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl overflow-hidden">
+            <EntryItem to="/admin/libraries" icon={<Database size={22} />} title={t('reader.manageLibrary')} description={t('nav.libraries')} tone="text-primary-600 bg-primary-50 dark:bg-primary-900/20" />
+            <EntryItem to="/admin/plugins" icon={<Puzzle size={22} />} title={t('reader.managePlugins')} description={t('nav.plugins')} tone="text-primary-600 bg-primary-50 dark:bg-primary-900/20" />
+            <EntryItem to="/admin/users" icon={<Users size={22} />} title={t('reader.manageUsers')} description={t('nav.users')} tone="text-primary-600 bg-primary-50 dark:bg-primary-900/20" />
+            <EntryItem to="/admin/logs" icon={<Terminal size={22} />} title={t('reader.manageLogs')} description={t('nav.logs')} tone="text-primary-600 bg-primary-50 dark:bg-primary-900/20" />
+            <EntryItem to="/about" icon={<ArrowUpCircle size={22} />} title={t('reader.systemUpdate')} description={t('reader.hourlyCheck')} tone="text-primary-600 bg-primary-50 dark:bg-primary-900/20" />
+          </div>
+        </section>}
+        {pluginPages.length > 0 && <section className="space-y-3">
+          <SectionHeader title={t('nav.pluginPages')} />
+          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl overflow-hidden">
+            {pluginPages.map(extension => <EntryItem key={extension.pluginId + ':' + extension.capability.id}
+              to={'/plugin-pages/' + encodeURIComponent(extension.pluginId) + '/' + encodeURIComponent(extension.capability.id)}
+              icon={<PluginExtensionIcon extension={extension} size={22} />} title={extension.title || extension.pluginName || extension.capability.id}
+              description={t('nav.pluginPages')} tone="text-primary-600 bg-primary-50 dark:bg-primary-900/20" />)}
+          </div>
+        </section>}
+        <button className="reader-button w-full" type="button" onClick={() => { logout(); navigate('/login'); }}><LogOut size={17} />{t('reader.signOut')}</button>
 
         <div className="text-center text-slate-400 text-sm pt-2 pb-4">
           <Link

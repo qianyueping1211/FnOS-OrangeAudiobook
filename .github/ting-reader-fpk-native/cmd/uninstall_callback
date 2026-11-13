@@ -41,4 +41,5 @@ if contains_option "temp"; then
 fi
 
 echo "Cleanup finished."
+rm -f /etc/sudoers.d/ting-reader-updater /usr/local/libexec/ting-reader-updater
 exit 0

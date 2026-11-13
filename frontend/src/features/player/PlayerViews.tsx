@@ -105,7 +105,7 @@ export const MiniPlayerBookInfo: React.FC<MiniPlayerBookInfoProps> = ({
   isWidgetMode,
   onCoverClick,
 }) => (
-  <div className={`flex items-center gap-2 sm:gap-3 min-w-0 ${isWidgetMode ? 'max-[380px]:w-full max-[380px]:max-w-none' : ''} max-[500px]:max-w-[48px] max-[380px]:max-w-[40px] sm:max-w-[200px] md:max-w-[240px] lg:max-w-[320px] md:flex-none flex-1`}>
+  <div className={`${!isWidgetMode ? "reader-mini-info" : ""} flex items-center gap-2 sm:gap-3 min-w-0 ${isWidgetMode ? 'max-[380px]:w-full max-[380px]:max-w-none' : ''} max-[500px]:max-w-[48px] max-[380px]:max-w-[40px] sm:max-w-[200px] md:max-w-[240px] lg:max-w-[320px] md:flex-none flex-1`}>
     <div
       className={`${coverSizeClass} rounded-lg sm:rounded-xl overflow-hidden shadow-md cursor-pointer shrink-0`}
       onClick={onCoverClick}

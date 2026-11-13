@@ -3,7 +3,7 @@
         "ting-reader.main": {
             "title": "${entry.title}",
             "icon": "images/icon-{0}.png",
-            "type": "url",
+            "type": "iframe",
             "protocol": "",
             "gatewaySocket": "ting-reader.sock",
             "gatewayPrefix": "/app/ting-reader",

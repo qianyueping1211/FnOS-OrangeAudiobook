@@ -85,7 +85,7 @@ const SeriesCard: React.FC<SeriesCardProps> = ({ series, onClick, coverShape = '
   return (
     <Link 
       to={`/series/${series.id}`}
-      className="group flex flex-col relative"
+      className="reader-book-card group flex flex-col relative"
     >
       {content}
     </Link>

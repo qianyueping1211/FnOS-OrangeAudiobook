@@ -1,0 +1,13 @@
+#!/bin/bash
+set -euo pipefail
+install -d -o root -g root -m 755 /usr/local/libexec
+install -o root -g root -m 755 "$TRIM_APPDEST/server/ting-reader-updater" /usr/local/libexec/.ting-reader-updater-new
+mv -f /usr/local/libexec/.ting-reader-updater-new /usr/local/libexec/ting-reader-updater
+install -d -o root -g root -m 755 /etc/sudoers.d
+RULE="$(mktemp /etc/sudoers.d/.ting-reader-updater-XXXXXX)"
+trap 'rm -f "$RULE"' EXIT
+printf '%s\n' 'ting-reader ALL=(root) NOPASSWD: /usr/local/libexec/ting-reader-updater install, /usr/local/libexec/ting-reader-updater status' > "$RULE"
+chmod 440 "$RULE"
+chown root:root "$RULE"
+visudo -cf "$RULE"
+mv -f "$RULE" /etc/sudoers.d/ting-reader-updater

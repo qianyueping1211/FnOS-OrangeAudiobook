@@ -204,7 +204,7 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 p-4">
+    <div className="reader-login min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 p-4">
       <div className="flex-1 flex items-center justify-center w-full">
         <div className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-8 space-y-8 border border-slate-200 dark:border-slate-800">
           <div className="absolute right-5 top-5 flex gap-1">

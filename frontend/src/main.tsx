@@ -2,8 +2,13 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
 import './index.css'
+import './design/reader.css'
 import i18n from './core/i18n'
 import App from './App.tsx'
+
+const savedTheme = localStorage.getItem('theme') || 'dark';
+document.documentElement.classList.add(savedTheme === 'system'
+  ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : savedTheme);
 
 // 注册 Service Worker
 const updateSW = registerSW({

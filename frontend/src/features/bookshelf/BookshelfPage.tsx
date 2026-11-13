@@ -587,7 +587,7 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
   }
 
   return (
-    <div className="flex-1 min-h-full flex flex-col p-4 sm:p-6 md:p-8">
+    <div className="reader-page flex-1 min-h-full flex flex-col">
       <div className="flex-1 space-y-6">
         <div className="flex flex-col min-[880px]:flex-row min-[880px]:items-center justify-between gap-4 mb-2">
           <div>

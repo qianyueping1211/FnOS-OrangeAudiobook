@@ -4,22 +4,6 @@
         "items": [
             {
                 "type": "text",
-                "field": "wizard_port",
-                "label": "${install.portLabel}",
-                "initValue": "3000",
-                "rules": [
-                    {
-                        "required": true,
-                        "message": "${install.portRequired}"
-                    },
-                    {
-                        "pattern": "^[0-9]+$",
-                        "message": "${install.portPattern}"
-                    }
-                ]
-            },
-            {
-                "type": "text",
                 "field": "wizard_storage_path",
                 "label": "${install.storageLabel}",
                 "initValue": "",

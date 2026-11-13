@@ -28,15 +28,53 @@ env:
   TING_PLUGIN_STORE_VERSION: "2.0.4"
 
 jobs:
+  source:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: '1.93.1'
+          components: rustfmt
+      - name: Normalize Rust formatting in GitHub
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd backend
+          cargo fmt --all
+          cd ..
+          if ! git diff --quiet; then
+            if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+              echo "::error::Release tags must already contain formatted Rust."
+              exit 1
+            fi
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add backend
+            git commit -m "style: normalize Rust formatting for the release"
+            git push origin HEAD:main
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
   quality:
+    needs: source
+    with:
+      source_ref: ${{ needs.source.outputs.sha }}
     uses: ./.github/workflows/quality.yml
     permissions:
       contents: read
 
   native:
-    needs: quality
+    needs: [source, quality]
     runs-on: ${{ matrix.runner }}
-    container: rust:bookworm
+    container: rust:1.93.1-bookworm
     defaults:
       run:
         shell: bash
@@ -53,7 +91,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ needs.source.outputs.sha }}
 
       - name: Configure Git workspace for container steps
         run: |
@@ -140,6 +178,12 @@ jobs:
           # Print first 20 lines to verify
           head -n 20 Cargo.toml
 
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+          shared-key: native-x86_64
+          cache-on-failure: true
+
       - name: Build Backend
         run: |
           cd backend
@@ -205,6 +249,9 @@ jobs:
           curl --fail --location --retry 3 \
             "https://github.com/dqsq2e2/ting-reader-plugin-store/releases/download/v${TING_PLUGIN_STORE_VERSION}/ting-reader-plugin-store-${TING_PLUGIN_STORE_VERSION}.tr" \
             --output .github/ting-reader-fpk-native/app/server/preinstalled-plugins/ting-reader-plugin-store.tr
+          cp backend/target/${{ matrix.target }}/release/fnos-updater .github/ting-reader-fpk-native/app/server/ting-reader-updater
+          cp .github/ting-reader-fpk-native/cmd/setup_updater .github/ting-reader-fpk-native/app/server/setup_updater
+          chmod +x .github/ting-reader-fpk-native/app/server/ting-reader-updater
           chmod +x .github/ting-reader-fpk-native/app/server/ting-reader
           chmod +x .github/ting-reader-fpk-native/cmd/*
 
@@ -224,6 +271,13 @@ jobs:
           "$SERVER_DIR/ting-reader" --help
           "$SERVER_DIR/bin/ffmpeg" -hide_banner -version
           "$SERVER_DIR/bin/ffprobe" -hide_banner -version
+
+      - name: Verify gateway-only startup and protected update APIs
+        run: node .github/scripts/gateway-smoke.mjs .github/ting-reader-fpk-native/app/server/ting-reader
+
+      - name: Verify lifecycle syntax
+        run: |
+          for script in .github/ting-reader-fpk-native/cmd/*; do bash -n "$script"; done
 
       - name: Setup fnpack
         uses: ./.github/actions/setup-fnpack
@@ -278,6 +332,21 @@ jobs:
           # 还原中文版 LICENSE
           mv .github/ting-reader-fpk-native/LICENSE.bak .github/ting-reader-fpk-native/LICENSE
 
+      - name: Verify FPK integrity and write release checksums
+        run: |
+          set -euo pipefail
+          for package in ting-reader-native-*.fpk; do
+            .github/ting-reader-fpk-native/app/server/ting-reader-updater --verify "$package" "$VERSION"
+          done
+          sha256sum ting-reader-native-*.fpk > SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-fpk-x86_64
+          path: |
+            ting-reader-native-*.fpk
+            SHA256SUMS.txt
+
       - name: Update Beta Tag
         if: steps.release_context.outputs.target == 'beta'
         run: |
@@ -299,6 +368,7 @@ jobs:
           files: |
             ting-reader-native-${{ matrix.fpk_suffix }}-beta.fpk
             ting-reader-native-fygo-${{ matrix.fpk_suffix }}-beta.fpk
+            SHA256SUMS.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -319,11 +389,12 @@ jobs:
         if: steps.release_context.outputs.target == 'formal'
         with:
           tag_name: ${{ steps.release_context.outputs.release_tag }}
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ needs.source.outputs.sha }}
           body_path: RELEASE_NOTES.md
           files: |
             ting-reader-native-${{ matrix.fpk_suffix }}-${{ env.VERSION }}.fpk
             ting-reader-native-fygo-${{ matrix.fpk_suffix }}-${{ env.VERSION }}.fpk
+            SHA256SUMS.txt
           fail_on_unmatched_files: false
           overwrite_files: true
         env:

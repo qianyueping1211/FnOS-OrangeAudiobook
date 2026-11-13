@@ -1,9 +1,10 @@
 [package]
 name = "ting_reader"
-version = "2.0.7"
+version = "2.1.0"
 edition = "2024"
 rust-version = "1.93"
 license = "AGPL-3.0-only"
+default-run = "ting_reader"
 
 [dependencies]
 ting-plugin-contract = { git = "https://github.com/dqsq2e2/ting-reader-plugin-contract.git", tag = "v2.0.4", version = "2.0.4" }
@@ -106,6 +107,7 @@ jsonwebtoken = "9.2"
 rand = "0.8"
 futures = "0.3.31"
 tar = "0.4"
+flate2 = "1.1"
 zstd = "0.13"
 image = { version = "0.25.6", default-features = false, features = ["jpeg", "png", "webp"] }
 color-thief = "0.2.2"

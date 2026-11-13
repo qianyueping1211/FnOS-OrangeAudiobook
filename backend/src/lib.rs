@@ -9,6 +9,7 @@ pub mod cache;
 pub mod core;
 pub mod db;
 pub mod plugin;
+pub mod update;
 
 // Re-export commonly used types
 pub use crate::core::{Config, EventBus, TaskQueue};

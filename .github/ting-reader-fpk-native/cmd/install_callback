@@ -5,4 +5,5 @@
 DATA_DIR="${TRIM_APPDEST_VOL}/@appshare/ting-reader/data"
 mkdir -p "$DATA_DIR"
 
-exit 0
+bash "$TRIM_APPDEST/server/setup_updater"
+exit $?

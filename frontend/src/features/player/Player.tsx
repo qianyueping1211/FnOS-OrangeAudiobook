@@ -283,7 +283,7 @@ const Player: React.FC = () => {
   return (
     <div
       className={`
-        transition-all duration-500 ease-in-out
+        reader-player transition-all duration-500 ease-in-out
         ${(isHiddenPage || isSeriesEditing) && !isExpanded ? "translate-y-full opacity-0 pointer-events-none" : ""}
         ${
           isExpanded

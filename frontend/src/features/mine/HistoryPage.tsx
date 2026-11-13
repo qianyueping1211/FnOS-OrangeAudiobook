@@ -170,7 +170,7 @@ const HistoryPage: React.FC = () => {
   if (loading) return <LoadingSpinner />;
 
   return (
-    <div className="flex-1 min-h-full flex flex-col p-4 sm:p-6 md:p-8">
+    <div className="reader-page flex-1 min-h-full flex flex-col">
       <div className="flex-1 space-y-6">
         <BackButton fallback="/mine" />
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

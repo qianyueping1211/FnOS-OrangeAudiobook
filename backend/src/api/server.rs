@@ -91,6 +91,25 @@ impl ApiServer {
     ///
     /// This method will block until the server is shut down gracefully.
     pub async fn serve(self) -> anyhow::Result<()> {
+        // Native fnOS windows only use the unified Unix socket gateway.
+        #[cfg(unix)]
+        if std::env::var("FNNAS_GATEWAY_ONLY").as_deref() == Ok("1") {
+            let path = self.config.gateway_socket.as_ref()
+                .ok_or_else(|| anyhow::anyhow!("Gateway-only mode requires a Unix socket"))?;
+            if let Some(parent) = path.parent() { std::fs::create_dir_all(parent)?; }
+            if path.exists() { std::fs::remove_file(path)?; }
+            let listener = tokio::net::UnixListener::bind(path)?;
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o660))?;
+            info!(socket = %path.display(), "fnOS internal gateway listening; TCP disabled");
+            let result = tokio::select! {
+                result = serve_unix_socket(listener, self.router.clone()) => result,
+                _ = shutdown_signal() => Ok(()),
+            };
+            let _ = std::fs::remove_file(path);
+            return result;
+        }
+
         let socket_addr = match self.config.host.parse::<IpAddr>() {
             Ok(ip) => SocketAddr::new(ip, self.config.port),
             Err(_) => format!("{}:{}", self.config.host, self.config.port).parse()?,

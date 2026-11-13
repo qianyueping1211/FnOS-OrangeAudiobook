@@ -6,8 +6,6 @@ import {
   Library, 
   User,
   LogOut, 
-  Menu, 
-  X,
   Database,
   Users,
   Terminal,
@@ -38,6 +36,7 @@ import { isMiniPlayerHiddenPath } from '../../features/player/platform';
 import PluginExtensionHost from '../pluginExtensions/PluginExtensionHost';
 import PluginExtensionIcon from '../pluginExtensions/PluginExtensionIcon';
 import LoadingSpinner from '../ui/LoadingSpinner';
+import { useSystemUpdate } from '../../core/hooks/useSystemUpdate';
 
 type NavItem = {
   icon: React.ReactNode;
@@ -50,7 +49,6 @@ const Layout: React.FC = () => {
   const { t } = useTranslation();
   const { setLanguage } = useAppLanguage();
   const { refreshTheme } = useTheme(); // Initialize theme application
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isConnecting, setIsConnecting] = useState(true);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [dismissedDefaultCredentials, setDismissedDefaultCredentials] = useState<string | null>(null);
@@ -73,6 +71,7 @@ const Layout: React.FC = () => {
   const setPluginToolMenuEnabled = useUiPreferencesStore(state => state.setPluginToolMenuEnabled);
   const setBookshelfProgressEnabled = useUiPreferencesStore(state => state.setBookshelfProgressEnabled);
   const { registry: pluginExtensionRegistry } = useClientExtensions();
+  const { info: updateInfo } = useSystemUpdate(user?.role === 'admin');
 
   // Validate Token on Mount
   React.useEffect(() => {
@@ -166,7 +165,7 @@ const Layout: React.FC = () => {
     { icon: <Home size={20} />, label: t('nav.home'), path: '/' },
     { icon: <Library size={20} />, label: t('nav.bookshelf'), path: '/bookshelf', matches: ['/bookshelf', '/book/', '/series/', '/search'] },
     { icon: <ListMusic size={20} />, label: t('nav.playlists'), path: '/playlists', matches: ['/playlists'] },
-    { icon: <User size={20} />, label: t('nav.mine'), path: '/mine', matches: ['/mine', '/history', '/bookmarks', '/favorites', '/personalization', '/notifications', '/statistics', '/admin/statistics', '/cache'] },
+    { icon: <User size={20} />, label: t('reader.settings'), path: '/mine', matches: ['/mine', '/history', '/bookmarks', '/favorites', '/personalization', '/notifications', '/statistics', '/admin/statistics', '/cache', '/about', '/admin'] },
   ] satisfies NavItem[];
 
   const adminItems = [
@@ -240,180 +239,58 @@ const Layout: React.FC = () => {
     );
   }
 
-  const NavLink = ({ item, mobile = false }: { item: NavItem, mobile?: boolean }) => {
-    const isActive = item.path === '/'
+  const renderNav = (item: NavItem, mobile = false) => {
+    const active = item.path === '/'
       ? location.pathname === '/'
       : location.pathname === item.path || item.matches?.some(match => location.pathname.startsWith(match));
-    
-    if (mobile) {
-      return (
-        <Link
-          to={item.path}
-          className={`flex flex-col items-center justify-center flex-1 py-1 transition-all ${
-            isActive ? 'text-primary-600' : 'text-slate-500 dark:text-slate-400'
-          }`}
-        >
-          <div className={`p-1.5 rounded-xl transition-all ${isActive ? 'bg-primary-50 dark:bg-primary-900/20' : ''}`}>
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            {React.cloneElement(item.icon as React.ReactElement<any>, { size: 22 })}
-          </div>
-          <span className="text-[10px] font-bold mt-0.5">{item.label}</span>
-        </Link>
-      );
-    }
-
     return (
-      <Link
-        to={item.path}
-        onClick={() => setIsSidebarOpen(false)}
-        title={sidebarCollapsed ? item.label : undefined}
-        className={`flex h-12 items-center rounded-xl transition-all ${
-          sidebarCollapsed ? 'xl:justify-center xl:px-0' : 'gap-3 px-4'
-        } ${
-          isActive
-            ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/30'
-            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-        }`}
-      >
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center">
-          {item.icon}
-        </span>
-        <span className={`truncate font-medium ${sidebarCollapsed ? 'xl:hidden' : ''}`}>
-          {item.label}
-        </span>
+      <Link key={item.path} to={item.path} title={sidebarCollapsed ? item.label : undefined}
+        aria-current={active ? 'page' : undefined}
+        className={(mobile ? 'reader-tab' : 'reader-nav') + (active ? ' is-active' : '')}>
+        {item.icon}<span>{item.label}</span>
       </Link>
     );
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden">
-      {/* Sidebar Overlay */}
-      {isSidebarOpen && (
-        <div 
-          className="xl:hidden fixed inset-0 bg-slate-900/60 z-40 backdrop-blur-sm animate-in fade-in duration-300"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
-
-      {/* Sidebar */}
-      <aside className={`
-        fixed xl:sticky top-0 inset-y-0 left-0 w-72 ${sidebarCollapsed ? 'xl:w-20' : 'xl:w-72'} bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 z-[100] transform transition-[transform,width] duration-300 ease-out xl:translate-x-0
-        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-      `}>
-        <div className={`flex h-full flex-col ${sidebarCollapsed ? 'p-2' : 'p-4'}`}>
-          <div className={`relative hidden h-14 items-center py-2 xl:flex ${sidebarCollapsed ? 'justify-center px-0' : 'gap-3 px-2'}`}>
-            <img src={getRuntimeAssetUrl('/logo.png')} alt={t('common.logoAlt')} className="h-9 w-9 shrink-0 object-contain shadow-lg shadow-primary-500/10" />
-            {!sidebarCollapsed && (
-              <span className="min-w-0 flex-1 truncate whitespace-nowrap text-xl font-bold tracking-tight dark:text-white">Ting Reader</span>
-            )}
-            <button
-              type="button"
-              onClick={toggleSidebarCollapsed}
-              className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:border-primary-300 hover:text-primary-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400 dark:hover:border-primary-700 dark:hover:text-primary-300 ${sidebarCollapsed ? 'absolute -right-5 top-1/2 z-10 -translate-y-1/2' : 'ml-auto'}`}
-              title={sidebarCollapsed ? t('nav.expandSidebar') : t('nav.collapseSidebar')}
-              aria-label={sidebarCollapsed ? t('nav.expandSidebar') : t('nav.collapseSidebar')}
-            >
-              {sidebarCollapsed ? <ChevronRight size={17} /> : <ChevronLeft size={17} />}
-            </button>
-          </div>
-
-          <nav className="flex flex-1 flex-col overflow-y-auto custom-scrollbar">
-            <div className="xl:block hidden">
-              {!sidebarCollapsed && <div className="mt-1 mb-1 px-4 text-xs font-bold uppercase tracking-widest text-slate-400">{t('nav.mainMenu')}</div>}
-              {menuItems.map((item) => <NavLink key={item.path} item={item} />)}
-            </div>
-
-            {user?.role === 'admin' && (
-              <div className="xl:mt-8">
-                <div className={`text-xs font-bold text-slate-400 uppercase tracking-widest px-4 mb-2 mt-4 xl:mt-0 ${sidebarCollapsed ? 'xl:hidden' : ''}`}>{t('nav.admin')}</div>
-                {adminItems.map((item) => <NavLink key={item.path} item={item} />)}
-              </div>
-            )}
-
-            {pluginPageItems.length > 0 && (
-              <div className="mt-8">
-                <div className={`text-xs font-bold text-slate-400 uppercase tracking-widest px-4 mb-2 ${sidebarCollapsed ? 'xl:hidden' : ''}`}>{t('nav.pluginPages')}</div>
-                {pluginPageItems.map((item) => <NavLink key={item.path} item={item} />)}
-              </div>
-            )}
-          </nav>
-
-          <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-800">
-            <div className={`flex items-center bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg ${sidebarCollapsed ? 'xl:flex-col xl:gap-2' : 'justify-between'}`}>
-              <div className="flex items-center gap-3 overflow-hidden">
-                <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 shrink-0 font-bold text-sm">
-                  {user?.username.charAt(0).toUpperCase()}
-                </div>
-                <div className={`truncate ${sidebarCollapsed ? 'xl:hidden' : ''}`}>
-                  <p className="text-sm font-bold dark:text-white truncate">{user?.username}</p>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{user?.role === 'admin' ? 'Administrator' : 'User'}</p>
-                </div>
-              </div>
-              <button 
-                onClick={handleLogout}
-                className="p-2 text-slate-400 hover:text-red-500 transition-colors"
-                title={t('nav.logout')}
-              >
-                <LogOut size={20} />
-              </button>
-            </div>
-          </div>
+    <div className="reader-shell">
+      <aside className={'reader-sidebar' + (sidebarCollapsed ? ' is-collapsed' : '')} aria-label={t('nav.mainMenu')}>
+        <Link to="/" className="reader-brand">
+          <img src={getRuntimeAssetUrl('/logo.png')} alt="" />
+          <div><strong>Ting Reader</strong><small>{t('reader.tagline')}</small></div>
+        </Link>
+        <nav aria-label={t('nav.mainMenu')}>
+          {menuItems.map(item => renderNav(item))}
+          {user?.role === 'admin' && <>
+            <p className="reader-nav-label">{t('nav.admin')}</p>
+            {adminItems.map(item => renderNav(item))}
+          </>}
+          {pluginPageItems.length > 0 && <>
+            <p className="reader-nav-label">{t('nav.pluginPages')}</p>
+            {pluginPageItems.map(item => renderNav(item))}
+          </>}
+        </nav>
+        {updateInfo?.update_available && <Link to="/about" className="reader-update-badge" title={t('reader.updateFound')}>
+          <span>{sidebarCollapsed ? '↑' : t('reader.updateFound') + ' v' + updateInfo.latest_version}</span>
+        </Link>}
+        <div className="reader-account">
+          <Link to="/mine" className="reader-avatar" aria-label={t('reader.settings')}>{user?.username.charAt(0).toUpperCase()}</Link>
+          <span className="reader-account-name">{user?.username}</span>
+          <button type="button" onClick={handleLogout} className="reader-icon-button" aria-label={t('nav.logout')} title={t('nav.logout')}><LogOut size={17} /></button>
         </div>
+        <button type="button" onClick={toggleSidebarCollapsed} className="reader-sidebar-toggle"
+          aria-label={sidebarCollapsed ? t('nav.expandSidebar') : t('nav.collapseSidebar')}>
+          {sidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+        </button>
       </aside>
-
-      {/* Main Content Wrapper */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        {/* Mobile Header */}
-        <div className="xl:hidden h-16 shrink-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 z-40 pt-[env(safe-area-inset-top)]">
-          <div className="flex items-center gap-2">
-            <img src={getRuntimeAssetUrl('/logo.png')} alt={t('common.logoAlt')} className="w-9 h-9 shadow-lg shadow-primary-500/10 object-contain" />
-            <span className="font-bold text-lg dark:text-white tracking-tight">Ting Reader</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
-            >
-              {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
-          </div>
-        </div>
-
-        {/* Main Content Area */}
-        <main 
-          id="main-content" 
-          className="flex-1 overflow-y-auto relative flex flex-col min-h-0 scroll-smooth transition-colors duration-1000"
-          style={{
-            backgroundColor: 'var(--page-background, transparent)',
-            ...(isMiniPlayerHidden
-              ? {
-                  '--safe-bottom-with-player': '0px',
-                  '--safe-bottom-base': '0px',
-                }
-              : {}),
-          } as React.CSSProperties}
-        >
-          <Suspense fallback={<LoadingSpinner className="min-h-48" />}>
-            <Outlet />
-          </Suspense>
+      <div className="reader-workspace">
+        <main id="main-content" className="reader-content flex flex-col"
+          style={isMiniPlayerHidden ? { '--safe-bottom-with-player': '0px', '--safe-bottom-base': '0px' } as React.CSSProperties : undefined}>
+          <Suspense fallback={<LoadingSpinner className="min-h-48" />}><Outlet /></Suspense>
         </main>
-
-        {/* Mobile Bottom Nav */}
-        <div 
-          className="xl:hidden shrink-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 px-2 flex items-center justify-around z-40 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]"
-          style={{ 
-            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-            height: 'calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px))'
-          }}
-        >
-          {menuItems.map((item) => <NavLink key={item.path} item={item} mobile />)}
-        </div>
-
-        {/* Player - Moved inside the right-side container to prevent sidebar overlap */}
+        <nav className="reader-tabs" aria-label={t('nav.mainMenu')}>{menuItems.map(item => renderNav(item, true))}</nav>
         {hasCurrentChapter && <Player />}
-        {!location.pathname.startsWith('/plugin-pages') && (
-          <PluginExtensionHost />
-        )}
+        {!location.pathname.startsWith('/plugin-pages') && <PluginExtensionHost />}
         {user?.role === 'admin' && user.uses_default_admin_credentials &&
           dismissedDefaultCredentials !== credentialReminderIdentity && (
             <DefaultAdminCredentialsDialog
@@ -422,8 +299,7 @@ const Layout: React.FC = () => {
                 setDismissedDefaultCredentials(credentialReminderIdentity);
                 setIsExpanded(false);
                 navigate('/mine');
-              }}
-            />
+              }} />
           )}
       </div>
     </div>

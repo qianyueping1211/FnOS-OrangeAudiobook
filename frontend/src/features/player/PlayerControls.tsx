@@ -433,7 +433,7 @@ export const MiniPlayerMobileControls: React.FC<MiniPlayerMobileControlsProps> =
   const { t } = useTranslation();
   const tint = miniThemedColor(themeColor, useDarkControls);
   return (
-    <div className={`flex md:hidden items-center gap-2 sm:gap-3 flex-1 min-w-0 justify-end ${isWidgetMode ? 'max-[380px]:w-full max-[380px]:justify-center max-[380px]:gap-6 max-[380px]:flex-none' : ''}`}>
+    <div className={`${!isWidgetMode ? "reader-mobile-player-controls" : ""} flex md:hidden items-center gap-2 sm:gap-3 flex-1 min-w-0 justify-end ${isWidgetMode ? 'max-[380px]:w-full max-[380px]:justify-center max-[380px]:gap-6 max-[380px]:flex-none' : ''}`}>
       <div className={`flex-1 min-w-0 h-1.5 py-4 flex items-center w-full ${isWidgetMode ? 'max-[380px]:hidden' : ''}`}>
         <ProgressBar
           isMini

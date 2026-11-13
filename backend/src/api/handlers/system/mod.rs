@@ -1,5 +1,6 @@
 use crate::core::app::error::{ExternalErrorKind, InputErrorKind};
 mod diagnostics;
+pub mod updates;
 mod statistics;
 mod tasks;
 pub use diagnostics::{get_metrics, health_check};

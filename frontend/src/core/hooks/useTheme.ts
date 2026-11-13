@@ -4,7 +4,7 @@ import apiClient from '../api/client';
 export type Theme = 'light' | 'dark' | 'system';
 
 export const normalizeTheme = (value: unknown): Theme => (
-  value === 'light' || value === 'dark' || value === 'system' ? value : 'system'
+  value === 'light' || value === 'dark' || value === 'system' ? value : 'dark'
 );
 
 export const useTheme = () => {

@@ -4,6 +4,10 @@ on:
   pull_request:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      source_ref:
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -14,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ inputs.source_ref || github.sha }}
       - name: Install build dependencies
         run: sudo apt-get update && sudo apt-get install -y cmake clang pkg-config libssl-dev
       - uses: dtolnay/rust-toolchain@master
@@ -58,7 +62,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ inputs.source_ref || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -69,3 +73,15 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+      - name: Install UI verification tools
+        run: |
+          npm install --no-save --package-lock=false playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Verify desktop and iPhone layouts
+        run: node tests/design-ui.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: responsive-ui-screenshots
+          path: frontend/ui-artifacts/

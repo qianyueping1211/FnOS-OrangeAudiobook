@@ -248,7 +248,7 @@ const PlaylistDetailPage: React.FC = () => {
 
   if (!playlist) {
     return (
-      <div className="flex-1 min-h-full flex flex-col p-4 sm:p-6 md:p-8">
+      <div className="reader-page flex-1 min-h-full flex flex-col">
         <BackButton fallback="/playlists" />
         <div className="py-20 text-center text-slate-500">{t('playlists.notFound')}</div>
       </div>
@@ -272,7 +272,7 @@ const PlaylistDetailPage: React.FC = () => {
   const displayBooks = isManaging ? filteredBooks : filteredPlaylistBooks;
 
   return (
-    <div className="flex-1 min-h-full flex flex-col p-4 sm:p-6 md:p-8 animate-in fade-in duration-500">
+    <div className="reader-page flex-1 min-h-full flex flex-col animate-in fade-in duration-500">
       <div className="flex-1 space-y-6">
         <BackButton fallback="/playlists" />
 
