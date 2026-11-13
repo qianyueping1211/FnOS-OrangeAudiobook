@@ -160,7 +160,8 @@ async function fixture(context) {
       assert.equal(await page.getByRole('button', { name: '写入文件', exact: true }).count(), 0);
       await page.screenshot({ path: path.join(root, 'ui-artifacts', name + '-book-edit.png'), fullPage: false });
       await page.getByRole('button', { name: '保存', exact: true }).click();
-      await page.getByRole('button', { name: '保存', exact: true }).waitFor({ state: 'hidden' });
+      // The button changes its label to Saving before the async writes finish.
+      await lock.waitFor({ state: 'hidden' });
       assert.equal(metadataEdits, 1);
       assert.equal(writeCalls, 1);
       assert.equal(refreshCalls, 2);
