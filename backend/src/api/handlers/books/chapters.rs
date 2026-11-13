@@ -323,12 +323,20 @@ pub async fn refresh_book_files(
     user: crate::auth::middleware::AuthUser,
 ) -> Result<impl IntoResponse> {
     crate::api::require_admin(&user)?;
-    let book = state.book_repo.find_by_id(&book_id).await?.ok_or_else(||
-        std::io::Error::new(std::io::ErrorKind::NotFound, "Book not found"))?;
-    let library = state.library_repo.find_by_id(&book.library_id).await?.ok_or_else(||
-        std::io::Error::new(std::io::ErrorKind::NotFound, "Library not found"))?;
+    let book = state
+        .book_repo
+        .find_by_id(&book_id)
+        .await?
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "Book not found"))?;
+    let library = state
+        .library_repo
+        .find_by_id(&book.library_id)
+        .await?
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "Library not found"))?;
     if library.library_type != "local" {
-        return Err(TingError::IoError(std::io::Error::other("File refresh requires a local library")));
+        return Err(TingError::IoError(std::io::Error::other(
+            "File refresh requires a local library",
+        )));
     }
     let root = {
         let config = state.config.read().await;
@@ -336,12 +344,20 @@ pub async fn refresh_book_files(
     };
     let scanner = crate::core::library_scanner::LibraryScanner::new(
         crate::core::library_scanner::LibraryScannerDependencies {
-            book_repo: state.book_repo.clone(), chapter_repo: state.chapter_repo.clone(),
-            library_repo: state.library_repo.clone(), series_repo: state.series_repo.clone(),
-            text_cleaner: std::sync::Arc::new(crate::core::books::TextCleaner::new(Default::default())),
-            nfo_manager: state.nfo_manager.clone(), audio_streamer: state.audio_streamer.clone(),
+            book_repo: state.book_repo.clone(),
+            chapter_repo: state.chapter_repo.clone(),
+            library_repo: state.library_repo.clone(),
+            series_repo: state.series_repo.clone(),
+            text_cleaner: std::sync::Arc::new(crate::core::books::TextCleaner::new(
+                Default::default(),
+            )),
+            nfo_manager: state.nfo_manager.clone(),
+            audio_streamer: state.audio_streamer.clone(),
             plugin_manager: state.plugin_manager.clone(),
-        });
+        },
+    );
     let count = scanner.refresh_book_files(&book, &root).await?;
-    Ok(Json(serde_json::json!({ "book_id": book_id, "chapters": count })))
+    Ok(Json(
+        serde_json::json!({ "book_id": book_id, "chapters": count }),
+    ))
 }

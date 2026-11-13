@@ -67,10 +67,7 @@ impl LibraryScanner {
                     }
                 }
                 "audio_metadata" => {
-                    if let Some(meta) = self
-                        .extract_from_audio(dir, files, false)
-                        .await
-                    {
+                    if let Some(meta) = self.extract_from_audio(dir, files, false).await {
                         let mut metadata = meta;
                         if metadata.title.as_ref().is_some_and(|title| {
                             title.trim().is_empty() || title.to_lowercase().starts_with("track")
@@ -108,7 +105,9 @@ impl LibraryScanner {
                             {
                                 final_source = MetadataSource::Scraper;
                             }
-                            scraped_cover = meta.cover_url.clone().filter(|url| url.starts_with("https://") || url.starts_with("http://"));
+                            scraped_cover = meta.cover_url.clone().filter(|url| {
+                                url.starts_with("https://") || url.starts_with("http://")
+                            });
                             final_meta.merge(meta);
                         }
                     }
@@ -127,7 +126,9 @@ impl LibraryScanner {
 
         // Embedded artwork can contain distributor advertisements. Scans never
         // extract it into the book folder; a real scraper cover takes precedence.
-        if let Some(reference) = scraped_cover { final_meta.cover_url = Some(reference); }
+        if let Some(reference) = scraped_cover {
+            final_meta.cover_url = Some(reference);
+        }
 
         // 4. Validate local cover paths to ensure they exist
         if let Some(ref url) = final_meta.cover_url
@@ -484,8 +485,6 @@ impl LibraryScanner {
         }
         None
     }
-
-
 }
 
 fn build_chapter_title_candidates(files: &[PathBuf]) -> Vec<serde_json::Value> {

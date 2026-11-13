@@ -10,46 +10,71 @@ pub async fn save_remote_cover(directory: &Path, reference: &str) -> Result<Opti
         return Ok(None);
     }
     let (url, referer) = reference.split_once("#referer=").unwrap_or((reference, ""));
-    let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(30)).build()?;
-    let mut request = client.get(url).header(reqwest::header::USER_AGENT, "Mozilla/5.0");
-    if !referer.is_empty() { request = request.header(reqwest::header::REFERER, referer); }
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()?;
+    let mut request = client
+        .get(url)
+        .header(reqwest::header::USER_AGENT, "Mozilla/5.0");
+    if !referer.is_empty() {
+        request = request.header(reqwest::header::REFERER, referer);
+    }
     let mut response = request.send().await?.error_for_status()?;
     if let Some(size) = response.content_length() {
         ensure!(size <= MAX_BYTES as u64, "Cover image is too large");
     }
     let mut bytes = Vec::new();
     while let Some(chunk) = response.chunk().await? {
-        ensure!(bytes.len() + chunk.len() <= MAX_BYTES, "Cover image is too large");
+        ensure!(
+            bytes.len() + chunk.len() <= MAX_BYTES,
+            "Cover image is too large"
+        );
         bytes.extend_from_slice(&chunk);
     }
     let directory = directory.to_path_buf();
-    tokio::task::spawn_blocking(move || save_jpeg(&directory, &bytes)).await?
+    tokio::task::spawn_blocking(move || save_jpeg(&directory, &bytes))
+        .await?
         .map(Some)
 }
 
 fn save_jpeg(directory: &Path, bytes: &[u8]) -> Result<PathBuf> {
     let reader = image::ImageReader::new(Cursor::new(bytes)).with_guessed_format()?;
-    let (width, height) = reader.into_dimensions().context("Cover response is not an image")?;
-    ensure!(width > 0 && height > 0 && u64::from(width) * u64::from(height) <= 32_000_000,
-        "Invalid cover image dimensions");
+    let (width, height) = reader
+        .into_dimensions()
+        .context("Cover response is not an image")?;
+    ensure!(
+        width > 0 && height > 0 && u64::from(width) * u64::from(height) <= 32_000_000,
+        "Invalid cover image dimensions"
+    );
     let decoded = image::load_from_memory(bytes)?.to_rgb8();
     let mut jpeg = Vec::new();
     image::codecs::jpeg::JpegEncoder::new_with_quality(&mut jpeg, 92).encode_image(&decoded)?;
     let target = directory.join("cover.jpg");
-    ensure!(!target.is_symlink(), "Refusing to overwrite a cover symlink");
-    if std::fs::read(&target).ok().as_deref() == Some(jpeg.as_slice()) { return Ok(target); }
+    ensure!(
+        !target.is_symlink(),
+        "Refusing to overwrite a cover symlink"
+    );
+    if std::fs::read(&target).ok().as_deref() == Some(jpeg.as_slice()) {
+        return Ok(target);
+    }
     let temporary = directory.join(format!(".cover-{}.jpg", uuid::Uuid::new_v4()));
     let result = (|| -> Result<()> {
         let mut options = std::fs::OpenOptions::new();
         options.write(true).create_new(true);
-        #[cfg(unix)] { use std::os::unix::fs::OpenOptionsExt; options.mode(0o644); }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o644);
+        }
         let mut file = options.open(&temporary)?;
         file.write_all(&jpeg)?;
         file.sync_all()?;
         std::fs::rename(&temporary, &target)?;
         Ok(())
     })();
-    if result.is_err() { let _ = std::fs::remove_file(&temporary); }
+    if result.is_err() {
+        let _ = std::fs::remove_file(&temporary);
+    }
     result?;
     Ok(target)
 }
@@ -65,7 +90,10 @@ mod tests {
         image.write_to(&mut png, image::ImageFormat::Png).unwrap();
         let target = save_jpeg(directory.path(), png.get_ref()).unwrap();
         let saved = std::fs::read(&target).unwrap();
-        assert_eq!(image::guess_format(&saved).unwrap(), image::ImageFormat::Jpeg);
+        assert_eq!(
+            image::guess_format(&saved).unwrap(),
+            image::ImageFormat::Jpeg
+        );
         assert_eq!(image::load_from_memory(&saved).unwrap().width(), 8);
         assert!(save_jpeg(directory.path(), b"<html>advert redirect</html>").is_err());
         assert_eq!(std::fs::read(target).unwrap(), saved);

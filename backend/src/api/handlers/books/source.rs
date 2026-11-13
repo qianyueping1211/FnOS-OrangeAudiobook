@@ -275,7 +275,10 @@ pub async fn write_book_metadata_to_files(
         ));
     }
 
-    let task_id = state.task_queue.enqueue_book_metadata_write(&book, false).await?;
+    let task_id = state
+        .task_queue
+        .enqueue_book_metadata_write(&book, false)
+        .await?;
 
     Ok(Json(serde_json::json!({
         "message": "Metadata write task submitted",

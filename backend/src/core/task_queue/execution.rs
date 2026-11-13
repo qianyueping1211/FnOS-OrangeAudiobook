@@ -366,8 +366,11 @@ impl TaskQueue {
             )
             .await?;
 
-        let writing: crate::db::models::ScraperConfig = library.scraper_config.as_deref()
-            .and_then(|raw| serde_json::from_str(raw).ok()).unwrap_or_default();
+        let writing: crate::db::models::ScraperConfig = library
+            .scraper_config
+            .as_deref()
+            .and_then(|raw| serde_json::from_str(raw).ok())
+            .unwrap_or_default();
         if library.library_type == "local" && writing.audio_metadata_writing_enabled {
             for book_id in &result.changed_book_ids {
                 if let Some(book) = book_repo.find_by_id(book_id).await? {
@@ -545,17 +548,27 @@ impl TaskQueue {
 
         let automatic = data["automatic"].as_bool().unwrap_or(false);
         if automatic {
-            let config: crate::db::models::ScraperConfig = library.scraper_config.as_deref()
-                .and_then(|raw| serde_json::from_str(raw).ok()).unwrap_or_default();
-            if remote || !config.audio_metadata_writing_enabled { return Ok(()); }
+            let config: crate::db::models::ScraperConfig = library
+                .scraper_config
+                .as_deref()
+                .and_then(|raw| serde_json::from_str(raw).ok())
+                .unwrap_or_default();
+            if remote || !config.audio_metadata_writing_enabled {
+                return Ok(());
+            }
         }
         let chapters = chapter_repo.find_by_book(book_id).await?;
-        let stamp_path = self.temp_dir.join("metadata-write-state").join(format!("{}.json", {
-            use sha2::{Digest, Sha256};
-            format!("{:x}", Sha256::digest(book.id.as_bytes()))
-        }));
-        if automatic && std::fs::read_to_string(&stamp_path).ok().as_deref()
-            == Some(metadata_write_stamp(&book, &chapters).as_str()) {
+        let stamp_path = self
+            .temp_dir
+            .join("metadata-write-state")
+            .join(format!("{}.json", {
+                use sha2::{Digest, Sha256};
+                format!("{:x}", Sha256::digest(book.id.as_bytes()))
+            }));
+        if automatic
+            && std::fs::read_to_string(&stamp_path).ok().as_deref()
+                == Some(metadata_write_stamp(&book, &chapters).as_str())
+        {
             return Ok(());
         }
 
@@ -570,9 +583,12 @@ impl TaskQueue {
                     cover_path_str = None;
                 } else {
                     cover_path_str = crate::core::books::cover_file::save_remote_cover(
-                        Path::new(&book.path), url,
-                    ).await.map_err(|error| TingError::IoError(std::io::Error::other(error.to_string())))?
-                        .map(|path| path.to_string_lossy().to_string());
+                        Path::new(&book.path),
+                        url,
+                    )
+                    .await
+                    .map_err(|error| TingError::IoError(std::io::Error::other(error.to_string())))?
+                    .map(|path| path.to_string_lossy().to_string());
                 }
             } else {
                 // Local path
@@ -596,7 +612,6 @@ impl TaskQueue {
                 }
             }
         }
-
 
         let mut success_count = 0;
         let mut error_count = 0;
@@ -837,7 +852,6 @@ impl TaskQueue {
             }
         }
 
-
         let _ = self
             .task_repo
             .update_progress_key(
@@ -879,7 +893,9 @@ impl TaskQueue {
             ));
         }
         if !remote {
-            if let Some(parent) = stamp_path.parent() { tokio::fs::create_dir_all(parent).await?; }
+            if let Some(parent) = stamp_path.parent() {
+                tokio::fs::create_dir_all(parent).await?;
+            }
             tokio::fs::write(&stamp_path, metadata_write_stamp(&book, &chapters)).await?;
         }
         Ok(())
@@ -889,16 +905,24 @@ impl TaskQueue {
 fn book_write_lock(book_id: &str) -> Arc<tokio::sync::Mutex<()>> {
     type Locks = std::collections::HashMap<String, std::sync::Weak<tokio::sync::Mutex<()>>>;
     static LOCKS: std::sync::OnceLock<std::sync::Mutex<Locks>> = std::sync::OnceLock::new();
-    let mut locks = LOCKS.get_or_init(Default::default).lock().unwrap_or_else(|e| e.into_inner());
+    let mut locks = LOCKS
+        .get_or_init(Default::default)
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     locks.retain(|_, lock| lock.strong_count() > 0);
-    if let Some(lock) = locks.get(book_id).and_then(std::sync::Weak::upgrade) { return lock; }
+    if let Some(lock) = locks.get(book_id).and_then(std::sync::Weak::upgrade) {
+        return lock;
+    }
     let lock = Arc::new(tokio::sync::Mutex::new(()));
     locks.insert(book_id.to_owned(), Arc::downgrade(&lock));
     lock
 }
 
 // Include post-write file versions so filesystem watchers cannot form a write/scan loop.
-fn metadata_write_stamp(book: &crate::db::models::Book, chapters: &[crate::db::models::Chapter]) -> String {
+fn metadata_write_stamp(
+    book: &crate::db::models::Book,
+    chapters: &[crate::db::models::Chapter],
+) -> String {
     let files: Vec<_> = chapters.iter().map(|chapter| {
         let metadata = std::fs::metadata(&chapter.path).ok();
         serde_json::json!({ "path": chapter.path, "title": chapter.title, "index": chapter.chapter_index,
@@ -907,7 +931,8 @@ fn metadata_write_stamp(book: &crate::db::models::Book, chapters: &[crate::db::m
     }).collect();
     serde_json::json!({ "title": book.title, "author": book.author, "narrator": book.narrator,
         "description": book.description, "genre": book.genre, "year": book.year,
-        "cover": book.cover_url, "files": files }).to_string()
+        "cover": book.cover_url, "files": files })
+    .to_string()
 }
 
 struct TemporaryMetadataFile(PathBuf);

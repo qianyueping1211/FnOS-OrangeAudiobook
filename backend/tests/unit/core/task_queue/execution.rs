@@ -68,7 +68,10 @@ fn detects_wma_asf_header() {
 #[test]
 fn write_stamp_is_stable_after_write_and_invalidates_when_metadata_changes() {
     use super::metadata_write_stamp;
-    let book = crate::db::models::Book { title: Some("Book".into()), ..Default::default() };
+    let book = crate::db::models::Book {
+        title: Some("Book".into()),
+        ..Default::default()
+    };
     let first = metadata_write_stamp(&book, &[]);
     assert_eq!(first, metadata_write_stamp(&book, &[]));
     let mut changed = book.clone();

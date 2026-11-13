@@ -416,8 +416,14 @@ impl BookMetadataService<'_> {
                 if change == MetadataChange::Book
                     && let Some(reference) = book.cover_url.as_deref()
                 {
-                    crate::core::books::cover_file::save_remote_cover(Path::new(&book.path), reference)
-                        .await.map_err(|error| TingError::IoError(std::io::Error::other(error.to_string())))?;
+                    crate::core::books::cover_file::save_remote_cover(
+                        Path::new(&book.path),
+                        reference,
+                    )
+                    .await
+                    .map_err(|error| {
+                        TingError::IoError(std::io::Error::other(error.to_string()))
+                    })?;
                 }
                 let write_json = config.metadata_writing_enabled;
                 let write_nfo = change == MetadataChange::Book && config.nfo_writing_enabled;

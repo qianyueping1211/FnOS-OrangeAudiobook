@@ -54,7 +54,6 @@ use crate::api::handlers::{
     get_application_time_zone,
     get_book,
     get_book_chapters,
-    refresh_book_files,
     get_book_progress,
     get_cache_list,
     get_config,
@@ -107,6 +106,7 @@ use crate::api::handlers::{
     move_chapters,
     // Proxy API
     proxy_cover,
+    refresh_book_files,
     reload_plugin,
     remove_favorite,
     scan_library,

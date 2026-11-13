@@ -686,26 +686,48 @@ async fn single_book_refresh_finds_renamed_added_and_removed_files_without_repla
     std::fs::create_dir_all(&folder).unwrap();
     let library = test_support::library(&scanner, &root).await;
     let book = crate::db::models::Book {
-        id: "refresh-book".into(), library_id: library.id.clone(),
-        path: folder.to_string_lossy().into_owned(), title: Some("Locked Title".into()),
-        author: Some("Author".into()), narrator: Some("Narrator".into()),
-        manual_corrected: 1, created_at: chrono::Utc::now().to_rfc3339(),
-        hash: "refresh-hash".into(), ..Default::default()
+        id: "refresh-book".into(),
+        library_id: library.id.clone(),
+        path: folder.to_string_lossy().into_owned(),
+        title: Some("Locked Title".into()),
+        author: Some("Author".into()),
+        narrator: Some("Narrator".into()),
+        manual_corrected: 1,
+        created_at: chrono::Utc::now().to_rfc3339(),
+        hash: "refresh-hash".into(),
+        ..Default::default()
     };
     scanner.book_repo.create(&book).await.unwrap();
     std::fs::write(folder.join("01 old.strm"), "https://example.test/one").unwrap();
-    scanner.refresh_book_files(&book, &std::fs::canonicalize(&root).unwrap()).await.unwrap();
+    scanner
+        .refresh_book_files(&book, &std::fs::canonicalize(&root).unwrap())
+        .await
+        .unwrap();
     // Renaming retains the old mtime; explicit refresh must still discover the new path.
     std::fs::rename(folder.join("01 old.strm"), folder.join("01 new.strm")).unwrap();
     std::fs::write(folder.join("02 added.strm"), "https://example.test/two").unwrap();
-    scanner.refresh_book_files(&book, &std::fs::canonicalize(&root).unwrap()).await.unwrap();
+    scanner
+        .refresh_book_files(&book, &std::fs::canonicalize(&root).unwrap())
+        .await
+        .unwrap();
     let chapters = scanner.chapter_repo.find_by_book(&book.id).await.unwrap();
     assert_eq!(chapters.len(), 2);
     assert!(chapters.iter().any(|c| c.path.ends_with("01 new.strm")));
     assert!(!chapters.iter().any(|c| c.path.ends_with("01 old.strm")));
     std::fs::remove_file(folder.join("02 added.strm")).unwrap();
-    assert_eq!(scanner.refresh_book_files(&book, &std::fs::canonicalize(&root).unwrap()).await.unwrap(), 1);
-    let saved = scanner.book_repo.find_by_id(&book.id).await.unwrap().unwrap();
+    assert_eq!(
+        scanner
+            .refresh_book_files(&book, &std::fs::canonicalize(&root).unwrap())
+            .await
+            .unwrap(),
+        1
+    );
+    let saved = scanner
+        .book_repo
+        .find_by_id(&book.id)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(saved.title, book.title);
     assert_eq!(saved.narrator, book.narrator);
     assert_eq!(saved.manual_corrected, 1);

@@ -41,19 +41,35 @@ struct LocalFileSnapshot {
 
 impl LibraryScanner {
     /// Reconcile this book's files without re-scraping or replacing its locked metadata.
-    pub async fn refresh_book_files(&self, book: &crate::db::models::Book, root: &Path) -> Result<usize> {
+    pub async fn refresh_book_files(
+        &self,
+        book: &crate::db::models::Book,
+        root: &Path,
+    ) -> Result<usize> {
         let directory = std::fs::canonicalize(&book.path)?;
         crate::core::storage::local_paths::ensure_path_inside_root(root, &directory)?;
         let supported = self.get_supported_extensions().await;
         let mut files = Vec::new();
-        for entry in WalkDir::new(&directory).follow_links(false).into_iter().filter_entry(|entry| {
-            entry.depth() == 0 || !entry.file_name().to_string_lossy().starts_with('.')
-                && !entry.file_name().to_string_lossy().starts_with('@')
-        }) {
+        for entry in WalkDir::new(&directory)
+            .follow_links(false)
+            .into_iter()
+            .filter_entry(|entry| {
+                entry.depth() == 0
+                    || !entry.file_name().to_string_lossy().starts_with('.')
+                        && !entry.file_name().to_string_lossy().starts_with('@')
+            })
+        {
             let entry = entry.map_err(|error| std::io::Error::other(error.to_string()))?;
             if entry.file_type().is_file()
-                && entry.path().extension().and_then(|ext| ext.to_str())
-                    .is_some_and(|ext| supported.iter().any(|supported| supported.eq_ignore_ascii_case(ext)))
+                && entry
+                    .path()
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .is_some_and(|ext| {
+                        supported
+                            .iter()
+                            .any(|supported| supported.eq_ignore_ascii_case(ext))
+                    })
             {
                 let path = std::fs::canonicalize(entry.path())?;
                 crate::core::storage::local_paths::ensure_path_inside_root(root, &path)?;
@@ -61,15 +77,33 @@ impl LibraryScanner {
             }
         }
         files.sort_by(|a, b| natord::compare(&a.to_string_lossy(), &b.to_string_lossy()));
-        let library = self.library_repo.find_by_id(&book.library_id).await?
-            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "Library not found"))?;
-        let config: crate::db::models::ScraperConfig = library.scraper_config.as_deref()
-            .and_then(|raw| serde_json::from_str(raw).ok()).unwrap_or_default();
-        self.process_chapters(&book.id, &files, ChapterProcessingOptions {
-            last_scanned: None, task_id: None, scraper_config: &config,
-            changed_file_paths: None, json_chapters: None, chapter_title_template: None,
-            chapter_title_overrides: None, probe_embedded_chapters: true,
-        }).await?;
+        let library = self
+            .library_repo
+            .find_by_id(&book.library_id)
+            .await?
+            .ok_or_else(|| {
+                std::io::Error::new(std::io::ErrorKind::NotFound, "Library not found")
+            })?;
+        let config: crate::db::models::ScraperConfig = library
+            .scraper_config
+            .as_deref()
+            .and_then(|raw| serde_json::from_str(raw).ok())
+            .unwrap_or_default();
+        self.process_chapters(
+            &book.id,
+            &files,
+            ChapterProcessingOptions {
+                last_scanned: None,
+                task_id: None,
+                scraper_config: &config,
+                changed_file_paths: None,
+                json_chapters: None,
+                chapter_title_template: None,
+                chapter_title_overrides: None,
+                probe_embedded_chapters: true,
+            },
+        )
+        .await?;
         Ok(self.chapter_repo.find_by_book(&book.id).await?.len())
     }
 
