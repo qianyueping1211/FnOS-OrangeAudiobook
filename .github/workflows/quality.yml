@@ -79,6 +79,9 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+        env:
+          # Preview deep routes from the site root; native builds use the fnOS gateway base.
+          VITE_APP_BASE_URL: /
 
       - name: Install UI verification tools
         run: |
