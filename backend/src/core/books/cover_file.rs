@@ -46,7 +46,9 @@ fn save_jpeg(directory: &Path, bytes: &[u8]) -> Result<PathBuf> {
         width > 0 && height > 0 && u64::from(width) * u64::from(height) <= 32_000_000,
         "Invalid cover image dimensions"
     );
-    let decoded = image::load_from_memory(bytes)?.to_rgb8();
+    let decoded = image::load_from_memory(bytes)?
+        .resize_exact(600, 600, image::imageops::FilterType::Lanczos3)
+        .to_rgb8();
     let mut jpeg = Vec::new();
     image::codecs::jpeg::JpegEncoder::new_with_quality(&mut jpeg, 92).encode_image(&decoded)?;
     let target = directory.join("cover.jpg");
@@ -94,7 +96,8 @@ mod tests {
             image::guess_format(&saved).unwrap(),
             image::ImageFormat::Jpeg
         );
-        assert_eq!(image::load_from_memory(&saved).unwrap().width(), 8);
+        let decoded = image::load_from_memory(&saved).unwrap();
+        assert_eq!((decoded.width(), decoded.height()), (600, 600));
         assert!(save_jpeg(directory.path(), b"<html>advert redirect</html>").is_err());
         assert_eq!(std::fs::read(target).unwrap(), saved);
         assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 1);
