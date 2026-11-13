@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import apiClient from '../api/client';
 import { useAuthStore } from '../stores/authStore';
 
+const hourlyChecks = new Map<string, number>();
+
 export type UpdateInfo = {
   current_version: string;
   latest_version?: string;
@@ -30,7 +32,10 @@ export function useSystemUpdate(enabled: boolean) {
     const check = async () => {
       try {
         const data = await refresh(controller.signal);
-        if (data.has_token && Date.now() / 1000 - (data.checked_at || 0) >= 3600) {
+        if (data.has_token && Date.now() / 1000 - (data.checked_at || 0) >= 3600
+          && Date.now() - (hourlyChecks.get(identity) || 0) >= 3600_000) {
+          if (hourlyChecks.size > 20) hourlyChecks.clear();
+          hourlyChecks.set(identity, Date.now());
           const result = await apiClient.post<UpdateInfo>('/api/system/updates/check', {}, { signal: controller.signal });
           if (!controller.signal.aborted) setInfo(result.data);
         }

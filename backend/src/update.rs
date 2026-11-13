@@ -127,7 +127,9 @@ pub fn delete_token() -> Result<()> {
 }
 
 fn token_from(dir: &Path) -> Result<String> {
-    let value: Value = serde_json::from_slice(&private_read(&dir.join("update-token.json"))?)
+    let bytes = private_read(&dir.join("update-token.json"))
+        .map_err(|_| anyhow::anyhow!("请先保存 GitHub 私有仓库只读令牌"))?;
+    let value: Value = serde_json::from_slice(&bytes)
         .map_err(|_| anyhow::anyhow!("请先保存 GitHub 私有仓库只读令牌"))?;
     let token = value["token"]
         .as_str()

@@ -103,7 +103,7 @@ export default function HomePage() {
       <SectionTitle title={t('home.recommended')} to="/bookshelf" />
       <div className="reader-grid">{recommended.map(book => <BookCard key={book.id} book={book} coverShape={coverShape} />)}</div>
     </section>}
-    {layout.showCollections && <section className="reader-section">
+    {layout.showCollections && (playlists.length > 0 || series.length > 0) && <section className="reader-section">
       <SectionTitle title={t('home.collections')} to="/playlists" />
       {playlists.length || series.length ? <div className="reader-recent-grid">
         {playlists.slice(0, 4).map(item => <Link className="reader-recent" key={item.id} to={'/playlists/' + item.id}><ListMusic size={25} className="text-primary-500" /><div className="reader-recent-text"><strong>{item.title}</strong><small>{t('home.bookCount', { count: item.books?.length || item.book_ids?.length || 0 })}</small></div><ChevronRight size={16} /></Link>)}

@@ -55,7 +55,7 @@ jobs:
           echo "External artifact tests are listed above; they are not included in the passing test count." >> "$GITHUB_STEP_SUMMARY"
 
   frontend:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: frontend
@@ -76,10 +76,10 @@ jobs:
 
       - name: Install UI verification tools
         run: |
-          npm install --no-save --package-lock=false playwright@1.56.1
-          npx playwright install --with-deps chromium
+          npm install --prefix "$RUNNER_TEMP/ting-ui-tools" --no-save --package-lock=false playwright@1.56.1
+          "$RUNNER_TEMP/ting-ui-tools/node_modules/.bin/playwright" install --with-deps chromium
       - name: Verify desktop and iPhone layouts
-        run: node tests/design-ui.cjs
+        run: NODE_PATH="$RUNNER_TEMP/ting-ui-tools/node_modules" node tests/design-ui.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
