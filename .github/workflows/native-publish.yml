@@ -13,6 +13,8 @@ on:
     paths:
       - 'backend/**'
       - 'frontend/**'
+      - 'assets/**'
+      - 'scripts/prepare_branding.py'
       - '.github/ting-reader-fpk-native/**'
       - '.github/actions/**'
       - '.github/workflows/native-publish.yml'
@@ -45,6 +47,15 @@ jobs:
         with:
           toolchain: '1.93.1'
           components: rustfmt
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare and verify fixed application icons
+        run: |
+          python3 -m venv "$RUNNER_TEMP/orange-branding"
+          "$RUNNER_TEMP/orange-branding/bin/pip" install Pillow==11.3.0
+          "$RUNNER_TEMP/orange-branding/bin/python" scripts/prepare_branding.py
+
       - name: Normalize Rust formatting in GitHub
         id: source
         shell: bash
@@ -60,8 +71,8 @@ jobs:
             fi
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add backend
-            git commit -m "style: normalize Rust formatting for the release"
+            git add backend frontend/public .github/ting-reader-fpk-native/ICON* .github/ting-reader-fpk-native/app/ui/images
+            git commit -m "build: normalize source formatting and fixed Orange Audiobook icons"
             git push origin HEAD:main
           fi
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -341,6 +352,20 @@ jobs:
           for package in "$@"; do
             .github/ting-reader-fpk-native/app/server/ting-reader-updater --verify "$package" "$VERSION"
           done
+          python3 - <<'PY'
+          import io, tarfile
+          from pathlib import Path
+          for package in Path('.').glob('ting-reader-native-*.fpk'):
+              with tarfile.open(package) as outer:
+                  payload = outer.extractfile(next(member for member in outer.getmembers() if member.name.lstrip('./') == 'app.tgz'))
+                  assert payload is not None
+                  with tarfile.open(fileobj=io.BytesIO(payload.read())) as app:
+                      names = [member.name.lstrip('./') for member in app.getmembers()]
+                      assert not any(name.startswith('image/') or name.endswith('/poster.png') for name in names)
+                      required = ['ui/images/icon_%d.png' % size for size in (16,24,48,64,72,96,128,256)]
+                      assert all(name in names for name in required)
+          print('Verified documentation artwork is excluded and fixed fnOS icon sizes are present.')
+          PY
           sha256sum ting-reader-native-*.fpk > SHA256SUMS.txt
 
       - uses: actions/upload-artifact@v4

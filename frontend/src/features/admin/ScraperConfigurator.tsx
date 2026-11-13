@@ -60,7 +60,7 @@ const ScraperConfigurator: React.FC<Props> = ({ configStr, sources, onChange, li
   const nfoEnabled = config.nfo_writing_enabled ?? false;
   const metadataWritingEnabled = config.metadata_writing_enabled ?? false;
   const webdavMetadataWritingEnabled = config.webdav_metadata_writing_enabled ?? false;
-  const extractAudioCover = config.extract_audio_cover ?? true;
+  const audioMetadataWritingEnabled = config.audio_metadata_writing_enabled ?? false;
   const extractExtraChapters = config.extract_extra_chapters ?? true;
   const autoGenerateSeries = config.auto_generate_series ?? true;
   const disableWatcher = config.disable_watcher ?? false;
@@ -76,8 +76,8 @@ const ScraperConfigurator: React.FC<Props> = ({ configStr, sources, onChange, li
       onChange(JSON.stringify(newConfig, null, 2));
   };
 
-  const handleExtractAudioCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const newConfig: Record<string, unknown> = { ...config, extract_audio_cover: e.target.checked };
+  const handleAudioMetadataWritingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newConfig: Record<string, unknown> = { ...config, audio_metadata_writing_enabled: e.target.checked };
       onChange(JSON.stringify(newConfig, null, 2));
   };
 
@@ -205,22 +205,24 @@ const ScraperConfigurator: React.FC<Props> = ({ configStr, sources, onChange, li
           </>
         )}
 
-        {/* Extract Audio Cover - Show for all libraries */}
+        {/* Optional audio-file write-back for local libraries */}
+        {libraryType === 'local' && (
         <div className="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
           <input
             type="checkbox"
-            id="extract-audio-cover"
-            checked={extractAudioCover}
-            onChange={handleExtractAudioCoverChange}
+            id="audio-metadata-writing"
+            checked={audioMetadataWritingEnabled}
+            onChange={handleAudioMetadataWritingChange}
             className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500 cursor-pointer"
           />
           <div className="flex min-w-0 items-center gap-1.5">
-            <label htmlFor="extract-audio-cover" className="text-sm font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
-              {t('scraperConfig.extractAudioCover')}
+            <label htmlFor="audio-metadata-writing" className="text-sm font-bold text-slate-700 dark:text-slate-300 cursor-pointer">
+              {t('scraperConfig.audioMetadataWriting')}
             </label>
-            <HelpHint text={t('scraperConfig.extractAudioCoverHelp')} />
+            <HelpHint text={t('scraperConfig.audioMetadataWritingHelp')} />
           </div>
         </div>
+        )}
 
         <div className="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
           <input

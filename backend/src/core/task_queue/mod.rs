@@ -739,6 +739,31 @@ impl TaskQueue {
         self.submit(task).await
     }
 
+    /// Shared entry point for explicit edits and automatic scraper write-back.
+    pub async fn enqueue_book_metadata_write(
+        &self, book: &crate::db::models::Book, automatic: bool,
+    ) -> Result<Option<String>> {
+        if automatic {
+            let Some(libraries) = &self.library_repo else { return Ok(None); };
+            let Some(library) = libraries.find_by_id(&book.library_id).await? else { return Ok(None); };
+            let config: crate::db::models::ScraperConfig = library.scraper_config.as_deref()
+                .and_then(|raw| serde_json::from_str(raw).ok()).unwrap_or_default();
+            if library.library_type != "local" || !config.audio_metadata_writing_enabled {
+                return Ok(None);
+            }
+        }
+        let mut task = Task::new(
+            format!("写入元数据: {}", book.title.as_deref().unwrap_or_default()),
+            Priority::Normal,
+            TaskPayload::Custom { task_type: "write_metadata".into(),
+                data: serde_json::json!({ "book_id": book.id, "automatic": automatic }) },
+        );
+        // A failed file write is reviewed explicitly, never blindly retried.
+        task.retry_policy.max_retries = 1;
+        task.timeout = Duration::from_secs(86400);
+        self.submit(task).await.map(Some)
+    }
+
     async fn update_task_status(&self, task: &Task) -> Result<()> {
         self.task_repo
             .update_status(

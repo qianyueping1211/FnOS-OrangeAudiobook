@@ -215,6 +215,9 @@ pub struct ScraperConfig {
     /// Whether to write metadata to metadata.json files
     #[serde(default)]
     pub metadata_writing_enabled: bool,
+    /// Automatically write accepted metadata into local audio files.
+    #[serde(default)]
+    pub audio_metadata_writing_enabled: bool,
     /// Synchronize edited sidecars and file covers to the WebDAV book folder.
     #[serde(default)]
     pub webdav_metadata_writing_enabled: bool,
@@ -329,6 +332,7 @@ impl Default for ScraperConfig {
             tags_sources: None,
             nfo_writing_enabled: false,
             metadata_writing_enabled: false,
+            audio_metadata_writing_enabled: false,
             webdav_metadata_writing_enabled: false,
             metadata_priority: default_metadata_priority(),
             extract_audio_cover: default_extract_audio_cover(),

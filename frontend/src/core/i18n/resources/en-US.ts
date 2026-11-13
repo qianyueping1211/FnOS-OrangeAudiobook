@@ -42,9 +42,9 @@ const enUS = {
     "signOut": "Sign out"
 },
   common: {
-    appName: "Ting Reader",
+    appName: "Orange Audiobook",
     back: "Back",
-    logoAlt: "Ting Reader logo",
+    logoAlt: "Orange Audiobook logo",
     cancel: "Cancel",
     close: "Close",
     copy: "Copy",
@@ -224,7 +224,7 @@ const enUS = {
       "Configure webhooks for login, playback, library import, and deletion",
     statisticsTitle: "Statistics",
     statisticsDescription: "Usage and library reports",
-    aboutTitle: "About Ting Reader",
+    aboutTitle: "About Orange Audiobook",
     backendUpToDate: "The server is already up to date",
     checkBackendUpdateFailed:
       "Failed to check server updates. Please try again later.",
@@ -290,6 +290,8 @@ const enUS = {
     strmDirectError: "Direct playback failed. Check the network, origin, access or format.",
   },
   bookshelf: {
+    refreshFiles: "Refresh files",
+    refreshFilesFailed: "Could not refresh the book files. Please try again.",
     viewMode: "View Mode",
     gridView: "Grid (Default)",
     listView: "List",
@@ -983,6 +985,8 @@ const enUS = {
     },
   },
   scraperConfig: {
+    audioMetadataWriting: "Automatically write metadata to audio files",
+    audioMetadataWritingHelp: "After scraping, write book details and the actual cover into local audio files.",
     priority: "Priority",
     default: "Default",
     cover: "Cover",

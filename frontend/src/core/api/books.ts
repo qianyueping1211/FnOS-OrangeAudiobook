@@ -125,6 +125,11 @@ export class BookOperations {
       { filename, chapter_number: number, chapter_title: title }, { signal })).data);
   }
 
+  refreshFiles(id: string) {
+    return this.run(signal => this.api.post(
+      `/api/books/${encodeURIComponent(id)}/refresh-files`, null, { signal }));
+  }
+
   writeMetadata(id: string) {
     return this.run(signal => this.api.post(`/api/books/${encodeURIComponent(id)}/write-metadata`, null, { signal }));
   }

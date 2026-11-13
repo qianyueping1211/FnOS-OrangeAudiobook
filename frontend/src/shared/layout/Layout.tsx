@@ -257,7 +257,7 @@ const Layout: React.FC = () => {
       <aside className={'reader-sidebar' + (sidebarCollapsed ? ' is-collapsed' : '')} aria-label={t('nav.mainMenu')}>
         <Link to="/" className="reader-brand">
           <img src={getRuntimeAssetUrl('/logo.png')} alt="" />
-          <div><strong>Ting Reader</strong><small>{t('reader.tagline')}</small></div>
+          <div><strong>{t('common.appName')}</strong><small>{t('reader.tagline')}</small></div>
         </Link>
         <nav aria-label={t('nav.mainMenu')}>
           {menuItems.map(item => renderNav(item))}

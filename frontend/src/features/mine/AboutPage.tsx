@@ -16,7 +16,7 @@ export default function AboutPage() {
       {user?.role === 'admin' && <SystemUpdatePanel />}
       <section className="mt-6 reader-update-panel flex items-center gap-4">
         <img src={getRuntimeAssetUrl('/logo.png')} alt="" className="w-12 h-12 object-contain" />
-        <div><strong>Ting Reader</strong><p className="reader-help">{t('reader.tagline')} · v{CLIENT_VERSION}</p></div>
+        <div><strong>{t('common.appName')}</strong><p className="reader-help">{t('reader.tagline')} · v{CLIENT_VERSION}</p></div>
       </section>
       <details className="reader-help mt-6"><summary>{t('reader.openSource')}</summary><p className="mt-3">Ting Reader · AGPL-3.0-only</p>
         <a className="underline" href="https://github.com/dqsq2e2/ting-reader" target="_blank" rel="noreferrer">dqsq2e2/ting-reader</a>

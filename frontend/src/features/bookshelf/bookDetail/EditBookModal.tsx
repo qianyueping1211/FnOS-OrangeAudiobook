@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileSignature, Loader2, Save, Trash2, Upload, Wand2, X } from 'lucide-react';
+import { Loader2, Save, Trash2, Upload, Wand2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Book } from '../../../core/types';
 import type { RegexGenerationResult } from '../../../core/api/books';
@@ -29,8 +29,6 @@ interface Props {
   onClose: () => void;
   onDelete: () => void;
   onSave: () => void;
-  onWriteMetadata: () => void;
-  showWriteMetadata?: boolean;
 }
 
 const EditBookModal: React.FC<Props> = ({
@@ -58,8 +56,6 @@ const EditBookModal: React.FC<Props> = ({
   onClose,
   onDelete,
   onSave,
-  onWriteMetadata,
-  showWriteMetadata = true,
 }) => {
   const { t } = useTranslation();
   const [locationExpanded, setLocationExpanded] = React.useState(false);
@@ -402,17 +398,6 @@ const EditBookModal: React.FC<Props> = ({
             </button>
             <div className="flex-1" />
             <div className="flex gap-2 sm:gap-3">
-              {showWriteMetadata && (
-                <button
-                  onClick={onWriteMetadata}
-                  disabled={saving}
-                  className="flex-1 sm:flex-none px-2.5 sm:px-6 py-2.5 sm:py-3 font-bold text-primary-600 bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/20 dark:hover:bg-primary-900/30 rounded-xl transition-all flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-base whitespace-nowrap"
-                  title={t('bookshelf.writeMetadataTitle')}
-                >
-                  <FileSignature size={16} className="sm:w-5 sm:h-5" />
-                  {t('bookshelf.writeFile')}
-                </button>
-              )}
               <button
                 onClick={onClose}
                 disabled={saving}

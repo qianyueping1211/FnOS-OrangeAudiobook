@@ -54,6 +54,7 @@ use crate::api::handlers::{
     get_application_time_zone,
     get_book,
     get_book_chapters,
+    refresh_book_files,
     get_book_progress,
     get_cache_list,
     get_config,
@@ -290,6 +291,7 @@ pub fn build_api_routes(state: AppState) -> Router {
                 .patch(update_book)
                 .delete(delete_book),
         )
+        .route("/api/v1/books/:id/refresh-files", post(refresh_book_files))
         .route("/api/v1/books/:id/scrape-diff", post(scrape_book_diff))
         .route(
             "/api/v1/books/:id/cover",
@@ -404,6 +406,7 @@ pub fn build_api_routes(state: AppState) -> Router {
                 .patch(update_book)
                 .delete(delete_book),
         )
+        .route("/api/books/:id/refresh-files", post(refresh_book_files))
         .route("/api/books/:id/scrape-diff", post(scrape_book_diff))
         .route(
             "/api/books/:id/cover",

@@ -6,7 +6,6 @@ use crate::core::app::error::{Result, TingError};
 use crate::core::storage::local_paths::{
     ensure_path_inside_root, resolve_existing_local_library_root,
 };
-use crate::core::task_queue::{Priority, Task, TaskPayload};
 use crate::db::models::Book;
 use crate::db::repository::Repository;
 use axum::{
@@ -276,26 +275,7 @@ pub async fn write_book_metadata_to_files(
         ));
     }
 
-    // Create task
-    let mut task = Task::new(
-        format!("写入元数据: {}", book.title.unwrap_or_default()),
-        Priority::Normal,
-        TaskPayload::Custom {
-            task_type: "write_metadata".to_string(),
-            data: serde_json::json!({
-                "book_id": id
-            }),
-        },
-    );
-    if library.library_type == "webdav" {
-        // A retry must be explicitly requested after reviewing which remote
-        // chapters completed, rather than rewriting successful chapters again.
-        // The queue counts the initial failed attempt toward this limit.
-        task.retry_policy.max_retries = 1;
-        task.timeout = std::time::Duration::from_secs(86400);
-    }
-
-    let task_id = state.task_queue.submit(task).await?;
+    let task_id = state.task_queue.enqueue_book_metadata_write(&book, false).await?;
 
     Ok(Json(serde_json::json!({
         "message": "Metadata write task submitted",

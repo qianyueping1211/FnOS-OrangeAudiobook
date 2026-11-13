@@ -64,3 +64,26 @@ fn detects_wma_asf_header() {
     assert_eq!(detect_audio_format(&path).as_deref(), Some("wma"));
     fs::remove_file(path).unwrap();
 }
+
+#[test]
+fn write_stamp_is_stable_after_write_and_invalidates_when_metadata_changes() {
+    use super::metadata_write_stamp;
+    let book = crate::db::models::Book { title: Some("Book".into()), ..Default::default() };
+    let first = metadata_write_stamp(&book, &[]);
+    assert_eq!(first, metadata_write_stamp(&book, &[]));
+    let mut changed = book.clone();
+    changed.description = Some("Updated description".into());
+    assert_ne!(first, metadata_write_stamp(&changed, &[]));
+    changed = book.clone();
+    changed.created_at = "scanner bookkeeping changed".into();
+    assert_eq!(first, metadata_write_stamp(&changed, &[]));
+}
+
+#[tokio::test]
+async fn metadata_tasks_for_one_book_share_the_same_lock() {
+    let first = super::book_write_lock("same-book");
+    let second = super::book_write_lock("same-book");
+    let _guard = first.lock().await;
+    assert!(second.try_lock().is_err());
+    assert!(super::book_write_lock("other-book").try_lock().is_ok());
+}

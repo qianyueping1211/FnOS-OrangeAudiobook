@@ -15,6 +15,7 @@ impl LibraryScanner {
     ) -> (ScannedMetadata, MetadataSource) {
         let mut final_meta = ScannedMetadata::default();
         let mut final_source = MetadataSource::Fallback;
+        let mut scraped_cover = None;
 
         // 0. Base: Directory Name
         let dir_name = dir
@@ -67,7 +68,7 @@ impl LibraryScanner {
                 }
                 "audio_metadata" => {
                     if let Some(meta) = self
-                        .extract_from_audio(dir, files, scraper_config.extract_audio_cover)
+                        .extract_from_audio(dir, files, false)
                         .await
                     {
                         let mut metadata = meta;
@@ -107,6 +108,7 @@ impl LibraryScanner {
                             {
                                 final_source = MetadataSource::Scraper;
                             }
+                            scraped_cover = meta.cover_url.clone().filter(|url| url.starts_with("https://") || url.starts_with("http://"));
                             final_meta.merge(meta);
                         }
                     }
@@ -123,25 +125,9 @@ impl LibraryScanner {
             final_meta.cover_url = Some(path);
         }
 
-        // 3. Fallback Cover Extraction (if still no cover, extract from ID3 and save)
-        // This runs only if cover is still missing, regardless of priority,
-        // because if "audio_metadata" was high priority, it would have set cover_url from plugin/id3.
-        if scraper_config.extract_audio_cover && final_meta.cover_url.is_none() && !files.is_empty()
-        {
-            let first_file = &files[0];
-            // We've already tried extracting cover in extract_from_audio above for both standard and non-standard.
-            // This is a final fallback just in case the file wasn't picked up by the priority system.
-            if let Some(path) = self.extract_and_save_cover(first_file, dir).await {
-                final_meta.cover_url = Some(path);
-            } else {
-                // Try extracting cover from non-standard files (like .xm) via plugin
-                if let Some(meta) = self.extract_from_audio(dir, files, true).await
-                    && meta.cover_url.is_some()
-                {
-                    final_meta.cover_url = meta.cover_url;
-                }
-            }
-        }
+        // Embedded artwork can contain distributor advertisements. Scans never
+        // extract it into the book folder; a real scraper cover takes precedence.
+        if let Some(reference) = scraped_cover { final_meta.cover_url = Some(reference); }
 
         // 4. Validate local cover paths to ensure they exist
         if let Some(ref url) = final_meta.cover_url
@@ -499,15 +485,7 @@ impl LibraryScanner {
         None
     }
 
-    async fn extract_and_save_cover(&self, audio_path: &Path, book_dir: &Path) -> Option<String> {
-        crate::core::audio::AudioService::read_file_metadata(
-            &crate::core::audio::metadata::AudioInput::local(audio_path),
-            Some(book_dir),
-        )
-        .await
-        .ok()
-        .and_then(|metadata| metadata.cover_url)
-    }
+
 }
 
 fn build_chapter_title_candidates(files: &[PathBuf]) -> Vec<serde_json::Value> {

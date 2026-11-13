@@ -338,3 +338,19 @@ test('third-party STRM and cover URLs keep their original origin', () => {
   assert.equal(getRuntimeAssetUrl(url), url);
   assert.equal(getRuntimeUrl('/api/books', 'http://localhost:3000/'), 'http://localhost:3000/api/books');
 });
+
+test('file refresh addresses only the selected book and uses its own mutation', async () => {
+  const requests: string[] = [];
+  const api = axios.create({ adapter: async request => {
+    requests.push(request.method + ' ' + request.url);
+    return { data: { chapters: 2 }, status: 200, statusText: 'OK', headers: {}, config: request };
+  } });
+  const owner = new BookOperations(api);
+  await owner.refreshFiles('selected/book');
+  await owner.writeMetadata('selected/book');
+  assert.deepEqual(requests, [
+    'post /api/books/selected%2Fbook/refresh-files',
+    'post /api/books/selected%2Fbook/write-metadata',
+  ]);
+  owner.dispose();
+});

@@ -2,6 +2,7 @@
 
 pub mod bookmarks;
 pub mod color;
+pub mod cover_file;
 pub mod merge_service;
 pub mod metadata;
 pub mod nfo_manager;

@@ -366,6 +366,16 @@ impl TaskQueue {
             )
             .await?;
 
+        let writing: crate::db::models::ScraperConfig = library.scraper_config.as_deref()
+            .and_then(|raw| serde_json::from_str(raw).ok()).unwrap_or_default();
+        if library.library_type == "local" && writing.audio_metadata_writing_enabled {
+            for book_id in &result.changed_book_ids {
+                if let Some(book) = book_repo.find_by_id(book_id).await? {
+                    self.enqueue_book_metadata_write(&book, true).await?;
+                }
+            }
+        }
+
         info!(
             message_key = "scan.library.completed",
             message_params = %serde_json::json!({
@@ -458,6 +468,8 @@ impl TaskQueue {
             )
         })?;
 
+        let write_lock = book_write_lock(book_id);
+        let _write_guard = write_lock.lock().await;
         info!(book_id = %book_id, "Handling write metadata task");
 
         // Get repositories
@@ -531,9 +543,24 @@ impl TaskQueue {
         };
         let key = self.encryption_key.as_deref().unwrap_or(&[0; 32]);
 
+        let automatic = data["automatic"].as_bool().unwrap_or(false);
+        if automatic {
+            let config: crate::db::models::ScraperConfig = library.scraper_config.as_deref()
+                .and_then(|raw| serde_json::from_str(raw).ok()).unwrap_or_default();
+            if remote || !config.audio_metadata_writing_enabled { return Ok(()); }
+        }
+        let chapters = chapter_repo.find_by_book(book_id).await?;
+        let stamp_path = self.temp_dir.join("metadata-write-state").join(format!("{}.json", {
+            use sha2::{Digest, Sha256};
+            format!("{:x}", Sha256::digest(book.id.as_bytes()))
+        }));
+        if automatic && std::fs::read_to_string(&stamp_path).ok().as_deref()
+            == Some(metadata_write_stamp(&book, &chapters).as_str()) {
+            return Ok(());
+        }
+
         // Resolve cover path
         let mut cover_path_str = None;
-        let mut temp_cover_path = None;
 
         if let Some(ref url) = book.cover_url {
             if crate::core::books::metadata::is_cover_url(url) {
@@ -542,95 +569,10 @@ impl TaskQueue {
                     // only embeds file covers already held in the book cache.
                     cover_path_str = None;
                 } else {
-                    // Download to temp
-                    let temp_dir = self.temp_dir.join("ting-reader-covers");
-                    if !temp_dir.exists() {
-                        tokio::fs::create_dir_all(&temp_dir)
-                            .await
-                            .map_err(crate::core::app::error::TingError::IoError)?;
-                    }
-
-                    let mut fetch_url = url.clone();
-                    let mut referer = "".to_string();
-                    if let Some(idx) = fetch_url.find("#referer=") {
-                        referer = fetch_url[idx + 9..].to_string();
-                        fetch_url = fetch_url[..idx].to_string();
-                    }
-
-                    let ext = std::path::Path::new(&fetch_url)
-                        .extension()
-                        .and_then(|e| e.to_str())
-                        .unwrap_or("jpg");
-                    let file_name = format!("{}.{}", Uuid::new_v4(), ext);
-                    let path = temp_dir.join(file_name);
-
-                    // Download
-                    let client = reqwest::Client::builder()
-                        .timeout(std::time::Duration::from_secs(30))
-                        .build()
-                        .map_err(|error| {
-                            let message = error.to_string();
-                            TingError::network(
-                                NetworkErrorKind::Transport,
-                                "handle_write_metadata::network",
-                                message,
-                            )
-                            .with_source(anyhow::anyhow!(error))
-                        })?;
-                    let mut req = client.get(&fetch_url).header(
-                        reqwest::header::USER_AGENT,
-                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                    );
-                    if !referer.is_empty() {
-                        req = req.header(reqwest::header::REFERER, referer);
-                    }
-
-                    let mut response = req
-                        .send()
-                        .await
-                        .and_then(reqwest::Response::error_for_status)
-                        .map_err(|error| {
-                            let message = error.to_string();
-                            TingError::network(
-                                NetworkErrorKind::Transport,
-                                "handle_write_metadata::network",
-                                message,
-                            )
-                            .with_source(anyhow::anyhow!(error))
-                        })?;
-                    let mut bytes = Vec::new();
-                    while let Some(chunk) = response.chunk().await.map_err(|error| {
-                        let message = error.to_string();
-                        TingError::network(
-                            NetworkErrorKind::Transport,
-                            "handle_write_metadata::network",
-                            message,
-                        )
-                        .with_source(anyhow::anyhow!(error))
-                    })? {
-                        if bytes.len() + chunk.len() > crate::core::audio::metadata::MAX_COVER_BYTES
-                        {
-                            return Err(TingError::invalid_request(
-                                InputErrorKind::OutOfRange,
-                                "handle_write_metadata::invalid_request",
-                                "Metadata cover is too large".into(),
-                            ));
-                        }
-                        bytes.extend_from_slice(&chunk);
-                    }
-                    let temporary = tokio::task::spawn_blocking(move || {
-                        let temporary = TemporaryMetadataFile(path);
-                        std::fs::write(&temporary.0, bytes)?;
-                        Ok::<_, TingError>(temporary)
-                    })
-                    .await
-                    .map_err(|error| {
-                        let message = error.to_string();
-                        TingError::task(TaskErrorKind::Join, "handle_write_metadata::task", message)
-                            .with_source(anyhow::anyhow!(error))
-                    })??;
-                    cover_path_str = Some(temporary.0.to_string_lossy().to_string());
-                    temp_cover_path = Some(temporary);
+                    cover_path_str = crate::core::books::cover_file::save_remote_cover(
+                        Path::new(&book.path), url,
+                    ).await.map_err(|error| TingError::IoError(std::io::Error::other(error.to_string())))?
+                        .map(|path| path.to_string_lossy().to_string());
                 }
             } else {
                 // Local path
@@ -655,8 +597,6 @@ impl TaskQueue {
             }
         }
 
-        // Get chapters
-        let chapters = chapter_repo.find_by_book(book_id).await?;
 
         let mut success_count = 0;
         let mut error_count = 0;
@@ -897,8 +837,6 @@ impl TaskQueue {
             }
         }
 
-        // Cleanup temp cover
-        drop(temp_cover_path);
 
         let _ = self
             .task_repo
@@ -940,8 +878,36 @@ impl TaskQueue {
                 ),
             ));
         }
+        if !remote {
+            if let Some(parent) = stamp_path.parent() { tokio::fs::create_dir_all(parent).await?; }
+            tokio::fs::write(&stamp_path, metadata_write_stamp(&book, &chapters)).await?;
+        }
         Ok(())
     }
+}
+
+fn book_write_lock(book_id: &str) -> Arc<tokio::sync::Mutex<()>> {
+    type Locks = std::collections::HashMap<String, std::sync::Weak<tokio::sync::Mutex<()>>>;
+    static LOCKS: std::sync::OnceLock<std::sync::Mutex<Locks>> = std::sync::OnceLock::new();
+    let mut locks = LOCKS.get_or_init(Default::default).lock().unwrap_or_else(|e| e.into_inner());
+    locks.retain(|_, lock| lock.strong_count() > 0);
+    if let Some(lock) = locks.get(book_id).and_then(std::sync::Weak::upgrade) { return lock; }
+    let lock = Arc::new(tokio::sync::Mutex::new(()));
+    locks.insert(book_id.to_owned(), Arc::downgrade(&lock));
+    lock
+}
+
+// Include post-write file versions so filesystem watchers cannot form a write/scan loop.
+fn metadata_write_stamp(book: &crate::db::models::Book, chapters: &[crate::db::models::Chapter]) -> String {
+    let files: Vec<_> = chapters.iter().map(|chapter| {
+        let metadata = std::fs::metadata(&chapter.path).ok();
+        serde_json::json!({ "path": chapter.path, "title": chapter.title, "index": chapter.chapter_index,
+            "size": metadata.as_ref().map(|m| m.len()),
+            "modified": metadata.and_then(|m| m.modified().ok()).and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_nanos().to_string()) })
+    }).collect();
+    serde_json::json!({ "title": book.title, "author": book.author, "narrator": book.narrator,
+        "description": book.description, "genre": book.genre, "year": book.year,
+        "cover": book.cover_url, "files": files }).to_string()
 }
 
 struct TemporaryMetadataFile(PathBuf);

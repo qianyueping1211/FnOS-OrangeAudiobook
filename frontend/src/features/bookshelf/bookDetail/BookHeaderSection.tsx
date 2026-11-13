@@ -41,6 +41,8 @@ interface Props {
   onPlayClick: () => void;
   onToggleFavorite: () => void;
   onOpenScrapeDiff: () => void;
+  onRefreshFiles: () => void;
+  refreshingFiles: boolean;
   onOpenEditModal: () => void;
   onSetIsTagsExpanded: (expanded: boolean) => void;
   onSetIsDescriptionExpanded: (expanded: boolean) => void;
@@ -69,6 +71,8 @@ const BookHeaderSection: React.FC<Props> = ({
   onPlayClick,
   onToggleFavorite,
   onOpenScrapeDiff,
+  onRefreshFiles,
+  refreshingFiles,
   onOpenEditModal,
   onSetIsTagsExpanded,
   onSetIsDescriptionExpanded,
@@ -94,8 +98,9 @@ const BookHeaderSection: React.FC<Props> = ({
   const editLabel = t("common.edit");
   const moreLabel = t("bookshelf.more");
   const canEditMetadata = isAdmin;
+  const canRefreshFiles = isAdmin && book.library_type === "local";
   const actionButtonLabels = canEditMetadata
-    ? [favoriteLabel, scrapeLabel, editLabel, moreLabel]
+    ? [favoriteLabel, scrapeLabel, ...(canRefreshFiles ? [t("bookshelf.refreshFiles")] : []), editLabel, moreLabel]
     : [favoriteLabel, moreLabel];
   const actionButtonWidthLabels = canEditMetadata
     ? [
@@ -295,6 +300,14 @@ const BookHeaderSection: React.FC<Props> = ({
                     {scrapeLabel}
                   </span>
                 </button>
+                {canRefreshFiles && (
+                  <button type="button" onClick={onRefreshFiles} disabled={refreshingFiles}
+                    title={t("bookshelf.refreshFiles")}
+                    className="w-full min-w-0 px-1.5 py-2.5 rounded-xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-300 hover:text-primary-600 disabled:opacity-50 flex items-center justify-center gap-1 font-bold text-[11px] lg:text-sm whitespace-nowrap">
+                    <RefreshCw size={18} className={refreshingFiles ? "animate-spin shrink-0" : "shrink-0"} />
+                    <span className="hidden min-[380px]:inline">{t("bookshelf.refreshFiles")}</span>
+                  </button>
+                )}
                 <button
                   onClick={onOpenEditModal}
                   className="w-full min-w-0 px-1.5 min-[430px]:px-2 lg:px-4 py-2.5 lg:py-3 rounded-xl lg:rounded-2xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-300 hover:text-primary-600 transition-all active:scale-95 flex items-center justify-center gap-1 min-[430px]:gap-1.5 lg:gap-2 font-bold text-[11px] min-[430px]:text-xs lg:text-sm whitespace-nowrap"

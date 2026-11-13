@@ -1,7 +1,7 @@
 use crate::core::app::error::LookupErrorKind;
 mod chapters;
 mod source;
-pub use chapters::{batch_update_chapters, get_book_chapters, move_chapters, update_chapter};
+pub use chapters::{batch_update_chapters, get_book_chapters, move_chapters, refresh_book_files, update_chapter};
 pub use source::{DeleteBookQuery, delete_book, write_book_metadata_to_files};
 
 mod cover;

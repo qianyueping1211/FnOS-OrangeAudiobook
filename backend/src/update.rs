@@ -13,7 +13,7 @@ use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-const REPO: &str = "qianyueping1211/ting-reader";
+const REPO: &str = "qianyueping1211/FnOS-OrangeAudiobook";
 const APP: &str = "ting-reader";
 const ROOT: &str = "/var/lib/ting-reader-updater";
 const DATA: &str = "/var/apps/ting-reader/var";

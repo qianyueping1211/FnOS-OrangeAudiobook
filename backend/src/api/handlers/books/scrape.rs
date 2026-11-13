@@ -414,6 +414,7 @@ pub async fn apply_scrape_result(
             .sync(&book, MetadataChange::Book, &extended)
             .await?;
 
+        state.task_queue.enqueue_book_metadata_write(&book, true).await?;
         return Ok(Json(BookResponse::from(book)));
     }
 
@@ -529,6 +530,7 @@ pub async fn apply_scrape_result(
     // Handle chapter updates if any (req.apply_chapters)
     // Since we don't have scraped chapters yet, we skip this for now.
 
+    state.task_queue.enqueue_book_metadata_write(&book, true).await?;
     Ok(Json(BookResponse::from(book)))
 }
 

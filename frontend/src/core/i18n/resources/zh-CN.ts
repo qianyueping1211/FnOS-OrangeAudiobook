@@ -42,9 +42,9 @@ const zhCN = {
     "signOut": "退出登录"
 },
   common: {
-    appName: "Ting Reader",
+    appName: "橙子听书",
     back: "返回",
-    logoAlt: "Ting Reader 标志",
+    logoAlt: "橙子听书图标",
     cancel: "取消",
     close: "关闭",
     copy: "复制",
@@ -211,7 +211,7 @@ const zhCN = {
     notificationDescription: "配置 Webhook 监听登录、播放、入库和删除",
     statisticsTitle: "数据统计",
     statisticsDescription: "用户使用情况与馆藏报表",
-    aboutTitle: "关于 Ting Reader",
+    aboutTitle: "关于橙子听书",
     backendUpToDate: "服务端已是最新版本",
     checkBackendUpdateFailed: "检查服务端更新失败，请稍后重试",
     backendVersion: "服务端版本",
@@ -275,6 +275,8 @@ const zhCN = {
     strmDirectError: "音源直连失败，可能是网络、跨域、鉴权或格式问题",
   },
   bookshelf: {
+    refreshFiles: "刷新文件",
+    refreshFilesFailed: "刷新文件列表失败，请稍后重试",
     viewMode: "展示模式",
     gridView: "网格（默认）",
     listView: "列表",
@@ -941,6 +943,8 @@ const zhCN = {
     },
   },
   scraperConfig: {
+    audioMetadataWriting: "自动将元数据写入音频文件",
+    audioMetadataWritingHelp: "刮削保存后，将书名、作者、演播、简介与真实封面写入音频文件。",
     priority: "优先级",
     default: "默认",
     cover: "封面",

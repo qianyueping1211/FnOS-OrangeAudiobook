@@ -1,11 +1,11 @@
 appname               = ting-reader
-version               = 2.1.2
+version               = 2.2.0
 display_name          = ${common.displayName}
 desc                  = ${common.desc}
 arch                  = x86
 source                = thirdparty
 maintainer            = ${common.maintainer}
-maintainer_url        = https://github.com/dqsq2e2/ting-reader
+maintainer_url        = https://github.com/qianyueping1211/FnOS-OrangeAudiobook
 distributor           = ${common.distributor}
 distributor_url       = ${common.distributorUrl}
 desktop_uidir         = ui

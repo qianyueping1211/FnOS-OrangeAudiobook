@@ -674,3 +674,51 @@ async fn single_file_m4b_without_chapters_keeps_one_whole_file_chapter() {
     assert_eq!(chapters[0].start_time, Some(0));
     assert_eq!(chapters[0].end_time, Some(180_000));
 }
+
+#[tokio::test]
+async fn single_book_refresh_finds_renamed_added_and_removed_files_without_replacing_metadata() {
+    use crate::core::library_scanner::test_support;
+    use crate::db::repository::Repository;
+    let directory = tempfile::tempdir().unwrap();
+    let scanner = test_support::scanner(directory.path());
+    let root = directory.path().join("library");
+    let folder = root.join("Book");
+    std::fs::create_dir_all(&folder).unwrap();
+    let library = test_support::library(&scanner, &root).await;
+    let book = crate::db::models::Book {
+        id: "refresh-book".into(), library_id: library.id.clone(),
+        path: folder.to_string_lossy().into_owned(), title: Some("Locked Title".into()),
+        author: Some("Author".into()), narrator: Some("Narrator".into()),
+        manual_corrected: 1, created_at: chrono::Utc::now().to_rfc3339(),
+        hash: "refresh-hash".into(), ..Default::default()
+    };
+    scanner.book_repo.create(&book).await.unwrap();
+    std::fs::write(folder.join("01 old.strm"), "https://example.test/one").unwrap();
+    scanner.refresh_book_files(&book, &std::fs::canonicalize(&root).unwrap()).await.unwrap();
+    // Renaming retains the old mtime; explicit refresh must still discover the new path.
+    std::fs::rename(folder.join("01 old.strm"), folder.join("01 new.strm")).unwrap();
+    std::fs::write(folder.join("02 added.strm"), "https://example.test/two").unwrap();
+    scanner.refresh_book_files(&book, &std::fs::canonicalize(&root).unwrap()).await.unwrap();
+    let chapters = scanner.chapter_repo.find_by_book(&book.id).await.unwrap();
+    assert_eq!(chapters.len(), 2);
+    assert!(chapters.iter().any(|c| c.path.ends_with("01 new.strm")));
+    assert!(!chapters.iter().any(|c| c.path.ends_with("01 old.strm")));
+    std::fs::remove_file(folder.join("02 added.strm")).unwrap();
+    assert_eq!(scanner.refresh_book_files(&book, &std::fs::canonicalize(&root).unwrap()).await.unwrap(), 1);
+    let saved = scanner.book_repo.find_by_id(&book.id).await.unwrap().unwrap();
+    assert_eq!(saved.title, book.title);
+    assert_eq!(saved.narrator, book.narrator);
+    assert_eq!(saved.manual_corrected, 1);
+    assert!(!folder.join("cover.jpg").exists());
+}
+
+#[test]
+fn audio_metadata_write_back_is_opt_in_for_new_and_legacy_configs() {
+    let default = crate::db::models::ScraperConfig::default();
+    assert!(!default.audio_metadata_writing_enabled);
+    let legacy: crate::db::models::ScraperConfig = serde_json::from_str("{}").unwrap();
+    assert!(!legacy.audio_metadata_writing_enabled);
+    let enabled: crate::db::models::ScraperConfig =
+        serde_json::from_str(r#"{"audio_metadata_writing_enabled":true}"#).unwrap();
+    assert!(enabled.audio_metadata_writing_enabled);
+}

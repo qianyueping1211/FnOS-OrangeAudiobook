@@ -38,9 +38,9 @@ export default defineConfig(({ command }) => ({
       },
       manifest: {
         id: 'ting-reader',
-        name: 'Ting Reader',
-        short_name: 'Ting Reader',
-        description: 'Your self-hosted audiobook platform',
+        name: '橙子听书',
+        short_name: '橙子听书',
+        description: '橙子听书 · 你的私人有声书馆',
         theme_color: '#18161f',
         background_color: '#0f0e14',
         display: 'standalone',

@@ -426,17 +426,15 @@ const BookDetailPage: React.FC = () => {
     }
   };
 
-  const handleWriteMetadata = async () => {
+  const [refreshingFiles, setRefreshingFiles] = useState(false);
+  const refreshFiles = async () => {
+    const operations = operationsRef.current;
+    if (!book || !operations || refreshingFiles) return;
+    setRefreshingFiles(true);
     try {
-      if (!confirm(t('bookshelf.writeMetadataConfirm'))) {
-        return;
-      }
-      await operationsRef.current?.writeMetadata(id!);
-      alert(t('bookshelf.writeMetadataStarted'));
-    } catch (err) {
-      console.error('Failed to write metadata', err);
-      alert(apiErrorMessage(err, t('bookshelf.writeMetadataFailed')));
-    }
+      if (book.library_type === 'local') await operations.refreshFiles(book.id);
+      if (operationsRef.current === operations) await reloadBook();
+    } finally { setRefreshingFiles(false); }
   };
 
   const handleEditSave = async () => {
@@ -465,6 +463,11 @@ const BookDetailPage: React.FC = () => {
       if (!operations || !book) return;
       const result = await saveBook(payload, editChapterGroupOrder, editCoverFile);
       if (!result || operationsRef.current !== operations) return;
+      if (result.book.library_type === 'local' || result.book.can_write_metadata_files === true) {
+        if (result.book.library_type === 'local') await operations.refreshFiles(result.book.id);
+        await operations.writeMetadata(result.book.id);
+        await reloadBook();
+      }
       usePlayerStore.getState().updateBook(result.book);
       if (result.rescanning) alert(t('bookshelf.regexSavedRescanning'));
 
@@ -611,6 +614,8 @@ const BookDetailPage: React.FC = () => {
           isDescriptionOverflowing={isOverflowing}
           onPlayClick={handlePlayClick}
           onToggleFavorite={toggleFavorite}
+          refreshingFiles={refreshingFiles}
+          onRefreshFiles={() => { void refreshFiles().catch(error => alert(apiErrorMessage(error, t('bookshelf.refreshFilesFailed')))); }}
           onOpenScrapeDiff={() => setIsScrapeDiffOpen(true)}
           onOpenEditModal={() => {
             setEditLockTouched(false);
@@ -618,6 +623,7 @@ const BookDetailPage: React.FC = () => {
             setEditSaveError(null);
             setEditData({
               ...book,
+              manual_corrected: true,
               cover_url: displayCoverUrl,
               theme_color: displayThemeColor ?? undefined,
               library_type: displayLibraryType,
@@ -690,7 +696,7 @@ const BookDetailPage: React.FC = () => {
           bookId={book.id}
           onClose={() => setIsScrapeDiffOpen(false)}
           onSave={() => {
-            void reloadBook().catch(error => console.error('Failed to reload scraped book', error));
+            void refreshFiles().catch(error => alert(apiErrorMessage(error, t('bookshelf.refreshFilesFailed'))));
           }}
         />
       )}
@@ -728,8 +734,6 @@ const BookDetailPage: React.FC = () => {
             setIsDeleteModalOpen(true);
           }}
           onSave={handleEditSave}
-          onWriteMetadata={handleWriteMetadata}
-          showWriteMetadata={book.library_type === 'local' || book.can_write_metadata_files === true}
         />
       )}
 
