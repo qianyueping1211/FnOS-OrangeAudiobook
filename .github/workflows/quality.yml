@@ -16,6 +16,8 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: 0
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,9 +28,18 @@ jobs:
         with:
           toolchain: '1.93.1'
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/cache@v4
         with:
-          workspaces: backend
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: quality-target-v2-ubuntu-rust1.93.1-${{ hashFiles('backend/Cargo.lock', 'backend/Cargo.toml') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            quality-target-v2-ubuntu-rust1.93.1-${{ hashFiles('backend/Cargo.lock', 'backend/Cargo.toml') }}-
+            quality-target-v2-ubuntu-rust1.93.1-
+            v0-rust-backend-Linux-x64-
+
       - name: Fetch official JavaScript plugin test sources
         shell: bash
         run: |
@@ -49,11 +60,7 @@ jobs:
         env:
           TING_TEST_JS_PLUGIN_DIR: ${{ runner.temp }}/ting-reader-js-plugins
         run: cargo test --locked
-      - name: Verify gateway contract before the optimized release build
-        working-directory: backend
-        run: |
-          cargo build --locked --bin ting_reader
-          node ../.github/scripts/gateway-smoke.mjs target/debug/ting_reader
+      # The same gateway smoke test runs on the final native binary before release.
       - name: Report tests requiring external artifacts
         working-directory: backend
         run: |

@@ -56,6 +56,24 @@ jobs:
           "$RUNNER_TEMP/orange-branding/bin/pip" install Pillow==11.3.0
           "$RUNNER_TEMP/orange-branding/bin/python" scripts/prepare_branding.py
 
+      - name: Resolve native TLS dependencies without upgrading locked packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp backend/Cargo.lock "$RUNNER_TEMP/Cargo.lock.before"
+          cargo metadata --manifest-path backend/Cargo.toml --features native-fpk --format-version 1 --no-deps > /dev/null
+          python3 - <<'PY'
+          import os, tomllib
+          from pathlib import Path
+          before = tomllib.loads((Path(os.environ["RUNNER_TEMP"]) / "Cargo.lock.before").read_text())
+          after = tomllib.loads(Path("backend/Cargo.lock").read_text())
+          def entries(lock):
+              return {(p["name"],p["version"],p.get("source","")):p.get("checksum") for p in lock["package"]}
+          old, new = entries(before), entries(after)
+          assert all(key in new and new[key] == value for key,value in old.items()), "Existing locked dependencies must not be upgraded"
+          print("Native TLS lock resolved; all existing dependency versions and checksums retained.")
+          PY
+
       - name: Normalize Rust formatting in GitHub
         id: source
         shell: bash
@@ -86,14 +104,18 @@ jobs:
       contents: read
 
   native:
-    needs: [source, quality]
+    needs: source
+    outputs:
+      target: ${{ steps.release_context.outputs.target }}
+      version: ${{ steps.release_context.outputs.version }}
+      release_tag: ${{ steps.release_context.outputs.release_tag }}
     runs-on: ${{ matrix.runner }}
     container: rust:1.93.1-bookworm
     defaults:
       run:
         shell: bash
     permissions:
-      contents: write
+      contents: read
     strategy:
       matrix:
         include:
@@ -151,6 +173,7 @@ jobs:
           fi
           echo "release_tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
           echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "target=$TARGET" >> $GITHUB_OUTPUT
           echo "Resolved $TARGET build for version $VERSION"
           echo "Source commit: $(git rev-parse HEAD)"
@@ -179,31 +202,33 @@ jobs:
           cd frontend
           VITE_APP_BASE_URL=/app/ting-reader/ npm run build
 
-      - name: Inject OpenSSL Vendored Dependency
-        run: |
-          cd backend
-          # Inject openssl vendored dependency for static linking to avoid shared library issues
-          if ! grep -q "^openssl" Cargo.toml; then
-            sed -i '/^\[dependencies\]/a openssl = { version = "0.10", features = ["vendored"] }' Cargo.toml
-            echo "Injected OpenSSL vendored dependency."
-          else
-            echo "OpenSSL dependency found, assuming it's correct."
-          fi
-          # Print first 20 lines to verify
-          head -n 20 Cargo.toml
-
-      - uses: Swatinem/rust-cache@v2
+      # A unique snapshot can be saved after every successful build. Reusing one
+      # immutable primary key previously kept restoring an old registry-only cache.
+      - uses: actions/cache@v4
         with:
-          workspaces: backend
-          shared-key: native-x86_64
-          key: with-workspace-crates
-          cache-workspace-crates: true
-          cache-on-failure: true
+          path: |
+            /usr/local/cargo/registry
+            /usr/local/cargo/git
+            backend/target
+          key: native-target-v2-bookworm-rust1.93.1-x86_64-${{ hashFiles('backend/Cargo.lock', 'backend/Cargo.toml') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            native-target-v2-bookworm-rust1.93.1-x86_64-${{ hashFiles('backend/Cargo.lock', 'backend/Cargo.toml') }}-
+            native-target-v2-bookworm-rust1.93.1-x86_64-
+            v0-rust-native-x86_64-Linux-x64-
 
       - name: Build Backend
         run: |
           cd backend
-          cargo build --release --target ${{ matrix.target }}
+          started=$SECONDS
+          cargo build --locked --release --features native-fpk --target ${{ matrix.target }} --timings
+          echo "Native backend compile: $((SECONDS-started)) seconds" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload compiler timing report
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-compiler-timings
+          path: backend/target/cargo-timings/
+          if-no-files-found: error
 
       - name: Download pinned FFmpeg and FFprobe for server package
         run: |
@@ -375,8 +400,33 @@ jobs:
             ting-reader-native-*.fpk
             SHA256SUMS.txt
 
+
+  release:
+    needs: [source, quality, native]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    env:
+      VERSION: ${{ needs.native.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.source.outputs.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-fpk-x86_64
+      - name: Verify build outputs before publishing
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum --check SHA256SUMS.txt
+          test -f "ting-reader-native-x86_64-${VERSION}.fpk"
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            test "$(git ls-remote origin refs/heads/main | cut -f1)" = "${{ needs.source.outputs.sha }}"
+          fi
       - name: Update Beta Tag
-        if: steps.release_context.outputs.target == 'beta'
+        if: needs.native.outputs.target == 'beta'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
@@ -385,7 +435,7 @@ jobs:
 
       - name: Release Beta FPK
         uses: softprops/action-gh-release@v2
-        if: steps.release_context.outputs.target == 'beta'
+        if: needs.native.outputs.target == 'beta'
         with:
           tag_name: beta
           name: Beta Release
@@ -394,13 +444,13 @@ jobs:
           make_latest: false
           overwrite_files: true
           files: |
-            ting-reader-native-${{ matrix.fpk_suffix }}-beta.fpk
+            ting-reader-native-x86_64-beta.fpk
             SHA256SUMS.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract Release Notes
-        if: steps.release_context.outputs.target == 'formal'
+        if: needs.native.outputs.target == 'formal'
         run: |
           set -euo pipefail
           awk -v header="## [${VERSION}]" '
@@ -413,15 +463,36 @@ jobs:
 
       - name: Release Formal FPK
         uses: softprops/action-gh-release@v2
-        if: steps.release_context.outputs.target == 'formal'
+        if: needs.native.outputs.target == 'formal'
         with:
-          tag_name: ${{ steps.release_context.outputs.release_tag }}
+          tag_name: ${{ needs.native.outputs.release_tag }}
           target_commitish: ${{ needs.source.outputs.sha }}
           body_path: RELEASE_NOTES.md
           files: |
-            ting-reader-native-${{ matrix.fpk_suffix }}-${{ env.VERSION }}.fpk
+            ting-reader-native-x86_64-${{ env.VERSION }}.fpk
             SHA256SUMS.txt
           fail_on_unmatched_files: false
           overwrite_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summarize build bottlenecks
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+              owner: context.repo.owner, repo: context.repo.repo, run_id: context.runId, per_page: 100
+            });
+            const seconds = (a,b) => a && b ? Math.round((Date.parse(b)-Date.parse(a))/1000) : null;
+            const rows = jobs.filter(job => job.started_at && job.completed_at).map(job => [
+              job.name, seconds(job.started_at,job.completed_at) + ' 秒', job.conclusion
+            ]);
+            const steps = jobs.flatMap(job => (job.steps || []).filter(step => step.started_at && step.completed_at)
+              .map(step => ({name: job.name + ' / ' + step.name, duration: seconds(step.started_at,step.completed_at)})))
+              .sort((a,b) => b.duration-a.duration).slice(0,8);
+            await core.summary.addHeading('构建耗时')
+              .addTable([[{data:'阶段',header:true},{data:'耗时',header:true},{data:'结果',header:true}], ...rows])
+              .addHeading('最慢步骤',2)
+              .addTable([[{data:'步骤',header:true},{data:'耗时',header:true}], ...steps.map(step => [step.name,step.duration+' 秒'])])
+              .write();

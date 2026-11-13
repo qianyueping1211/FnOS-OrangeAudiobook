@@ -109,7 +109,13 @@ async function fixture(context) {
           assert.equal(await page.locator('input[type=password]').count(), 0);
           assert.equal(await page.getByText('通知与事件', { exact: true }).count(), 0);
           assert.equal(await page.locator('#main-content a[href="/admin/libraries"]').count(), 0);
-          assert.equal(await page.locator('#main-content a[href="/about"]').count(), 0);
+          assert.equal(await page.locator('#main-content input').count(), 0);
+          assert.equal(await page.locator('#main-content form').count(), 0);
+          assert.equal(await page.getByText('管理听书记录、收藏、书单和个人偏好。', { exact: true }).count(), 0);
+          const management = page.locator('#main-content section').filter({ has: page.getByRole('heading', { name: '设置与管理', exact: true }) });
+          assert.equal(await management.locator('a').first().getAttribute('href'), '/about');
+          assert.equal(await management.locator('a').first().innerText().then(text => text.split('\n')[0]), '系统更新');
+          assert.equal(await page.locator('.reader-settings-title + section h2').innerText(), '我的内容');
           assert.equal(await page.locator('.reader-sidebar-toggle').count(), 0);
         }
         if (slug === 'home') {
@@ -126,6 +132,7 @@ async function fixture(context) {
       hasRecent = true;
       await page.reload();
       await page.locator('.reader-player.is-page').waitFor();
+      assert.equal(await page.locator(name === 'desktop' ? '.reader-sidebar a[href="/player"]' : '.reader-tabs a[href="/player"]').innerText(), '播放');
       assert.equal(await page.locator('audio').count(), 1);
       assert.equal(await page.evaluate(() => window.__playCalls), 0, 'Loading recent playback must stay paused');
       assert.equal(await page.locator('.reader-mini-info').count(), 0, 'Player page must not render a mini player');

@@ -11,6 +11,7 @@ const enUS = {
     "quickAccess": "Quick access",
     "itemCount": "{{count}} items",
     "systemUpdate": "System updates",
+    "systemUpdateDescription": "Check for new versions and install updates",
     "currentVersion": "Installed",
     "latestVersion": "Latest",
     "hourlyCheck": "Checks every hour and notifies you when an update is available.",
@@ -97,7 +98,7 @@ const enUS = {
     offlineReady: "The app is ready for offline use",
   },
   nav: {
-    playerPage: "Player",
+    playerPage: "Playback",
     mainMenu: "Main Menu",
     admin: "Admin",
     home: "Home",

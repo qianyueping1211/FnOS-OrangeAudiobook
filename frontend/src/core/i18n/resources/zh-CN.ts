@@ -11,6 +11,7 @@ const zhCN = {
     "quickAccess": "快捷入口",
     "itemCount": "{{count}} 项",
     "systemUpdate": "系统更新",
+    "systemUpdateDescription": "检查新版本与安装更新",
     "currentVersion": "当前版本",
     "latestVersion": "最新版本",
     "hourlyCheck": "每小时自动检查，发现新版本后提醒。",
@@ -97,7 +98,7 @@ const zhCN = {
     offlineReady: "应用已准备好离线使用",
   },
   nav: {
-    playerPage: "播放页",
+    playerPage: "播放",
     mainMenu: "主菜单",
     admin: "管理后台",
     home: "首页",

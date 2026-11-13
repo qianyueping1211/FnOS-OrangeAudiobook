@@ -1,9 +1,8 @@
-import { apiErrorMessage } from '../../core/api/errors';
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router";
 import apiClient from "../../core/api/client";
-import type { Book, User as UserInfo } from "../../core/types";
+import type { Book } from "../../core/types";
 import type { HistorySummary } from "../../core/api/reading";
 import { useAuthStore } from "../../core/stores/authStore";
 import { usePlayerStore } from "../../core/stores/playerStore";
@@ -16,9 +15,8 @@ import {
   Heart,
   History,
   LogOut,
-  Save,
   Settings,
-  User,
+  ArrowUpCircle,
 } from "lucide-react";
 
 import { useClientExtensions } from '../../core/hooks/useClientExtensions';
@@ -31,14 +29,9 @@ const MyPage: React.FC = () => {
   const { registry } = useClientExtensions();
   const pluginPages = registry.bySlot['app.sidebar_page'] || [];
   const user = useAuthStore((state) => state.user);
-  const setUser = useAuthStore((state) => state.setUser);
   const currentChapter = usePlayerStore((state) => state.currentChapter);
   const [historySummary, setHistorySummary] = useState<HistorySummary>({ books: 0, chapters: 0, position_seconds: 0 });
   const [favorites, setFavorites] = useState<Book[]>([]);
-  const [accountData, setAccountData] = useState({
-    username: user?.username || "",
-  });
-  const [accountSaved, setAccountSaved] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -61,115 +54,13 @@ const MyPage: React.FC = () => {
     return () => window.removeEventListener("focus", fetchData);
   }, []);
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setAccountData((current) => ({
-      ...current,
-      username: user?.username || "",
-    }));
-  }, [user?.username]);
-
   const listenedMinutes = Math.round(historySummary.position_seconds / 60);
   const listenedMetric = formatMinuteMetric(listenedMinutes);
   const recentBookCount = historySummary.books;
-  const userInitial = user?.username?.charAt(0).toUpperCase() || "U";
-
-  const handleAccountUpdate = async (event: React.FormEvent) => {
-    event.preventDefault();
-    const nextUsername = accountData.username.trim();
-
-    if (!nextUsername) {
-      alert(t("mine.usernameRequired"));
-      return;
-    }
-
-    try {
-      const updateData: Record<string, string> = {};
-      if (nextUsername !== user?.username) {
-        updateData.username = nextUsername;
-      }
-
-      if (Object.keys(updateData).length > 0) {
-        const response = await apiClient.patch<UserInfo>("/api/me", updateData);
-        setUser({ ...user, ...response.data });
-      }
-
-      setAccountData({ username: nextUsername });
-      setAccountSaved(true);
-      setTimeout(() => setAccountSaved(false), 1800);
-    } catch (err: unknown) {
-      const message =
-        apiErrorMessage(err, t("mine.updateFailed"));
-      alert(message);
-    }
-  };
-
   return (
     <div className="reader-page flex-1 min-h-full flex flex-col animate-in fade-in duration-500">
       <div className="flex-1 space-y-6 max-w-5xl w-full mx-auto">
         <header className="reader-settings-title"><h1>{t('reader.settings')}</h1><p>{t('reader.tagline')}</p></header>
-        <section className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 md:p-6 shadow-sm">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-primary-100 dark:bg-primary-900/30 text-primary-600 flex items-center justify-center text-2xl font-bold shrink-0">
-              {userInitial}
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                {t("nav.mine")}
-              </p>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white truncate">
-                {user?.username || t("mine.defaultUser")}
-              </h2>
-              <p className="text-sm text-slate-500 mt-1">{t("mine.intro")}</p>
-            </div>
-          </div>
-
-          <form
-            onSubmit={handleAccountUpdate}
-            className="mt-5 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto] gap-3 items-end"
-          >
-            <label className="block min-w-0">
-              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                {t("auth.username")}
-              </span>
-              <div className="relative mt-1.5">
-                <User
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                  size={17}
-                />
-                <input
-                  type="text"
-                  value={accountData.username}
-                  onChange={(event) =>
-                    setAccountData({
-                      ...accountData,
-                      username: event.target.value,
-                    })
-                  }
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary-500 dark:text-white text-sm"
-                />
-              </div>
-            </label>
-
-            <div className="flex items-center gap-3">
-              {accountSaved && (
-                <span className="text-sm text-green-600 font-bold whitespace-nowrap">
-                  {t("mine.accountUpdated")}
-                </span>
-              )}
-              <button
-                type="submit"
-                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-lg shadow-primary-500/20 transition-colors text-sm whitespace-nowrap"
-              >
-                <Save size={16} />
-                {t("mine.save")}
-              </button>
-            </div>
-          </form>
-
-
-        </section>
-
         <section className="space-y-3">
           <SectionHeader title={t("mine.myContent")} />
           <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden">
@@ -211,6 +102,15 @@ const MyPage: React.FC = () => {
         <section className="space-y-3">
           <SectionHeader title={t("mine.settingsManagement")} />
           <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden">
+            {user?.role === "admin" && (
+              <EntryItem
+                to="/about"
+                icon={<ArrowUpCircle size={22} />}
+                title={t("reader.systemUpdate")}
+                description={t("reader.systemUpdateDescription")}
+                tone="text-primary-600 bg-primary-50 dark:bg-primary-900/20"
+              />
+            )}
             <EntryItem
               to="/personalization"
               icon={<Settings size={22} />}

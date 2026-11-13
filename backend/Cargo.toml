@@ -1,12 +1,17 @@
 [package]
 name = "ting_reader"
-version = "2.2.0"
+version = "2.2.1"
 edition = "2024"
 rust-version = "1.93"
 license = "AGPL-3.0-only"
 default-run = "ting_reader"
 
+[features]
+native-fpk = ["dep:openssl"]
+
 [dependencies]
+# Native fnOS builds statically link the same vendored OpenSSL as before.
+openssl = { version = "0.10", features = ["vendored"], optional = true }
 ting-plugin-contract = { git = "https://github.com/dqsq2e2/ting-reader-plugin-contract.git", tag = "v2.0.4", version = "2.0.4" }
 reqwest = { version = "0.11", features = ["json", "rustls-tls", "stream"] }
 # HTTP Server
