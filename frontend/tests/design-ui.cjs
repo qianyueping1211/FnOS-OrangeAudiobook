@@ -95,7 +95,8 @@ async function fixture(context) {
       await fixture(context);
       const page = await context.newPage();
       const errors = [];
-      page.on('pageerror', error => errors.push(error.message));
+      page.on('pageerror', error => { errors.push(error.message); console.error(name + ' runtime error:', error.stack || error.message); });
+      page.on('console', message => { if (message.type() === 'error') console.error(name + ' browser:', message.text()); });
       for (const [route, slug] of [['/', 'home'], ['/bookshelf', 'bookshelf'], ['/search', 'search'], ['/mine', 'settings'], ['/playlists', 'playlists']]) {
         await page.goto(base + route);
         await page.waitForSelector('#main-content', { timeout: 20000 });
@@ -141,7 +142,12 @@ async function fixture(context) {
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), false, name + '/player viewport overflow');
       refreshCalls = 0; writeCalls = 0; metadataEdits = 0;
       await page.goto(base + '/book/book-0');
-      await page.getByRole('button', { name: '编辑', exact: true }).waitFor();
+      await page.getByRole('button', { name: '编辑', exact: true }).waitFor().catch(async error => {
+        console.error(name + ' book details DOM:', await page.locator('body').innerText());
+        console.error(name + ' runtime errors:', errors);
+        await page.screenshot({ path: path.join(root, 'ui-artifacts', name + '-book-details-failure.png'), fullPage: true });
+        throw error;
+      });
       const headerBounds = await page.locator('.reader-book-header').boundingBox();
       const chapterBounds = await page.locator('.reader-book-chapters').boundingBox();
       assert.ok(Math.abs(headerBounds.x - chapterBounds.x) <= 1, name + ' book sections left alignment');
