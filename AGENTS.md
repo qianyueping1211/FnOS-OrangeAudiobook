@@ -6,6 +6,7 @@
 - 前端沿用 React，业务路由、鉴权、数据库及插件接口保持兼容。设计变量与端内差异放 frontend/src/design/reader.css；不复制飞牛标题栏或手机外壳。
 - 桌面使用侧栏，窄屏使用首页、书架、书单、设置四个入口。保留管理与插件入口，并遵循原有权限。
 - 飞牛原生包只走 ting-reader.sock 内部网关、iframe 入口，不开放新 TCP 端口。独立部署仍使用原先的服务配置。
+- 仅生成普通 x86_64 飞牛安装包与 SHA256SUMS.txt；不构建、不上传 FYGO 变体，不恢复 fygopack 步骤。
 - 更新仅认本私有仓库的正式 Release、x86_64 FPK 及 SHA256SUMS.txt；不得把令牌提交到源码或返回前端。
 - 应用服务保持专用用户 ting-reader。仅固定 root 安装入口具有应用中心更新权限，sudoers 只允许 install/status；不得授予 shell、任意路径或任意命令权限。
 - 安装完成须核对实际 manifest 版本，不能仅以命令返回成功判定升级成功。提交结果未确认时禁止重复升级。

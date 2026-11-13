@@ -17,7 +17,6 @@ on:
 
 env:
   FNPACK_VERSION: "1.2.3"
-  FYGOPACK_VERSION: "1.2.3"
   TING_PLUGIN_STORE_VERSION: "2.0.4"
   FFMPEG_BUILD_VERSION: "8.1.2-2"
 
@@ -327,11 +326,6 @@ jobs:
         with:
           version: ${{ env.FNPACK_VERSION }}
 
-      - name: Setup fygopack
-        uses: ./.github/actions/setup-fygopack
-        with:
-          version: ${{ env.FYGOPACK_VERSION }}
-
       - name: Build FPK (Formal)
         if: needs.prepare.outputs.target == 'formal'
         run: |
@@ -342,15 +336,6 @@ jobs:
           fnpack build --directory .github/ting-reader-fpk
           mv ting-reader-docker.fpk ting-reader-$VERSION.fpk
 
-          # Keep backup of LICENSE and use English LICENSE for fygopack
-          cp .github/ting-reader-fpk/LICENSE .github/ting-reader-fpk/LICENSE.bak
-          cp .github/ting-reader-fpk/LICENSE.en .github/ting-reader-fpk/LICENSE
-
-          fygopack build --directory .github/ting-reader-fpk
-          mv ting-reader-docker.fpk ting-reader-fygo-$VERSION.fpk
-
-          # Restore Chinese LICENSE
-          mv .github/ting-reader-fpk/LICENSE.bak .github/ting-reader-fpk/LICENSE
 
           mv .github/ting-reader-fpk/manifest.bak .github/ting-reader-fpk/manifest
 
@@ -362,15 +347,6 @@ jobs:
           fnpack build --directory .github/ting-reader-fpk
           mv ting-reader-docker.fpk ting-reader-beta.fpk
 
-          # Keep backup of LICENSE and use English LICENSE for fygopack
-          cp .github/ting-reader-fpk/LICENSE .github/ting-reader-fpk/LICENSE.bak
-          cp .github/ting-reader-fpk/LICENSE.en .github/ting-reader-fpk/LICENSE
-
-          fygopack build --directory .github/ting-reader-fpk
-          mv ting-reader-docker.fpk ting-reader-fygo-beta.fpk
-
-          # Restore Chinese LICENSE
-          mv .github/ting-reader-fpk/LICENSE.bak .github/ting-reader-fpk/LICENSE
 
       - name: Update Beta Tag
         if: needs.prepare.outputs.target == 'beta'
@@ -392,7 +368,6 @@ jobs:
           overwrite_files: true
           files: |
             ting-reader-beta.fpk
-            ting-reader-fygo-beta.fpk
             release-assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -422,7 +397,6 @@ jobs:
           overwrite_files: true
           files: |
             ting-reader-${{ needs.prepare.outputs.version }}.fpk
-            ting-reader-fygo-${{ needs.prepare.outputs.version }}.fpk
             release-assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

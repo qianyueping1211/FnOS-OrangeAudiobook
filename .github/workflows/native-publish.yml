@@ -26,7 +26,6 @@ concurrency:
 
 env:
   FNPACK_VERSION: "1.2.3"
-  FYGOPACK_VERSION: "1.2.3"
   FFMPEG_BUILD_VERSION: "8.1.2-2"
   TING_PLUGIN_STORE_VERSION: "2.0.4"
 
@@ -289,11 +288,6 @@ jobs:
         with:
           version: ${{ env.FNPACK_VERSION }}
 
-      - name: Setup fygopack
-        uses: ./.github/actions/setup-fygopack
-        with:
-          version: ${{ env.FYGOPACK_VERSION }}
-
       - name: Build FPK
         run: |
           VERSION="${{ env.VERSION }}"
@@ -303,11 +297,9 @@ jobs:
             echo "Building for Beta release..."
             VERSION="beta"
             FN_OUTPUT="ting-reader-native-${{ matrix.fpk_suffix }}-beta.fpk"
-            FYGO_OUTPUT="ting-reader-native-fygo-${{ matrix.fpk_suffix }}-beta.fpk"
           else
             echo "Building for Formal release v$VERSION..."
             FN_OUTPUT="ting-reader-native-${{ matrix.fpk_suffix }}-${VERSION}.fpk"
-            FYGO_OUTPUT="ting-reader-native-fygo-${{ matrix.fpk_suffix }}-${VERSION}.fpk"
           fi
 
           # Update manifest with version
@@ -327,20 +319,16 @@ jobs:
           fnpack build --directory .github/ting-reader-fpk-native
           mv ting-reader.fpk "$FN_OUTPUT"
 
-          # fygopack 打包 (切换为英文版 LICENSE)
-          cp .github/ting-reader-fpk-native/LICENSE .github/ting-reader-fpk-native/LICENSE.bak
-          cp .github/ting-reader-fpk-native/LICENSE.en .github/ting-reader-fpk-native/LICENSE
-
-          fygopack build --directory .github/ting-reader-fpk-native
-          mv ting-reader.fpk "$FYGO_OUTPUT"
-
-          # 还原中文版 LICENSE
-          mv .github/ting-reader-fpk-native/LICENSE.bak .github/ting-reader-fpk-native/LICENSE
 
       - name: Verify FPK integrity and write release checksums
         run: |
           set -euo pipefail
-          for package in ting-reader-native-*.fpk; do
+          set -- ting-reader-native-*.fpk
+          if [ "$#" -ne 1 ] || [[ "$1" != ting-reader-native-x86_64-*.fpk ]]; then
+            echo "::error::Only the standard x86_64 fnOS package may be published."
+            exit 1
+          fi
+          for package in "$@"; do
             .github/ting-reader-fpk-native/app/server/ting-reader-updater --verify "$package" "$VERSION"
           done
           sha256sum ting-reader-native-*.fpk > SHA256SUMS.txt
@@ -372,7 +360,6 @@ jobs:
           overwrite_files: true
           files: |
             ting-reader-native-${{ matrix.fpk_suffix }}-beta.fpk
-            ting-reader-native-fygo-${{ matrix.fpk_suffix }}-beta.fpk
             SHA256SUMS.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -398,7 +385,6 @@ jobs:
           body_path: RELEASE_NOTES.md
           files: |
             ting-reader-native-${{ matrix.fpk_suffix }}-${{ env.VERSION }}.fpk
-            ting-reader-native-fygo-${{ matrix.fpk_suffix }}-${{ env.VERSION }}.fpk
             SHA256SUMS.txt
           fail_on_unmatched_files: false
           overwrite_files: true
