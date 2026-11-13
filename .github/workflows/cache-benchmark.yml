@@ -1,0 +1,71 @@
+name: Measure warm native cache
+
+on:
+  push:
+    branches: [perf/warm-cache-2.2.1]
+    paths: ['.github/workflows/cache-benchmark.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  warm-cache:
+    runs-on: ubuntu-latest
+    container: rust:1.93.1-bookworm
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare the same compiler environment
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends cmake clang binutils sudo curl util-linux zstd
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          rustup target add x86_64-unknown-linux-gnu
+      - name: Restore the published build's complete cache
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            /usr/local/cargo/registry
+            /usr/local/cargo/git
+            backend/target
+          key: native-target-v2-bookworm-rust1.93.1-x86_64-2e522607b8829026f121ea930a38418ea20f5be29192403c00dff8cdec4d1bcd-43519488137-1
+          fail-on-cache-miss: true
+      - name: Measure a real warm build
+        run: |
+          set -euo pipefail
+          cd backend
+          started=$SECONDS
+          cargo build --locked --release --features native-fpk --target x86_64-unknown-linux-gnu --timings --message-format=json-render-diagnostics > "$RUNNER_TEMP/cargo-artifacts.jsonl"
+          echo "WARM_BUILD_SECONDS=$((SECONDS-started))" >> "$GITHUB_ENV"
+      - name: Report reused and recompiled crates
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          events = [json.loads(line) for line in (Path(os.environ["RUNNER_TEMP"]) / "cargo-artifacts.jsonl").read_text().splitlines()]
+          artifacts = [event for event in events if event.get("reason") == "compiler-artifact"]
+          assert len(artifacts) > 100, "The measurement must cover the complete application"
+          rebuilt = [event for event in artifacts if not event["fresh"]]
+          dependencies = [event for event in rebuilt if not event["package_id"].startswith("path+")]
+          summary = [
+              "## 完整缓存复用测量",
+              "- 冷构建基线：1254 秒（v2.2.1 发布构建）",
+              "- 本次热构建：" + os.environ["WARM_BUILD_SECONDS"] + " 秒",
+              "- 直接复用产物：" + str(sum(event["fresh"] for event in artifacts)),
+              "- 重建外部依赖：" + str(len(dependencies)),
+              "- 重建目标：" + "、".join(event["target"]["name"] for event in rebuilt),
+          ]
+          report = "\n".join(summary)
+          print(report)
+          with open(os.environ["GITHUB_STEP_SUMMARY"],"a") as output:
+              output.write(report + "\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: warm-build-timings
+          path: backend/target/cargo-timings/
