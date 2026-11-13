@@ -20,7 +20,7 @@ child.stdout.on('data', bytes => { log += bytes; });
 child.stderr.on('data', bytes => { log += bytes; });
 const request = pathname => new Promise((resolve, reject) => {
   const req = http.get({ socketPath: socket, path: pathname }, response => {
-    let body = ''; response.on('data', bytes => { body += bytes; }); response.on('end', () => resolve({ code: response.statusCode, body }));
+    let body = ''; response.on('data', bytes => { body += bytes; }); response.on('end', () => resolve({ code: response.statusCode, body, headers: response.headers }));
   });
   req.on('error', reject); req.setTimeout(2000, () => req.destroy(new Error('timeout')));
 });
@@ -33,6 +33,13 @@ try {
   }
   assert.equal(health?.code, 200, log);
   assert.equal(JSON.parse(health.body).status, 'healthy');
+  const document = await request('/app/ting-reader/');
+  assert.equal(document.code, 200, log);
+  assert.equal(document.headers['x-frame-options'], 'SAMEORIGIN');
+  assert.match(document.headers['content-security-policy'], /frame-ancestors 'self'/);
+  assert.match(document.headers['content-security-policy'], /script-src 'self' 'nonce-[^']+'/);
+  assert.doesNotMatch(document.headers['content-security-policy'], /frame-ancestors 'none'/);
+  assert.match(document.body, /id="root"/);
   const protectedRoute = await request('/api/system/updates');
   assert.ok([401, 403].includes(protectedRoute.code), 'Updates must require authentication');
   console.log('Gateway-only health passed while the configured TCP port remained occupied.');

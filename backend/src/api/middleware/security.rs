@@ -1,3 +1,4 @@
+use super::GatewayTransport;
 use axum::{extract::Request, http::HeaderValue, middleware::Next, response::Response};
 
 const PLUGIN_ASSET_CSP: &str = "default-src 'none'; script-src 'none'; style-src 'none'; img-src 'none'; media-src 'none'; font-src 'none'; connect-src 'none'; child-src 'none'; frame-src 'none'; worker-src 'none'; manifest-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; sandbox";
@@ -6,7 +7,7 @@ const PLUGIN_ASSET_CSP: &str = "default-src 'none'; script-src 'none'; style-src
 ///
 /// This middleware adds security-related HTTP headers to all responses:
 /// - X-Content-Type-Options: nosniff (prevents MIME type sniffing)
-/// - X-Frame-Options: DENY (prevents clickjacking)
+/// - X-Frame-Options: DENY for direct access, SAMEORIGIN for trusted fnOS transport
 /// - X-XSS-Protection: 1; mode=block (enables XSS filter in older browsers)
 /// - Strict-Transport-Security: enforces HTTPS (only in production)
 /// - Content-Security-Policy: restricts resource loading
@@ -16,6 +17,8 @@ pub async fn security_headers_middleware(request: Request, next: Next) -> Respon
     // Get security configuration from request extensions
     let security_config = request.extensions().get::<SecurityHeadersConfig>().cloned();
 
+    // This marker is inserted by the Unix listener, never accepted from headers.
+    let is_gateway = request.extensions().get::<GatewayTransport>().is_some();
     let path = request.uri().path().to_string();
     // Check if request is for widget or a sandboxed plugin UI asset.
     let is_widget = path.starts_with("/widget");
@@ -52,14 +55,20 @@ pub async fn security_headers_middleware(request: Request, next: Next) -> Respon
             .headers
             .insert("Referrer-Policy", HeaderValue::from_static("no-referrer"));
     } else {
+        let frame_options = if is_gateway { "SAMEORIGIN" } else { "DENY" };
         parts
             .headers
-            .insert("X-Frame-Options", HeaderValue::from_static("DENY"));
+            .insert("X-Frame-Options", HeaderValue::from_static(frame_options));
 
+        let csp = if is_gateway {
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self'; media-src 'self' https: http:; object-src 'none'; frame-ancestors 'self';"
+        } else {
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self'; media-src 'self' https: http:; object-src 'none'; frame-ancestors 'none';"
+        };
         parts
             .headers
             .entry("Content-Security-Policy")
-            .or_insert(HeaderValue::from_static("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self'; media-src 'self' https: http:; object-src 'none'; frame-ancestors 'none';"));
+            .or_insert(HeaderValue::from_static(csp));
     }
 
     parts.headers.insert(

@@ -287,6 +287,12 @@ jobs:
       - name: Verify root preparation and unprivileged application lifecycle
         run: bash .github/scripts/lifecycle-smoke.sh
 
+      - name: Verify packaged application inside desktop and mobile windows
+        run: |
+          npm install --prefix "$RUNNER_TEMP/ting-window-tools" --no-save --package-lock=false playwright@1.56.1
+          "$RUNNER_TEMP/ting-window-tools/node_modules/.bin/playwright" install --with-deps chromium
+          NODE_PATH="$RUNNER_TEMP/ting-window-tools/node_modules" node .github/scripts/iframe-smoke.cjs .github/ting-reader-fpk-native/app/server/ting-reader
+
       - name: Setup fnpack
         uses: ./.github/actions/setup-fnpack
         with:

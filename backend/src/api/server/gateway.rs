@@ -127,6 +127,7 @@ pub(super) async fn ensure_manifest_link(mut request: Request, next: Next) -> Re
         request.headers_mut().remove(header::IF_MODIFIED_SINCE);
     }
 
+    let is_gateway = request.extensions().get::<GatewayTransport>().is_some();
     let is_manifest_request = request.uri().path().ends_with("/manifest.webmanifest");
     if is_manifest_request && request.uri().path() != "/manifest.webmanifest" {
         let parent_depth = request
@@ -170,6 +171,13 @@ pub(super) async fn ensure_manifest_link(mut request: Request, next: Next) -> Re
     let html = ensure_spa_asset_base(&html);
     let rewritten = inject_document_script_nonce(&ensure_manifest_link_in_html(&html), &nonce);
     let csp = document_content_security_policy(&nonce);
+    // Retain the per-navigation script nonce and all resource restrictions.
+    // Only the trusted Unix transport may embed the document in its own origin.
+    let csp = if is_gateway {
+        csp.replace("frame-ancestors 'none'", "frame-ancestors 'self'")
+    } else {
+        csp
+    };
     parts.headers.insert(
         header::CONTENT_SECURITY_POLICY,
         HeaderValue::from_str(&csp).expect("document CSP is valid"),
