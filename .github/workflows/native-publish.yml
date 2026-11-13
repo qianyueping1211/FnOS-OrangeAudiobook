@@ -61,7 +61,7 @@ jobs:
         run: |
           set -euo pipefail
           cp backend/Cargo.lock "$RUNNER_TEMP/Cargo.lock.before"
-          cargo metadata --manifest-path backend/Cargo.toml --features native-fpk --format-version 1 --no-deps > /dev/null
+          cargo update --manifest-path backend/Cargo.toml --package ting_reader
           python3 - <<'PY'
           import os, tomllib
           from pathlib import Path
@@ -188,7 +188,7 @@ jobs:
       - name: Install backend build dependencies
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends cmake clang binutils sudo curl util-linux
+          apt-get install -y --no-install-recommends cmake clang binutils sudo curl util-linux zstd
           rustup target add ${{ matrix.target }}
           getconf GNU_LIBC_VERSION
 
