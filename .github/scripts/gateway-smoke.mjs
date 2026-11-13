@@ -32,7 +32,7 @@ try {
     await new Promise(resolve => setTimeout(resolve, 300));
   }
   assert.equal(health?.code, 200, log);
-  assert.equal(JSON.parse(health.body).status, 'ok');
+  assert.equal(JSON.parse(health.body).status, 'healthy');
   const protectedRoute = await request('/api/system/updates');
   assert.ok([401, 403].includes(protectedRoute.code), 'Updates must require authentication');
   console.log('Gateway-only health passed while the configured TCP port remained occupied.');

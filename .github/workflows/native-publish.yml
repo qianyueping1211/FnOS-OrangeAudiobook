@@ -185,6 +185,8 @@ jobs:
         with:
           workspaces: backend
           shared-key: native-x86_64
+          key: with-workspace-crates
+          cache-workspace-crates: true
           cache-on-failure: true
 
       - name: Build Backend

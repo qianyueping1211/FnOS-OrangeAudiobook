@@ -49,6 +49,11 @@ jobs:
         env:
           TING_TEST_JS_PLUGIN_DIR: ${{ runner.temp }}/ting-reader-js-plugins
         run: cargo test --locked
+      - name: Verify gateway contract before the optimized release build
+        working-directory: backend
+        run: |
+          cargo build --locked --bin ting_reader
+          node ../.github/scripts/gateway-smoke.mjs target/debug/ting_reader
       - name: Report tests requiring external artifacts
         working-directory: backend
         run: |
