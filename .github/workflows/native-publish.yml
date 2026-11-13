@@ -154,7 +154,7 @@ jobs:
       - name: Install backend build dependencies
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends cmake clang binutils
+          apt-get install -y --no-install-recommends cmake clang binutils sudo curl util-linux
           rustup target add ${{ matrix.target }}
           getconf GNU_LIBC_VERSION
 
@@ -283,6 +283,9 @@ jobs:
       - name: Verify lifecycle syntax
         run: |
           for script in .github/ting-reader-fpk-native/cmd/*; do bash -n "$script"; done
+
+      - name: Verify root preparation and unprivileged application lifecycle
+        run: bash .github/scripts/lifecycle-smoke.sh
 
       - name: Setup fnpack
         uses: ./.github/actions/setup-fnpack

@@ -1,18 +1,37 @@
 #!/bin/bash
 
-LOG_FILE="${TRIM_TEMP_LOGFILE}"
-PID_FILE="${TRIM_PKGVAR}/app.pid"
+set -Eeuo pipefail
+ACTION="${1:-status}"
+case "$ACTION" in start|stop|status) ;; *) exit 1 ;; esac
+APP_UID="$(id -u ting-reader)"
+APP_GID="$(id -g ting-reader)"
+[ "$APP_UID" -ne 0 ] || { echo "Refusing to run the service as root." >&2; exit 1; }
+if [ "$(id -u)" -eq 0 ]; then
+    if [ "$ACTION" = start ]; then
+        install -d -o "$APP_UID" -g "$APP_GID" -m 755 "$TRIM_PKGVAR" "$TRIM_PKGVAR/run"
+        ln -sfn -- "$TRIM_PKGVAR/run/ting-reader.sock" "$TRIM_APPDEST/ting-reader.sock"
+    fi
+    # Every long-running process, including FFmpeg and plugins, is unprivileged.
+    exec runuser -u ting-reader -- /bin/bash "$0" "$ACTION"
+fi
+[ "$(id -u)" -eq "$APP_UID" ] || { echo "Unexpected service user." >&2; exit 1; }
+LOG_FILE="${TRIM_TEMP_LOGFILE:-/dev/null}"
+PID_FILE="$TRIM_PKGVAR/run/app.pid"
+SERVER_LOG="$TRIM_PKGVAR/run/server.log"
+exec 9>"$TRIM_PKGVAR/run/control.lock"
+flock -x 9
 
 export RUST_LOG=info
 export FNNAS_GATEWAY_ONLY=1
 export FNNAS_FPK_INITIAL_ADMIN_LANGUAGE=1
 export FNNAS_FPK_INITIAL_TIME_ZONE=1
-GATEWAY_SOCKET="${TRIM_APPDEST}/ting-reader.sock"
+GATEWAY_SOCKET="${TRIM_PKGVAR}/run/ting-reader.sock"
 export FNNAS_GATEWAY_SOCKET="$GATEWAY_SOCKET"
 export FNNAS_GATEWAY_PREFIX="/app/ting-reader"
 
 
 IFS=':' read -r -a SHARES <<< "$TRIM_DATA_SHARE_PATHS"
+[ "${#SHARES[@]}" -eq 4 ] || { echo "Expected four fnOS data shares." >&2; exit 1; }
 
 export TING_STORAGE__DATA_DIR="${SHARES[0]}"
 export TING_STORAGE__TEMP_DIR="${SHARES[3]}"
@@ -27,7 +46,7 @@ export TEMP_DIR="${SHARES[3]}"
 export TING_STORAGE__LOCAL_STORAGE_ROOT="${SHARES[1]}"
 export TING_PLUGINS__PREINSTALLED_DIR="${TRIM_APPDEST}/server/preinstalled-plugins"
 
-if [ -n "$wizard_storage_path" ]; then
+if [ -n "${wizard_storage_path:-}" ]; then
     export STORAGE_DIR="$wizard_storage_path"
     export TING_STORAGE__LOCAL_STORAGE_ROOT="$wizard_storage_path"
 fi
@@ -39,112 +58,85 @@ export LD_LIBRARY_PATH="${TRIM_APPDEST}/server/bin${LD_LIBRARY_PATH:+:$LD_LIBRAR
 CMD="${TRIM_APPDEST}/server/ting-reader"
 
 log_msg() {
-    if [ -n "$LOG_FILE" ]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "${LOG_FILE}"
+    printf '%s - %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >&2
+    if [ "$LOG_FILE" != /dev/null ]; then
+        printf '%s - %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >> "$LOG_FILE" || true
     fi
-}
-
-start_process() {
-    if status; then
-        return 0
-    fi
-
-    log_msg "Starting process ..."
-    rm -f "$GATEWAY_SOCKET" 2>/dev/null || true
-    log_msg "DATA_DIR: $DATA_DIR"
-    log_msg "STORAGE_DIR: $STORAGE_DIR"
-    log_msg "PLUGINS_DIR: $PLUGINS_DIR"
-    log_msg "TEMP_DIR: $TEMP_DIR"
-    log_msg "PORT: $TING_SERVER__PORT"
-    log_msg "SERVER_DIR: ${TRIM_APPDEST}/server"
-
-    if ! "$CMD" --help > /dev/null 2>> "${LOG_FILE:-/dev/null}"; then
-        log_msg "Server startup check failed; see the error above."
-        return 1
-    fi
-    
-    (
-        cd "${TRIM_APPDEST}/server" || exit 1
-        "$CMD" > /dev/null 2>&1 &
-        printf "%s" "$!" > "${PID_FILE}"
-    ) || {
-        log_msg "Failed to start process from ${TRIM_APPDEST}/server"
-        return 1
-    }
-
-    return 0
-}
-
-stop_process() {
-    log_msg "Stopping process ..."
-    rm -f "$GATEWAY_SOCKET" 2>/dev/null || true
-
-    if [ -r "${PID_FILE}" ]; then
-        pid=$(head -n 1 "${PID_FILE}" | tr -d '[:space:]')
-        
-        log_msg "pid=${pid}"
-        if ! check_process "${pid}"; then
-            rm -f "${PID_FILE}"
-            return
-        fi
-
-        log_msg "send TERM signal to PID:${pid}..."
-        kill -TERM ${pid} > /dev/null 2>&1
-
-        local count=0
-        while check_process "${pid}" && [ $count -lt 10 ]; do
-            sleep 1
-            count=$((count + 1))
-        done
-
-        if check_process "${pid}"; then
-            log_msg "send KILL signal to PID:${pid}..."
-            kill -KILL "${pid}"
-            sleep 1
-            rm -f "${PID_FILE}"
-        fi
-    fi
-
-    rm -f "$GATEWAY_SOCKET" 2>/dev/null || true
-    return 0
 }
 
 check_process() {
-    local pid=$1
-    if kill -0 "${pid}" 2>/dev/null; then
-        return 0
-    else
-        return 1
-    fi
+    local pid="$1" owner executable
+    [[ "$pid" =~ ^[1-9][0-9]*$ ]] || return 1
+    kill -0 "$pid" 2>/dev/null || return 1
+    owner="$(stat -c %u "/proc/$pid" 2>/dev/null)" || return 1
+    executable="$(readlink -f "/proc/$pid/exe" 2>/dev/null)" || return 1
+    [ "$owner" = "$APP_UID" ] && [ "$executable" = "$(readlink -f "$CMD")" ]
+}
+
+healthy() {
+    [ -S "$GATEWAY_SOCKET" ] &&
+        curl --silent --fail --max-time 2 --unix-socket "$GATEWAY_SOCKET" http://localhost/api/health |
+        grep -q '"status"[[:space:]]*:[[:space:]]*"healthy"'
 }
 
 status() {
-    if [ -f "${PID_FILE}" ]; then
-        pid=$(head -n 1 "${PID_FILE}" | tr -d '[:space:]')
-        if check_process "${pid}"; then
-            return 0
-        else
-            rm -f "${PID_FILE}"
-        fi    
+    [ -r "$PID_FILE" ] || return 1
+    local pid
+    pid="$(cat "$PID_FILE")"
+    check_process "$pid" && healthy
+}
+
+stop_process() {
+    local pid count
+    if [ -r "$PID_FILE" ]; then
+        pid="$(cat "$PID_FILE")"
+        if check_process "$pid"; then
+            kill -TERM "$pid"
+            for count in {1..15}; do
+                check_process "$pid" || break
+                sleep 1
+            done
+            if check_process "$pid"; then kill -KILL "$pid"; fi
+        fi
     fi
+    rm -f -- "$PID_FILE" "$GATEWAY_SOCKET"
+}
+
+start_process() {
+    if status; then return 0; fi
+    # Reap an unready previous service before starting another copy.
+    stop_process
+    if ! "$CMD" --help >/dev/null 2>> "$LOG_FILE"; then
+        log_msg "Server executable check failed."
+        return 1
+    fi
+    (
+        cd "$TRIM_APPDEST/server"
+        # Do not let the detached service inherit the lifecycle lock.
+        nohup "$CMD" 9>&- >> "$SERVER_LOG" 2>&1 </dev/null &
+        printf '%s\n' "$!" > "$PID_FILE"
+    )
+    local pid count
+    pid="$(cat "$PID_FILE")"
+    for count in {1..60}; do
+        if ! check_process "$pid"; then
+            log_msg "Service exited during startup; recent server output follows."
+            tail -n 40 "$SERVER_LOG" >&2
+            return 1
+        fi
+        if healthy; then
+            log_msg "Gateway ready; service UID $APP_UID, no TCP listener."
+            return 0
+        fi
+        sleep 1
+    done
+    log_msg "Gateway health check timed out; see $SERVER_LOG."
+    stop_process
     return 1
 }
 
-case $1 in
-start)
-    start_process
-    ;;
-stop)
-    stop_process
-    ;;
-status)
-    if status; then 
-        exit 0
-    else 
-        exit 3
-    fi
-    ;;
-*)
-    exit 1
-    ;;
+case "$ACTION" in
+    start) start_process ;;
+    stop) stop_process ;;
+    status) if status; then exit 0; else exit 3; fi ;;
 esac

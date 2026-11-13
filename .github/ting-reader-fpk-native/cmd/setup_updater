@@ -1,13 +1,28 @@
 #!/bin/bash
-set -euo pipefail
+set -Eeuo pipefail
+[ "$(id -u)" -eq 0 ] || { echo "Updater setup must run as root." >&2; exit 1; }
+APP_UID="$(id -u ting-reader)"
+APP_GID="$(id -g ting-reader)"
+[ "$APP_UID" -ne 0 ] || { echo "The ting-reader service user must not be root." >&2; exit 1; }
+: "${TRIM_APPDEST:?Missing app directory}" "${TRIM_PKGVAR:?Missing app state directory}"
+# Only application-private state is prepared here. fnOS manages shared ACLs.
+install -d -o "$APP_UID" -g "$APP_GID" -m 755 "$TRIM_PKGVAR"
+install -d -o "$APP_UID" -g "$APP_GID" -m 755 "$TRIM_PKGVAR/run"
+# Keep installed code immutable; expose the state-directory socket to fnOS.
+[ ! -L "$TRIM_APPDEST/server" ] || { echo "Invalid server directory." >&2; exit 1; }
+chown -R -h root:root "$TRIM_APPDEST/server"
+find "$TRIM_APPDEST/server" -type d -exec chmod 755 {} +
+find "$TRIM_APPDEST/server" -type f -exec chmod go-w {} +
+ln -sfn -- "$TRIM_PKGVAR/run/ting-reader.sock" "$TRIM_APPDEST/ting-reader.sock"
 install -d -o root -g root -m 755 /usr/local/libexec
-install -o root -g root -m 755 "$TRIM_APPDEST/server/ting-reader-updater" /usr/local/libexec/.ting-reader-updater-new
-mv -f /usr/local/libexec/.ting-reader-updater-new /usr/local/libexec/ting-reader-updater
 install -d -o root -g root -m 755 /etc/sudoers.d
+HELPER_TMP="$(mktemp /usr/local/libexec/.ting-reader-updater-XXXXXX)"
 RULE="$(mktemp /etc/sudoers.d/.ting-reader-updater-XXXXXX)"
-trap 'rm -f "$RULE"' EXIT
+trap 'rm -f -- "$HELPER_TMP" "$RULE"' EXIT
+install -o root -g root -m 755 "$TRIM_APPDEST/server/ting-reader-updater" "$HELPER_TMP"
+mv -f -- "$HELPER_TMP" /usr/local/libexec/ting-reader-updater
 printf '%s\n' 'ting-reader ALL=(root) NOPASSWD: /usr/local/libexec/ting-reader-updater install, /usr/local/libexec/ting-reader-updater status' > "$RULE"
 chmod 440 "$RULE"
 chown root:root "$RULE"
 visudo -cf "$RULE"
-mv -f "$RULE" /etc/sudoers.d/ting-reader-updater
+mv -f -- "$RULE" /etc/sudoers.d/ting-reader-updater

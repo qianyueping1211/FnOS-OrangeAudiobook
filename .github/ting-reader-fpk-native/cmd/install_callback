@@ -1,9 +1,12 @@
 #!/bin/bash
-
-### This script is called after the user installs the application.
-
-DATA_DIR="${TRIM_APPDEST_VOL}/@appshare/ting-reader/data"
-mkdir -p "$DATA_DIR"
-
+set -Eeuo pipefail
+if [ -n "${TRIM_TEMP_LOGFILE:-}" ]; then
+    exec >> "$TRIM_TEMP_LOGFILE" 2>&1
+fi
+trap 'result=$?; echo "ting-reader installation callback failed at line $LINENO (exit $result)." >&2; exit "$result"' ERR
+if [ "$(id -u)" -ne 0 ]; then
+    echo "ting-reader updater preparation requires root lifecycle mode; current user: $(id -un)." >&2
+    exit 1
+fi
 bash "$TRIM_APPDEST/server/setup_updater"
-exit $?
+echo "ting-reader installation preparation completed; the service runs as ting-reader."
