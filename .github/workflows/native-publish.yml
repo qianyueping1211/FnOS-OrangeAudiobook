@@ -8,8 +8,18 @@ on:
         type: string
         default: ''
   push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - '.github/ting-reader-fpk-native/**'
+      - '.github/actions/**'
     tags:
       - 'v*'
+
+concurrency:
+  group: native-fpk-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   FNPACK_VERSION: "1.2.3"
@@ -71,6 +81,9 @@ jobs:
           elif [ "${{ github.ref_type }}" = "tag" ]; then
             TARGET="formal"
             VERSION="${GITHUB_REF_NAME#v}"
+          elif [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            TARGET="formal"
+            VERSION="$(awk -F'"' '/^version[[:space:]]*=/{print $2; exit}' backend/Cargo.toml)"
           else
             echo "Unsupported release trigger: ${{ github.event_name }} / ${{ github.ref_type }}"
             exit 1
@@ -84,6 +97,11 @@ jobs:
             fi
           fi
 
+          RELEASE_TAG="v$VERSION"
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            RELEASE_TAG="v${VERSION}-build.${GITHUB_RUN_NUMBER}"
+          fi
+          echo "release_tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "target=$TARGET" >> $GITHUB_OUTPUT
           echo "Resolved $TARGET build for version $VERSION"
@@ -304,7 +322,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: steps.release_context.outputs.target == 'formal'
         with:
-          tag_name: v${{ env.VERSION }}
+          tag_name: ${{ steps.release_context.outputs.release_tag }}
+          target_commitish: ${{ github.sha }}
           body_path: RELEASE_NOTES.md
           files: |
             ting-reader-native-${{ matrix.fpk_suffix }}-${{ env.VERSION }}.fpk
