@@ -1,3 +1,4 @@
+# UI tooling is isolated from app dependencies and runs on a pinned compatible image.
 name: Quality checks
 
 on:
