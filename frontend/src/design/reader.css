@@ -30,7 +30,7 @@ input::placeholder,textarea::placeholder {color:var(--reader-muted);opacity:.8}
   border-right:1px solid var(--reader-line);display:flex;flex-direction:column;padding:22px 12px 14px;gap:18px;z-index:40}
 .reader-sidebar.is-collapsed {--reader-side-width:76px}
 .reader-brand {display:flex;align-items:center;gap:10px;padding:0 8px 19px;border-bottom:1px solid var(--reader-line);min-height:59px}
-.reader-brand img {width:36px;height:36px;object-fit:contain;border-radius:10px;flex:none}
+.reader-brand img {width:36px;height:36px;object-fit:contain;flex:none}
 .reader-brand strong {display:block;font-size:17px;letter-spacing:-.02em;white-space:nowrap}
 .reader-brand small {display:block;color:var(--reader-muted);font-size:11px;margin-top:3px}
 .reader-sidebar.is-collapsed .reader-brand div {display:none}
@@ -207,3 +207,11 @@ input::placeholder,textarea::placeholder {color:var(--reader-muted);opacity:.8}
 @media(max-width:959px) {
   .reader-home .reader-grid>:nth-child(n+7),.reader-home .reader-recent-grid>:nth-child(n+3) {display:none}
 }
+
+/* The playback page reuses the expanded player while keeping navigation available. */
+.reader-player.is-page {bottom:calc(var(--bottom-nav-h,0px) + env(safe-area-inset-bottom,0px))}
+.reader-player-empty {display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:52vh;gap:16px;text-align:center}
+.reader-player-empty>svg {color:var(--reader-accent)}
+.reader-player-empty h2 {font-size:20px;font-weight:650}
+.reader-player-empty p {color:var(--reader-muted);max-width:28em;line-height:1.7}
+.reader-player-empty a {background:var(--reader-soft);color:var(--reader-accent);padding:12px 28px;border:1px solid var(--reader-line);border-radius:12px}

@@ -3,6 +3,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { 
   Home, 
+  Headphones, 
   Library, 
   User,
   LogOut, 
@@ -11,8 +12,7 @@ import {
   Terminal,
   ListMusic,
   Puzzle,
-  ChevronLeft,
-  ChevronRight,
+  ArrowUpCircle,
 } from 'lucide-react';
 import { useAuthStore } from '../../core/stores/authStore';
 import { getRuntimeAssetUrl } from '../../core/utils/runtimeUrl';
@@ -66,8 +66,6 @@ const Layout: React.FC = () => {
   const hasCurrentChapter = usePlayerStore(state => !!state.currentChapter);
   const setPlaybackSpeed = usePlayerStore(state => state.setPlaybackSpeed);
   const setIsExpanded = usePlayerStore(state => state.setIsExpanded);
-  const sidebarCollapsed = useUiPreferencesStore(state => state.sidebarCollapsed);
-  const toggleSidebarCollapsed = useUiPreferencesStore(state => state.toggleSidebarCollapsed);
   const setPluginToolMenuEnabled = useUiPreferencesStore(state => state.setPluginToolMenuEnabled);
   const setBookshelfProgressEnabled = useUiPreferencesStore(state => state.setBookshelfProgressEnabled);
   const { registry: pluginExtensionRegistry } = useClientExtensions();
@@ -163,9 +161,10 @@ const Layout: React.FC = () => {
 
   const menuItems = [
     { icon: <Home size={20} />, label: t('nav.home'), path: '/' },
+    { icon: <Headphones size={20} />, label: t('nav.playerPage'), path: '/player' },
     { icon: <Library size={20} />, label: t('nav.bookshelf'), path: '/bookshelf', matches: ['/bookshelf', '/book/', '/series/', '/search'] },
     { icon: <ListMusic size={20} />, label: t('nav.playlists'), path: '/playlists', matches: ['/playlists'] },
-    { icon: <User size={20} />, label: t('reader.settings'), path: '/mine', matches: ['/mine', '/history', '/bookmarks', '/favorites', '/personalization', '/notifications', '/statistics', '/admin/statistics', '/cache', '/about', '/admin'] },
+    { icon: <User size={20} />, label: t('reader.settings'), path: '/mine', matches: ['/mine', '/history', '/bookmarks', '/favorites', '/personalization', '/notifications', '/statistics', '/admin/statistics', '/cache' ] },
   ] satisfies NavItem[];
 
   const adminItems = [
@@ -173,6 +172,7 @@ const Layout: React.FC = () => {
     { icon: <Puzzle size={20} />, label: t('nav.plugins'), path: '/admin/plugins' },
     { icon: <Terminal size={20} />, label: t('nav.logs'), path: '/admin/logs' },
     { icon: <Users size={20} />, label: t('nav.users'), path: '/admin/users' },
+    { icon: <ArrowUpCircle size={20} />, label: t('reader.systemUpdate'), path: '/about' },
   ] satisfies NavItem[];
 
   const pluginPageItems = (pluginExtensionRegistry.bySlot['app.sidebar_page'] || []).map((extension) => ({
@@ -244,7 +244,7 @@ const Layout: React.FC = () => {
       ? location.pathname === '/'
       : location.pathname === item.path || item.matches?.some(match => location.pathname.startsWith(match));
     return (
-      <Link key={item.path} to={item.path} title={sidebarCollapsed ? item.label : undefined}
+      <Link key={item.path} to={item.path} title={item.label}
         aria-current={active ? 'page' : undefined}
         className={(mobile ? 'reader-tab' : 'reader-nav') + (active ? ' is-active' : '')}>
         {item.icon}<span>{item.label}</span>
@@ -254,10 +254,10 @@ const Layout: React.FC = () => {
 
   return (
     <div className="reader-shell">
-      <aside className={'reader-sidebar' + (sidebarCollapsed ? ' is-collapsed' : '')} aria-label={t('nav.mainMenu')}>
+      <aside className="reader-sidebar" aria-label={t('nav.mainMenu')}>
         <Link to="/" className="reader-brand">
-          <img src={getRuntimeAssetUrl('/logo.png')} alt="" />
-          <div><strong>{t('common.appName')}</strong><small>{t('reader.tagline')}</small></div>
+          <img src={getRuntimeAssetUrl('/logo.png')} alt="橙子听书图标" />
+          <div><strong>橙子听书</strong></div>
         </Link>
         <nav aria-label={t('nav.mainMenu')}>
           {menuItems.map(item => renderNav(item))}
@@ -271,17 +271,14 @@ const Layout: React.FC = () => {
           </>}
         </nav>
         {updateInfo?.update_available && <Link to="/about" className="reader-update-badge" title={t('reader.updateFound')}>
-          <span>{sidebarCollapsed ? '↑' : t('reader.updateFound') + ' v' + updateInfo.latest_version}</span>
+          <span>{t('reader.updateFound') + ' v' + updateInfo.latest_version}</span>
         </Link>}
         <div className="reader-account">
           <Link to="/mine" className="reader-avatar" aria-label={t('reader.settings')}>{user?.username.charAt(0).toUpperCase()}</Link>
           <span className="reader-account-name">{user?.username}</span>
           <button type="button" onClick={handleLogout} className="reader-icon-button" aria-label={t('nav.logout')} title={t('nav.logout')}><LogOut size={17} /></button>
         </div>
-        <button type="button" onClick={toggleSidebarCollapsed} className="reader-sidebar-toggle"
-          aria-label={sidebarCollapsed ? t('nav.expandSidebar') : t('nav.collapseSidebar')}>
-          {sidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-        </button>
+
       </aside>
       <div className="reader-workspace">
         <main id="main-content" className="reader-content flex flex-col"
@@ -298,7 +295,7 @@ const Layout: React.FC = () => {
               onChangeCredentials={() => {
                 setDismissedDefaultCredentials(credentialReminderIdentity);
                 setIsExpanded(false);
-                navigate('/mine');
+                navigate('/admin/users');
               }} />
           )}
       </div>

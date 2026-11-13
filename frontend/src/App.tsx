@@ -7,6 +7,7 @@ import LoadingSpinner from './shared/ui/LoadingSpinner';
 const Layout = lazy(() => import('./shared/layout/Layout'));
 const LoginPage = lazy(() => import('./features/auth/LoginPage'));
 const HomePage = lazy(() => import('./features/home/HomePage'));
+const PlayerPage = lazy(() => import('./features/player/PlayerPage'));
 const BookshelfPage = lazy(() => import('./features/bookshelf/BookshelfPage'));
 const BookDetailPage = lazy(() => import('./features/bookshelf/BookDetailPage'));
 const SeriesDetailPage = lazy(() => import('./features/bookshelf/SeriesDetailPage'));
@@ -57,6 +58,7 @@ function App() {
             </ProtectedRoute>
           }>
             <Route index element={<HomePage />} />
+            <Route path="player" element={<PlayerPage />} />
             <Route path="bookshelf" element={<BookshelfPage />} />
             <Route path="book/:id" element={<BookDetailPage />} />
             <Route path="series/:id" element={<SeriesDetailPage />} />

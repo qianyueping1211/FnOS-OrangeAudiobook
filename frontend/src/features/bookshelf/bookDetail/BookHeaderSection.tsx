@@ -135,7 +135,7 @@ const BookHeaderSection: React.FC<Props> = ({
 
   return (
     <div
-      className={`flex flex-col md:flex-row gap-6 md:gap-8 ${coverShape === "square" ? "md:items-center" : ""}`}
+      className={`reader-book-header w-full min-w-0 flex flex-col md:flex-row gap-6 md:gap-8 ${coverShape === "square" ? "md:items-center" : ""}`}
     >
       <div className="w-48 md:w-72 mx-auto md:mx-0 shrink-0">
         <div
@@ -264,7 +264,7 @@ const BookHeaderSection: React.FC<Props> = ({
           </button>
 
           <div
-            className="grid w-full grid-flow-col auto-cols-fr gap-1 min-[430px]:gap-1.5 md:gap-3"
+            className={`grid w-full gap-1 min-[430px]:gap-1.5 md:gap-3 ${canRefreshFiles ? "grid-cols-3 sm:grid-cols-none sm:grid-flow-col sm:auto-cols-fr" : "grid-flow-col auto-cols-fr"}`}
           >
             <button
               onClick={onToggleFavorite}
@@ -301,7 +301,7 @@ const BookHeaderSection: React.FC<Props> = ({
                   </span>
                 </button>
                 {canRefreshFiles && (
-                  <button type="button" onClick={onRefreshFiles} disabled={refreshingFiles}
+                  <button type="button" onClick={onRefreshFiles} disabled={refreshingFiles} aria-label={t("bookshelf.refreshFiles")}
                     title={t("bookshelf.refreshFiles")}
                     className="w-full min-w-0 px-1.5 py-2.5 rounded-xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-300 hover:text-primary-600 disabled:opacity-50 flex items-center justify-center gap-1 font-bold text-[11px] lg:text-sm whitespace-nowrap">
                     <RefreshCw size={18} className={refreshingFiles ? "animate-spin shrink-0" : "shrink-0"} />

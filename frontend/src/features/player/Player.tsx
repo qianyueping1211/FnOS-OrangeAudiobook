@@ -1,7 +1,7 @@
 import { useBookOperations } from '../../core/hooks/useBooks';
 import React, { useRef, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useLocation } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { usePlayerStore } from "../../core/stores/playerStore";
 import type { Chapter } from "../../core/types";
 import { setAlpha, toSolidColor, isTooLight } from "../../core/utils/color";
@@ -57,7 +57,7 @@ const Player: React.FC = () => {
     setVolume,
     themeColor,
     playChapter,
-    isExpanded,
+    isExpanded: expandedInStore,
     setIsExpanded,
     isCollapsed,
     setIsCollapsed,
@@ -70,6 +70,9 @@ const Player: React.FC = () => {
     sleepEpisodes, startSleepTimer, startEpisodeSleepTimer, cancelSleepTimer,
   } = usePlayback();
   const location = useLocation();
+  const navigate = useNavigate();
+  const isPlayerPage = location.pathname === "/player";
+  const isExpanded = isPlayerPage || expandedInStore;
   const [showChapters, setShowChapters] = useState(false);
   const [showSleepTimer, setShowSleepTimer] = useState(false);
   const [showVolumeControl, setShowVolumeControl] = useState(false);
@@ -283,11 +286,13 @@ const Player: React.FC = () => {
   return (
     <div
       className={`
-        reader-player transition-all duration-500 ease-in-out
+        reader-player ${isPlayerPage ? "is-page" : ""} transition-all duration-500 ease-in-out
         ${(isHiddenPage || isSeriesEditing) && !isExpanded ? "translate-y-full opacity-0 pointer-events-none" : ""}
         ${
           isExpanded
-            ? "fixed inset-0 z-[110] bg-white dark:bg-slate-950"
+            ? isPlayerPage
+              ? "absolute inset-0 z-[35] bg-white dark:bg-slate-950"
+              : "fixed inset-0 z-[110] bg-white dark:bg-slate-950"
             : "absolute left-0 right-0 z-[30] bg-transparent pointer-events-none"
         }
       `}
@@ -454,7 +459,10 @@ const Player: React.FC = () => {
           <ExpandedPlayerHeader
             bookTitle={currentBook?.title || currentChapter.title}
             authorText={authorText}
-            onExit={handleExitExpanded}
+            onExit={() => {
+              void handleExitExpanded();
+              if (isPlayerPage) navigate("/bookshelf");
+            }}
             onOpenSettings={() => setShowSettings(true)}
           />
 

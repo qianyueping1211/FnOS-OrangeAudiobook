@@ -84,7 +84,7 @@ const enUS = {
     loginFailed: "Login failed. Check your username and password.",
     loginError: "Login error:",
     urlResolveFailed: "URL resolution failed; using the original URL",
-    copyright: "©2026 Ting Reader. All rights reserved.",
+    copyright: "©2026 Orange Audiobook · Based on Ting Reader (AGPL-3.0-only)",
     acceptAgreement: "I agree to",
     userAgreement: "User Agreement",
     and: "&",
@@ -97,6 +97,7 @@ const enUS = {
     offlineReady: "The app is ready for offline use",
   },
   nav: {
+    playerPage: "Player",
     mainMenu: "Main Menu",
     admin: "Admin",
     home: "Home",
@@ -250,6 +251,9 @@ const enUS = {
     changelogDescription: "Versions and fixes",
   },
   player: {
+    resumeFailed: "Unable to load your recent book",
+    emptyTitle: "No book selected",
+    emptyDescription: "Choose a book from your bookshelf to start listening here.",
     collapse: "Collapse player",
     expand: "Expand player",
     settings: "Playback Settings",

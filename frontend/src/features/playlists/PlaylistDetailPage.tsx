@@ -272,7 +272,7 @@ const PlaylistDetailPage: React.FC = () => {
   const displayBooks = isManaging ? filteredBooks : filteredPlaylistBooks;
 
   return (
-    <div className="reader-page flex-1 min-h-full flex flex-col animate-in fade-in duration-500">
+    <div className="reader-page flex-1 min-h-full flex flex-col">
       <div className="flex-1 space-y-6">
         <BackButton fallback="/playlists" />
 

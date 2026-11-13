@@ -84,7 +84,7 @@ const zhCN = {
     loginFailed: "登录失败，请检查用户名和密码",
     loginError: "登录错误:",
     urlResolveFailed: "URL 解析失败，使用原始 URL",
-    copyright: "©2026 Ting Reader. 保留所有权利。",
+    copyright: "©2026 橙子听书 · 基于 Ting Reader（AGPL-3.0-only）",
     acceptAgreement: "我已阅读并同意",
     userAgreement: "《用户协议》",
     and: "和",
@@ -97,6 +97,7 @@ const zhCN = {
     offlineReady: "应用已准备好离线使用",
   },
   nav: {
+    playerPage: "播放页",
     mainMenu: "主菜单",
     admin: "管理后台",
     home: "首页",
@@ -236,6 +237,9 @@ const zhCN = {
     changelogDescription: "版本迭代与修复记录",
   },
   player: {
+    resumeFailed: "暂时无法载入继续播放的内容",
+    emptyTitle: "还没有正在播放的书籍",
+    emptyDescription: "从书架选择一本书，即可在这里继续收听。",
     collapse: "收起播放器",
     expand: "展开播放器",
     settings: "播放设置",

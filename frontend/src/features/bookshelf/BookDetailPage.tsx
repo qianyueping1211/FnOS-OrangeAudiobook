@@ -638,7 +638,7 @@ const BookDetailPage: React.FC = () => {
         />
 
         {/* Chapters List */}
-        <div className="-mx-4 sm:-mx-6 md:-mx-8">
+        <div className="reader-book-chapters w-full min-w-0">
           <ChapterListSection
             isAdmin={user?.role === 'admin'}
             chapters={chapters}
