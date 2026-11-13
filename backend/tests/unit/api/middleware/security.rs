@@ -254,8 +254,16 @@ async fn trusted_unix_gateway_allows_only_same_origin_framing() {
     let mut request = Request::builder().uri("/test").body(Body::empty()).unwrap();
     request.extensions_mut().insert(GatewayTransport);
     let response = app.oneshot(request).await.unwrap();
-    assert_eq!(response.headers().get("X-Frame-Options").unwrap(), "SAMEORIGIN");
-    let csp = response.headers().get("Content-Security-Policy").unwrap().to_str().unwrap();
+    assert_eq!(
+        response.headers().get("X-Frame-Options").unwrap(),
+        "SAMEORIGIN"
+    );
+    let csp = response
+        .headers()
+        .get("Content-Security-Policy")
+        .unwrap()
+        .to_str()
+        .unwrap();
     assert!(csp.contains("frame-ancestors 'self'"));
     assert!(!csp.contains("frame-ancestors *"));
 }
@@ -263,15 +271,22 @@ async fn trusted_unix_gateway_allows_only_same_origin_framing() {
 #[tokio::test]
 async fn gateway_plugin_assets_still_reject_embedding() {
     let app = Router::new()
-        .route("/api/v1/plugin-assets/example/ui/index.html", get(|| async { "asset" }))
+        .route(
+            "/api/v1/plugin-assets/example/ui/index.html",
+            get(|| async { "asset" }),
+        )
         .layer(middleware::from_fn(security_headers_middleware));
     let mut request = Request::builder()
         .uri("/api/v1/plugin-assets/example/ui/index.html")
-        .body(Body::empty()).unwrap();
+        .body(Body::empty())
+        .unwrap();
     request.extensions_mut().insert(GatewayTransport);
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.headers().get("X-Frame-Options").unwrap(), "DENY");
-    assert_eq!(response.headers().get("Content-Security-Policy").unwrap(), PLUGIN_ASSET_CSP);
+    assert_eq!(
+        response.headers().get("Content-Security-Policy").unwrap(),
+        PLUGIN_ASSET_CSP
+    );
 }
 
 #[tokio::test]
@@ -279,10 +294,12 @@ async fn client_supplied_gateway_headers_cannot_enable_framing() {
     let app = Router::new()
         .route("/test", get(|| async { "OK" }))
         .layer(middleware::from_fn(security_headers_middleware));
-    let request = Request::builder().uri("/test")
+    let request = Request::builder()
+        .uri("/test")
         .header("X-Fnnas-Data", "forged")
         .header("X-Forwarded-Prefix", "/app/ting-reader")
-        .body(Body::empty()).unwrap();
+        .body(Body::empty())
+        .unwrap();
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.headers().get("X-Frame-Options").unwrap(), "DENY");
 }
