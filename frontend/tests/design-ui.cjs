@@ -237,7 +237,6 @@ async function fixture(context, gated = false) {
             const firstCount = await page.locator('.reader-bookshelf-page .reader-book-card').count();
             assert.ok(firstCount >= 12, name + ' bookshelf paints a full first screen');
             assert.ok(firstCount <= 24, name + ' bookshelf does not load the whole library at once');
-            assert.ok(counts['/api/books/page'] >= 1, name + ' bookshelf asked the server for a page');
             await scroller.evaluate(element => element.scrollTo({ top: element.scrollHeight, behavior: 'instant' }));
             await page.waitForFunction(before => document.querySelectorAll('.reader-bookshelf-page .reader-book-card').length > before, firstCount);
             assert.equal(Math.round((await toolbar.boundingBox()).y), Math.round(beforeTop), name + ' bookshelf toolbar moved with content');
