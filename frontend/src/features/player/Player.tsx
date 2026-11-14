@@ -286,7 +286,7 @@ const Player: React.FC = () => {
   return (
     <div
       className={`
-        reader-player ${isPlayerPage ? "is-page" : ""} transition-all duration-500 ease-in-out
+        reader-player ${isPlayerPage ? "is-page" : !isExpanded && !isWidgetMode ? "is-mini" : ""} transition-all duration-500 ease-in-out
         ${(isHiddenPage || isSeriesEditing) && !isExpanded ? "translate-y-full opacity-0 pointer-events-none" : ""}
         ${
           isExpanded
@@ -471,6 +471,11 @@ const Player: React.FC = () => {
               <ExpandedCover
                 book={currentBook}
                 expandedCoverSizeClass={expandedCoverSizeClass}
+                onOpenBook={() => {
+                  if (!currentBook) return;
+                  setIsExpanded(false);
+                  navigate('/book/' + encodeURIComponent(currentBook.id) + '?chapter_id=' + encodeURIComponent(currentChapter.id));
+                }}
               />
               <div className="w-full min-[700px]:landscape:hidden">
                 <ExpandedChapterTitle

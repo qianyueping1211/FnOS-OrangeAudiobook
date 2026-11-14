@@ -93,8 +93,8 @@ jobs:
       - name: Install UI verification tools
         run: |
           npm install --prefix "$RUNNER_TEMP/ting-ui-tools" --no-save --package-lock=false playwright@1.56.1
-          "$RUNNER_TEMP/ting-ui-tools/node_modules/.bin/playwright" install --with-deps chromium
-      - name: Verify desktop and iPhone layouts
+          "$RUNNER_TEMP/ting-ui-tools/node_modules/.bin/playwright" install --with-deps chromium webkit
+      - name: Verify desktop and iPhone layouts in Chromium and WebKit
         run: NODE_PATH="$RUNNER_TEMP/ting-ui-tools/node_modules" node tests/design-ui.cjs
       - uses: actions/upload-artifact@v4
         if: always()

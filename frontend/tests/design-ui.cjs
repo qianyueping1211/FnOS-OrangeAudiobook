@@ -1,7 +1,7 @@
 // Runs only in GitHub Actions. All content and API traffic are synthetic.
-const { chromium } = require('playwright');
+const { chromium, webkit } = require('playwright');
 const { spawn } = require('node:child_process');
-const { mkdir } = require('node:fs/promises');
+const { mkdir, writeFile } = require('node:fs/promises');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const root = process.cwd();
@@ -29,7 +29,14 @@ async function ready() {
   }
   throw new Error('Preview did not start');
 }
-async function fixture(context) {
+async function fixture(context, gated = false) {
+  const gate = () => { let release; const promise = new Promise(resolve => { release = resolve; }); return { promise, release }; };
+  const auth = gate(), settings = gate(), optional = gate();
+  const counts = {};
+  let authSeen;
+  const authStarted = new Promise(resolve => { authSeen = resolve; });
+  const controls = { counts, authStarted, releaseAuth: auth.release, releaseSettings: settings.release, releaseOptional: optional.release };
+  let startup = gated;
   await context.addInitScript(user => {
     localStorage.setItem('auth_token', 'synthetic-session');
     localStorage.setItem('user', JSON.stringify(user));
@@ -50,6 +57,10 @@ async function fixture(context) {
     if (!url.pathname.startsWith('/api/')) return route.continue();
     let result = [];
     const p = url.pathname.replace('/api/v1/', '/api/');
+    counts[p] = (counts[p] || 0) + 1;
+    if (startup && ['/api/me', '/api/auth/session-restore'].includes(p)) { authSeen(); await auth.promise; }
+    if (startup && p === '/api/settings') await settings.promise;
+    if (startup && ['/api/favorites', '/api/playlists', '/api/series'].includes(p)) await optional.promise;
     if (p === '/api/me') result = user;
     else if (p === '/api/auth/session-restore') result = { user, token: 'synthetic-session' };
     else if (p === '/api/settings') result = { theme: 'dark', language: 'zh-CN', bookshelf_progress_enabled: true, settings_json: { bookshelf_cover_shape: 'rect' } };
@@ -72,6 +83,7 @@ async function fixture(context) {
       } else result = book;
     }
     else if (p === '/api/libraries') result = [{ id: 'library-1', name: '我的有声书', path: '/fixtures', library_type: 'local', type: 'local' }];
+    else if (p === '/api/progress/book-0') result = { id: 'progress-0', book_id: 'book-0', chapter_id: 'chapter-book-0', position: 120, updated_at: '2026-11-13T12:00:00Z' };
     else if (p === '/api/progress/recent') result = (hasRecent ? books.slice(0, 3) : []).map((book, i) => ({ id: 'progress-' + i, book_id: book.id, chapter_id: 'chapter-book-' + i, book_title: book.title, cover_url: book.cover_url,
       library_id: book.library_id, chapter_title: '第一章 · 故事的开始', position: 120 + i * 40, chapter_duration: 600, updated_at: '2026-11-13T12:00:00Z' }));
     else if (p === '/api/history/summary') result = { books: 3, chapters: 12, position_seconds: 7200 };
@@ -83,27 +95,62 @@ async function fixture(context) {
     else if (p === '/api/system/updates') result = info();
     return route.fulfill({ contentType: 'application/json', body: JSON.stringify(result) });
   });
+  const releaseOptional = controls.releaseOptional;
+  controls.releaseOptional = () => { startup = false; releaseOptional(); };
+  return controls;
 }
 (async () => {
   let browser;
   try {
     await ready();
     await mkdir(path.join(root, 'ui-artifacts'), { recursive: true });
-    browser = await chromium.launch();
-    for (const [name, viewport] of [['desktop', { width: 1440, height: 1000 }], ['iphone16pro', { width: 402, height: 874 }], ['iphone16promax', { width: 440, height: 956 }]]) {
-      const context = await browser.newContext({ viewport, locale: 'zh-CN', deviceScaleFactor: 1, serviceWorkers: 'block' });
-      await fixture(context);
+    const reports = [];
+    for (const [engine, engineName] of [[chromium, 'chromium'], [webkit, 'webkit']]) {
+    browser = await engine.launch();
+    const sizes = engineName === 'chromium'
+      ? [['desktop', { width: 1440, height: 1000 }], ['iphone16pro', { width: 402, height: 874 }], ['iphone16promax', { width: 440, height: 956 }]]
+      : [['iphone16pro', { width: 402, height: 874 }], ['iphone16promax', { width: 440, height: 956 }]];
+    for (const [device, viewport] of sizes) {
+      const mobile = device !== 'desktop';
+      const name = engineName + '-' + device;
+      const context = await browser.newContext({ viewport, locale: 'zh-CN', deviceScaleFactor: 1, isMobile: mobile, hasTouch: mobile, serviceWorkers: 'block' });
+      const startup = await fixture(context, true);
       const page = await context.newPage();
       const errors = [];
       page.on('pageerror', error => { errors.push(error.message); console.error(name + ' runtime error:', error.stack || error.message); });
       page.on('console', message => { if (message.type() === 'error') console.error(name + ' browser:', message.text()); });
+      const started = Date.now();
+      await page.goto(base + '/');
+      await startup.authStarted;
+      assert.equal(await page.locator('#main-content').count(), 0, 'Cached content must remain behind server authentication');
+      startup.releaseAuth();
+      await page.locator('.reader-home h1').waitFor();
+      const headerMs = Date.now() - started;
+      await page.locator('.reader-book-card').first().waitFor();
+      assert.equal(startup.counts['/api/settings'], 1, 'Layout, home and cover settings must share one pending request');
+      assert.equal(await page.locator('audio').count(), 0, 'An idle home must not mount the player');
+      reports.push({ engine: engineName, device, headerMs, latestBooksMs: Date.now() - started, sharedSettingsRequests: startup.counts['/api/settings'], optionalRequestsStillHeld: true });
+      startup.releaseSettings();
+      startup.releaseOptional();
+      await page.locator('.reader-hero a.reader-button').filter({ hasText: '继续播放' }).waitFor();
+      assert.match(await page.locator('.reader-hero a.reader-button').getAttribute('href'), /^\/player\?book=book-0&chapter=chapter-book-0$/);
+      assert.match(await page.locator('.reader-hero-cover-link').getAttribute('href'), /^\/book\/book-0\?chapter_id=chapter-book-0$/);
+      await page.locator('.reader-hero a.reader-button').click();
+      await page.locator('.reader-player.is-page').waitFor();
+      assert.equal(new URL(page.url()).pathname, '/player');
+      await page.locator('.reader-player-book-cover').click();
+      await page.waitForURL('**/book/book-0?chapter_id=chapter-book-0');
+      await page.locator('.reader-mini-info').waitFor();
+      await page.locator((mobile ? '.reader-tabs' : '.reader-sidebar') + ' a[href="/"]').click();
+      await page.locator('.reader-hero-cover-link').click();
+      await page.waitForURL('**/book/book-0?chapter_id=chapter-book-0');
       for (const [route, slug] of [['/', 'home'], ['/bookshelf', 'bookshelf'], ['/search', 'search'], ['/mine', 'settings'], ['/playlists', 'playlists']]) {
         await page.goto(base + route);
         await page.waitForSelector('#main-content', { timeout: 20000 });
         await page.locator('h1').first().waitFor({ state: 'visible' });
         await page.evaluate(() => document.fonts.ready);
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), false, name + '/' + slug + ' viewport overflow');
-        assert.equal(await page.locator('.reader-tabs').isVisible(), name !== 'desktop');
+        assert.equal(await page.locator('.reader-tabs').isVisible(), mobile);
         if (slug === 'playlists') assert.equal(await page.locator('.reader-page.animate-in').count(), 0);
         if (slug === 'settings') {
           assert.equal(await page.locator('input[type=password]').count(), 0);
@@ -119,9 +166,38 @@ async function fixture(context) {
           assert.equal(await page.locator('.reader-sidebar-toggle').count(), 0);
         }
         if (slug === 'home') {
+          await page.locator('.reader-book-card').first().waitFor();
           assert.ok(await page.locator('.reader-book-card').count() >= 6);
           assert.equal(await page.locator('.reader-brand strong').textContent(), '橙子听书');
           assert.equal(await page.locator('.reader-brand img').evaluate(image => image.complete && image.naturalWidth > 0), true);
+        }
+        if (slug === 'search') {
+          const input = page.locator('.reader-search-field input');
+          assert.equal(await input.getAttribute('autofocus'), null);
+          const before = await page.evaluate(() => ({ width: innerWidth, scale: visualViewport?.scale || 1 }));
+          if (mobile) assert.ok(await input.evaluate(element => parseFloat(getComputedStyle(element).fontSize)) >= 16);
+          await input.fill('山海');
+          await page.locator('.reader-book-card').first().waitFor();
+          await input.blur();
+          const after = await page.evaluate(() => ({ width: innerWidth, scale: visualViewport?.scale || 1 }));
+          assert.deepEqual(after, before, name + ' search focus changed the visual viewport');
+          await page.getByRole('button', { name: '展开筛选', exact: true }).click();
+          await page.locator('#search-filters').waitFor();
+          assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
+          await page.getByRole('button', { name: '清除筛选', exact: true }).click();
+        }
+        if (slug === 'bookshelf') {
+          await page.locator('.reader-display-trigger').click();
+          const dialog = page.getByRole('dialog');
+          await dialog.waitFor();
+          const bounds = await dialog.boundingBox();
+          assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= viewport.width + 1);
+          assert.ok(bounds.y >= 0 && bounds.y + bounds.height <= viewport.height + 1);
+          assert.ok(await dialog.locator('button[aria-pressed=true]').count() >= 3);
+          await page.screenshot({ path: path.join(root, 'ui-artifacts', name + '-filters.png') });
+          await page.keyboard.press('Escape');
+          await dialog.waitFor({ state: 'hidden' });
+          assert.equal(await page.locator('.reader-display-trigger').evaluate(element => element === document.activeElement), true);
         }
         await page.screenshot({ path: path.join(root, 'ui-artifacts', name + '-' + slug + '.png'), fullPage: false });
       }
@@ -132,7 +208,7 @@ async function fixture(context) {
       hasRecent = true;
       await page.reload();
       await page.locator('.reader-player.is-page').waitFor();
-      assert.equal(await page.locator(name === 'desktop' ? '.reader-sidebar a[href="/player"]' : '.reader-tabs a[href="/player"]').innerText(), '播放');
+      assert.equal(await page.locator(!mobile ? '.reader-sidebar a[href="/player"]' : '.reader-tabs a[href="/player"]').innerText(), '播放');
       assert.equal(await page.locator('audio').count(), 1);
       assert.equal(await page.evaluate(() => window.__playCalls), 0, 'Loading recent playback must stay paused');
       assert.equal(await page.locator('.reader-mini-info').count(), 0, 'Player page must not render a mini player');
@@ -141,6 +217,25 @@ async function fixture(context) {
       const nav = name === 'desktop' ? '.reader-sidebar' : '.reader-tabs';
       await page.locator(nav + ' a[href="/bookshelf"]').click();
       await page.locator('.reader-mini-info').waitFor();
+      assert.equal(await page.locator('audio').getAttribute('data-navigation-identity'), 'same-player');
+      await page.locator(nav + ' a[href="/mine"]').click();
+      await page.locator('.reader-mini-info').waitFor();
+      assert.equal(await page.locator('.reader-player.is-mini').evaluate(element => getComputedStyle(element).position), 'fixed');
+      if (mobile) assert.equal(await page.locator('.reader-tabs').evaluate(element => getComputedStyle(element).position), 'fixed');
+      await page.locator(nav + ' a[href="/bookshelf"]').click();
+      await page.locator('.reader-library-search').click();
+      const miniBefore = await page.locator('.reader-player.is-mini').boundingBox();
+      const tabsBefore = mobile ? await page.locator('.reader-tabs').boundingBox() : null;
+      await page.locator('.reader-search-field input').fill('山海');
+      await page.locator('.reader-book-card').first().waitFor();
+      await page.locator('.reader-search-field input').blur();
+      await page.locator('#main-content').evaluate(element => { element.scrollTop = element.scrollHeight; });
+      const miniAfter = await page.locator('.reader-player.is-mini').boundingBox();
+      assert.ok(Math.abs(miniBefore.y - miniAfter.y) <= 1, name + ' mini-player moved while scrolling');
+      if (mobile) {
+        const tabsAfter = await page.locator('.reader-tabs').boundingBox();
+        assert.ok(Math.abs(tabsBefore.y - tabsAfter.y) <= 1 && Math.abs(tabsBefore.width - tabsAfter.width) <= 1);
+      }
       assert.equal(await page.locator('audio').getAttribute('data-navigation-identity'), 'same-player');
       await page.locator(nav + ' a[href="/player"]').click();
       await page.locator('.reader-player.is-page').waitFor();
@@ -173,9 +268,11 @@ async function fixture(context) {
       assert.equal(writeCalls, 1);
       assert.equal(refreshCalls, 2);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), false, name + '/book viewport overflow');
-      if (name === 'desktop') {
+      if (!mobile) {
         await page.goto(base + '/about');
         await page.getByRole('button', { name: '检查更新', exact: true }).waitFor();
+        assert.equal(await page.locator('.reader-update-panel').count(), 1);
+        assert.equal(await page.locator('#main-content').getByText('橙子听书', { exact: true }).count(), 0, 'Update page must not repeat the app/version footer');
         await page.locator('input[type=password]').fill('ghp_readonly_synthetic_fixture_12345');
         await page.getByRole('button', { name: '保存令牌', exact: true }).click();
         await page.getByRole('button', { name: '删除令牌', exact: true }).waitFor();
@@ -195,6 +292,9 @@ async function fixture(context) {
       assert.deepEqual(errors, [], name + ' runtime errors');
       await context.close();
     }
+    await browser.close(); browser = null;
+    }
+    await writeFile(path.join(root, 'ui-artifacts', 'startup-report.json'), JSON.stringify(reports, null, 2));
   } finally {
     if (browser) await browser.close();
     server.kill('SIGTERM');

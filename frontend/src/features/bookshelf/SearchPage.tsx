@@ -65,8 +65,8 @@ const FilterRow: React.FC<FilterRowProps> = ({
   if (items.length === 0) return null;
 
   return (
-    <div className="flex flex-row items-center gap-3 sm:gap-6 py-1">
-      <div className="text-sm font-bold text-slate-400 shrink-0 min-w-[60px] sm:min-w-[70px] text-left">
+    <div className="reader-filter-row">
+      <div className="reader-filter-label">
         {label}
       </div>
       <div className="relative flex-1 group/row min-w-0">
@@ -82,9 +82,10 @@ const FilterRow: React.FC<FilterRowProps> = ({
         <div
           ref={scrollRef}
           onScroll={checkScroll}
-          className="flex items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth pr-4 sm:pr-0 -mr-4 sm:mr-0 mask-linear-fade"
+          className="reader-filter-options"
         >
           <button
+            aria-pressed={selected === ''}
             onClick={() => onSelect('')}
             className={`shrink-0 px-3 py-1.5 rounded-lg text-sm transition-all whitespace-nowrap ${
               selected === ''
@@ -100,6 +101,7 @@ const FilterRow: React.FC<FilterRowProps> = ({
             return (
               <button
                 key={value}
+                aria-pressed={selected === value}
                 onClick={() => onSelect(selected === value ? '' : value)}
                 className={`shrink-0 px-3 py-1.5 rounded-lg text-sm transition-all whitespace-nowrap ${
                   selected === value
@@ -458,23 +460,23 @@ const SearchPage: React.FC = () => {
     : t('searchPage.selectedOnlineSources', { count: selectedSourceIds.length });
 
   return (
-    <div className="w-full max-w-screen-2xl mx-auto p-4 sm:p-6 md:p-8 lg:p-10 space-y-6">
+    <div className="reader-page reader-search-page flex-1 space-y-6">
       <BackButton fallback="/bookshelf" />
 
-      <div className="text-center space-y-4">
-        <h1 className="text-3xl md:text-4xl font-bold dark:text-white">{t('searchPage.title')}</h1>
+      <div className="reader-search-header space-y-4">
+        <h1 className="reader-search-title">{t('searchPage.title')}</h1>
         <p className="text-sm md:text-base text-slate-500">{t('searchPage.subtitle')}</p>
         
         {/* Main Search Input */}
-        <div className="w-full max-w-md sm:max-w-xl md:max-w-3xl lg:max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto relative mt-8">
+        <div className="reader-search-field relative">
           <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
           <input 
-            type="text"
+            type="search"
+            aria-label={t('searchPage.placeholder')}
             placeholder={t('searchPage.placeholder')}
             value={query}
             onChange={(e) => { setQuery(e.target.value); setSourcePage(1); }}
             className="w-full pl-12 pr-12 py-3 md:py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-lg focus:ring-2 focus:ring-primary-500 outline-none text-base md:text-lg transition-all dark:text-white"
-            autoFocus
           />
           {loading ? (
             <div className="absolute right-4 top-1/2 -translate-y-1/2">
@@ -492,8 +494,8 @@ const SearchPage: React.FC = () => {
           )}
         </div>
 
-        <div className="mt-4 flex justify-center">
-          <div role="tablist" aria-label={t('searchPage.scope')} className="relative inline-flex items-center rounded-xl border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <div className="reader-search-options">
+          <div role="tablist" aria-label={t('searchPage.scope')} className="reader-search-scopes">
             {(['all', 'local'] as SearchMode[]).map(mode => (
                 <button
                   key={mode}
@@ -606,8 +608,11 @@ const SearchPage: React.FC = () => {
         </div>
 
         {/* Filters Toggle Button */}
-        {showLocalFilters && <div className="flex justify-center mt-4">
+        {showLocalFilters && <div className="reader-search-filter-toggle">
           <button
+            type="button"
+            aria-expanded={showFilters}
+            aria-controls="search-filters"
             onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
               showFilters || hasActiveFilters
@@ -624,8 +629,15 @@ const SearchPage: React.FC = () => {
 
         {/* Advanced Filters Panel */}
         {showLocalFilters && showFilters && (
-          <div className="w-full max-w-7xl mx-auto mt-6 p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm animate-in slide-in-from-top-4 duration-300">
-            <div className="space-y-4 divide-y divide-slate-50 dark:divide-slate-800/50">
+          <div id="search-filters" className="reader-filter-panel">
+            <div className="reader-filter-panel-heading">
+              <strong>{t('searchPage.showFilters')}</strong>
+              <button type="button" className="reader-button" onClick={() => {
+                setSelectedLibraryId(''); setSelectedSeries(''); setSelectedTag(''); setSelectedGenre('');
+                setSelectedYear(''); setSelectedAuthor(''); setSelectedNarrator('');
+              }}>{t('searchPage.clear', { defaultValue: '清除筛选' })}</button>
+            </div>
+            <div className="reader-filter-groups">
               <FilterRow
                 label={t('searchPage.library')}
                 allLabel={t('searchPage.all')}

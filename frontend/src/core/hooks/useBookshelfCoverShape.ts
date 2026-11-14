@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import apiClient from '../api/client';
+import { loadClientSettings } from '../api/clientSettings';
 
 export type CoverShape = 'rect' | 'square';
 export type BookshelfIconSize = 'small' | 'medium' | 'large';
@@ -39,13 +39,13 @@ export const useBookshelfDisplaySettings = (enabled = true) => {
     const request = new AbortController();
     if (!enabled) return;
 
-    apiClient.get('/api/settings', { signal: request.signal })
-      .then(res => {
-        const nextCoverShape = normalizeCoverShape(res.data.settings_json?.bookshelf_cover_shape);
+    loadClientSettings()
+      .then(settings => {
+        const nextCoverShape = normalizeCoverShape(settings.settings_json?.bookshelf_cover_shape);
         if (request.signal.aborted) return;
         cachedCoverShape = nextCoverShape;
         setCoverShape(nextCoverShape);
-        const size = res.data.settings_json?.bookshelf_icon_size;
+        const size = settings.settings_json?.bookshelf_icon_size;
         setIconSize(size === 'small' || size === 'large' ? size : 'medium');
       })
       .catch(err => {

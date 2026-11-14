@@ -10,17 +10,19 @@ const savedTheme = localStorage.getItem('theme') || 'dark';
 document.documentElement.classList.add(savedTheme === 'system'
   ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : savedTheme);
 
-// 注册 Service Worker
-const updateSW = registerSW({
-  onNeedRefresh() {
-    if (confirm(i18n.t('pwa.refreshPrompt'))) {
-      updateSW(true)
-    }
-  },
-  onOfflineReady() {
-    console.log(i18n.t('pwa.offlineReady'))
-  },
-})
+// Let the application and authentication requests finish before offline precaching.
+const registerUpdates = () => {
+  const updateSW = registerSW({
+    onNeedRefresh() { if (confirm(i18n.t('pwa.refreshPrompt'))) updateSW(true); },
+    onOfflineReady() { console.log(i18n.t('pwa.offlineReady')); },
+  });
+};
+const scheduleUpdates = () => window.setTimeout(() => {
+  if ('requestIdleCallback' in window) window.requestIdleCallback(registerUpdates, { timeout: 3000 });
+  else registerUpdates();
+}, 2500);
+if (document.readyState === 'complete') scheduleUpdates();
+else window.addEventListener('load', scheduleUpdates, { once: true });
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

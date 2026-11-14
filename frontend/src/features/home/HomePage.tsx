@@ -4,50 +4,79 @@ import { useTranslation } from 'react-i18next';
 import { ChevronRight, Headphones, Heart, History, Library, ListMusic, Search } from 'lucide-react';
 import apiClient from '../../core/api/client';
 import type { Book, Playlist, Progress, Series } from '../../core/types';
-import { DEFAULT_HOME_LAYOUT, normalizeHomeLayout } from '../../core/utils/homeLayout';
+import { DEFAULT_HOME_LAYOUT, normalizeHomeLayout, type HomeLayoutSettings } from '../../core/utils/homeLayout';
 import { useBookshelfCoverShape } from '../../core/hooks/useBookshelfCoverShape';
 import { usePlayerStore } from '../../core/stores/playerStore';
 import BookCard from '../../shared/cards/BookCard';
 import CoverArt from '../../shared/cards/CoverArt';
 import LoadingSpinner from '../../shared/ui/LoadingSpinner';
+import { useAuthStore } from '../../core/stores/authStore';
+import { libraryCacheIdentity, libraryViewCache } from '../../core/api/libraryCache';
+import { loadClientSettings } from '../../core/api/clientSettings';
+
+type HomeSnapshot = {
+  books: Book[]; bookCount: number; recent: Progress[]; favorites: Book[];
+  playlists: Playlist[]; series: Series[]; layout: HomeLayoutSettings;
+};
+const emptyHome = (): HomeSnapshot => ({
+  books: [], bookCount: 0, recent: [], favorites: [], playlists: [], series: [], layout: DEFAULT_HOME_LAYOUT,
+});
+const homeIdentity = () => {
+  const state = useAuthStore.getState();
+  return libraryCacheIdentity(state.serverUrl || state.activeUrl, state.user?.id);
+};
 
 export default function HomePage() {
   const { t } = useTranslation();
   const coverShape = useBookshelfCoverShape();
   const currentChapter = usePlayerStore(state => state.currentChapter);
-  const [books, setBooks] = useState<Book[]>([]);
-  const [recent, setRecent] = useState<Progress[]>([]);
-  const [favorites, setFavorites] = useState<Book[]>([]);
-  const [playlists, setPlaylists] = useState<Playlist[]>([]);
-  const [series, setSeries] = useState<Series[]>([]);
-  const [layout, setLayout] = useState(DEFAULT_HOME_LAYOUT);
-  const [loading, setLoading] = useState(true);
+  const currentBook = usePlayerStore(state => state.currentBook);
+  const identity = useAuthStore(state => libraryCacheIdentity(state.serverUrl || state.activeUrl, state.user?.id));
+  const initial = useMemo(() => libraryViewCache.get<HomeSnapshot>(identity, 'home'), [identity]);
+  const [data, setData] = useState(() => ({ ...(initial || emptyHome()), identity, loading: !initial }));
+  const visible = data.identity === identity ? data : { ...(initial || emptyHome()), identity, loading: !initial };
+  const { books, bookCount, recent, favorites, playlists, series, layout, loading } = visible;
 
   useEffect(() => {
-    const controller = new AbortController();
-    const refresh = async () => {
+    let current = initial || emptyHome();
+    let booksReady = !!initial;
+    let request: AbortController | undefined;
+    const refresh = () => {
+      request?.abort();
+      const controller = new AbortController();
+      request = controller;
+      const active = () => !controller.signal.aborted && homeIdentity() === identity;
+      const update = (patch: Partial<HomeSnapshot>, ready = booksReady) => {
+        if (!active()) return;
+        current = { ...current, ...patch };
+        booksReady = ready;
+        setData({ ...current, identity, loading: !booksReady });
+        if (booksReady) {
+          const latest = [...current.books].sort((a,b) => Date.parse(b.created_at)-Date.parse(a.created_at)).slice(0,12);
+          const lastId = [...current.recent].sort((a,b) => Date.parse(b.updated_at)-Date.parse(a.updated_at))[0]?.book_id;
+          const lastBook = current.books.find(book => book.id === lastId);
+          if (lastBook && !latest.some(book => book.id === lastId)) latest.push(lastBook);
+          libraryViewCache.set(identity, 'home', {
+            ...current, books: latest, recent: current.recent.slice(0,20), favorites: current.favorites.slice(0,12),
+            playlists: current.playlists.slice(0,4).map(item => ({ ...item, book_ids: item.book_ids || item.books?.map(book => book.id), books: [] })),
+            series: current.series.slice(0,2).map(item => ({ ...item, books: undefined })),
+          } satisfies HomeSnapshot);
+        }
+      };
       const options = { signal: controller.signal };
-      const result = await Promise.allSettled([
-        apiClient.get<Book[]>('/api/books', options),
-        apiClient.get<Progress[]>('/api/progress/recent', options),
-        apiClient.get<Book[]>('/api/favorites', options),
-        apiClient.get<Playlist[]>('/api/playlists', options),
-        apiClient.get<Series[]>('/api/v1/series', options),
-        apiClient.get('/api/settings', options),
-      ]);
-      if (controller.signal.aborted) return;
-      if (result[0].status === 'fulfilled') setBooks(result[0].value.data || []);
-      if (result[1].status === 'fulfilled') setRecent(result[1].value.data || []);
-      if (result[2].status === 'fulfilled') setFavorites(result[2].value.data || []);
-      if (result[3].status === 'fulfilled') setPlaylists(result[3].value.data || []);
-      if (result[4].status === 'fulfilled') setSeries(result[4].value.data || []);
-      if (result[5].status === 'fulfilled') setLayout(normalizeHomeLayout(result[5].value.data.settings_json?.home_layout ?? result[5].value.data.home_layout));
-      setLoading(false);
+      // Each section commits independently: a slow collection never blocks the hero or latest books.
+      void apiClient.get<Book[]>('/api/books', options).then(({data}) => update({ books: data || [], bookCount: data?.length || 0 }, true))
+        .catch(() => { if (active()) { booksReady = true; setData({ ...current, identity, loading: false }); } });
+      void apiClient.get<Progress[]>('/api/progress/recent', options).then(({data}) => update({ recent: data || [] })).catch(() => {});
+      void apiClient.get<Book[]>('/api/favorites', options).then(({data}) => update({ favorites: data || [] })).catch(() => {});
+      void apiClient.get<Playlist[]>('/api/playlists', options).then(({data}) => update({ playlists: data || [] })).catch(() => {});
+      void apiClient.get<Series[]>('/api/v1/series', options).then(({data}) => update({ series: data || [] })).catch(() => {});
+      void loadClientSettings().then(settings => update({ layout: normalizeHomeLayout(settings.settings_json?.home_layout ?? settings.home_layout) })).catch(() => {});
     };
-    void refresh();
+    refresh();
     window.addEventListener('focus', refresh);
-    return () => { controller.abort(); window.removeEventListener('focus', refresh); };
-  }, []);
+    return () => { request?.abort(); window.removeEventListener('focus', refresh); };
+  }, [identity, initial]);
 
   const recentBooks = useMemo(() => {
     const seen = new Set<string>();
@@ -60,28 +89,35 @@ export default function HomePage() {
     return [...favorites, ...latest].filter(book => { if (seen.has(book.id)) return false; seen.add(book.id); return true; }).slice(0, 6);
   }, [favorites, latest]);
   const last = recentBooks[0];
-  const hero = books.find(book => book.id === last?.book_id) || recommended[0];
-  if (loading) return <LoadingSpinner className="min-h-64" />;
+  const hero = currentBook || books.find(book => book.id === last?.book_id) || recommended[0];
+  const hasResume = !!hero && ((currentBook?.id === hero.id && !!currentChapter) || last?.book_id === hero.id);
+  const resumeChapterId = currentBook?.id === hero?.id ? currentChapter?.id : last?.book_id === hero?.id ? last.chapter_id : undefined;
+  const playerQuery = new URLSearchParams();
+  if (hero) playerQuery.set('book', hero.id);
+  if (resumeChapterId) playerQuery.set('chapter', resumeChapterId);
+  const bookUrl = hero ? '/book/' + encodeURIComponent(hero.id) + (resumeChapterId ? '?chapter_id=' + encodeURIComponent(resumeChapterId) : '') : '/bookshelf';
 
   return <div className="reader-page reader-home flex-1">
     <header className="reader-heading">
       <div><div className="reader-eyebrow">{t('reader.privateLibrary')}</div><h1>{t('reader.homeTitle')}</h1><p>{t('reader.homeSubtitle')}</p></div>
       <Link to="/search" className="reader-search-link"><Search size={19} /><span>{t('reader.searchPlaceholder')}</span></Link>
     </header>
-    {layout.showHero && <section className="reader-hero">
+    {layout.showHero && <section className="reader-hero" aria-busy={loading && !hero}>
       <div className="reader-hero-copy">
-        <div className="reader-eyebrow"><Headphones size={15} />{last ? t('home.continueListening') : t('home.todayRecommendation')}</div>
-        <h2>{hero?.title || t('reader.emptyTitle')}</h2>
+        <div className="reader-eyebrow"><Headphones size={15} />{hasResume ? t('home.continueListening') : t('home.todayRecommendation')}</div>
+        <h2>{hero?.title || t(loading ? 'common.loading' : 'reader.emptyTitle')}</h2>
         <p>{hero?.narrator || hero?.author || t('reader.emptySubtitle')}</p>
         {hero?.description && <p className="reader-hero-description">{hero.description}</p>}
-        <Link className="reader-button primary" to={hero ? '/book/' + hero.id : '/bookshelf'}>
-          {hero ? (last ? t('home.continuePlay') : t('home.viewDetails')) : t('home.goBookshelf')}<ChevronRight size={16} />
+        <Link className="reader-button primary" to={hasResume ? '/player?' + playerQuery.toString() : bookUrl}>
+          {hero ? (hasResume ? t('home.continuePlay') : t('home.viewDetails')) : t('home.goBookshelf')}<ChevronRight size={16} />
         </Link>
       </div>
-      <CoverArt title={hero?.title || 'Ting Reader'} url={hero?.cover_url} libraryId={hero?.library_id} bookId={hero?.id} className="reader-hero-cover" />
+      {hero ? <Link to={bookUrl} className="reader-hero-cover-link" aria-label={t('home.viewDetails') + ' ' + hero.title}>
+        <CoverArt title={hero.title} url={hero.cover_url} libraryId={hero.library_id} bookId={hero.id} className="reader-hero-cover" />
+      </Link> : <CoverArt title={t('common.appName')} className="reader-hero-cover" />}
     </section>}
     {layout.showStats && <nav className="reader-shortcuts" aria-label={t('reader.quickAccess')}>
-      <Shortcut to="/bookshelf" icon={<Library />} title={t('nav.bookshelf')} count={books.length} />
+      <Shortcut to="/bookshelf" icon={<Library />} title={t('nav.bookshelf')} count={bookCount} />
       <Shortcut to="/favorites" icon={<Heart />} title={t('mine.favoritesTitle')} count={favorites.length} />
       <Shortcut to="/history" icon={<History />} title={t('home.recentListening')} count={recentBooks.length} />
       <Shortcut to="/playlists" icon={<ListMusic />} title={t('nav.playlists')} count={playlists.length} />
@@ -97,7 +133,7 @@ export default function HomePage() {
     </section>}
     {layout.showRecentlyAdded && <section className="reader-section">
       <SectionTitle title={t('home.recentlyAdded')} to="/bookshelf" />
-      {latest.length ? <div className="reader-grid">{latest.map(book => <BookCard key={book.id} book={book} coverShape={coverShape} />)}</div> : <Empty />}
+      {loading && !latest.length ? <LoadingSpinner className="min-h-40" /> : latest.length ? <div className="reader-grid">{latest.map(book => <BookCard key={book.id} book={book} coverShape={coverShape} />)}</div> : <Empty />}
     </section>}
     {layout.showRecommended && recommended.length > 0 && <section className="reader-section">
       <SectionTitle title={t('home.recommended')} to="/bookshelf" />

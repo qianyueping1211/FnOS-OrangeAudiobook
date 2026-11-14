@@ -22,9 +22,13 @@
 
 - PC 左侧导航保持展开，不显示收缩按钮；旧的收缩偏好不影响新界面。
 
-- The playback page follows Home on desktop and mobile, reuses the existing expanded Player and its single audio element, and defaults to the most recent listening book/chapter/position when idle, and must not start audio merely by visiting the route. The playback page never shows a second mini player; other pages preserve their current mini-player rules.
+- The playback page follows Home on desktop and mobile, reuses the existing expanded Player and its single audio element, and defaults to the most recent listening book/chapter/position when idle, and must not start audio merely by visiting the route. The playback page never shows a second mini player; all other pages keep the same mini player above their scrolling content.
 
 - 设置页保留“我的内容”；标题说明下直接进入内容区，不展示账号介绍或用户名编辑表单。“设置与管理”第一项为系统更新（遵循管理员权限）。
 - 原生构建可与质量检查并行，但发布必须等待两者均成功；编译缓存不得命中旧包而跳过当前源码的 Cargo 构建或版本核验。
 
 - 原生包使用 --locked --features native-fpk，静态 TLS 依赖必须纳入已提交的 Cargo.lock，不在原生构建时动态注入依赖；保存完整 target 缓存并使用可更新快照，发布保留最终程序的网关与权限集成检查。
+
+- 触屏搜索及表单输入的实际字号不得低于 16px，不用禁用用户缩放来规避 iOS 聚焦放大；底部导航和小播放器使用视口固定定位，页面统一预留底部空间。
+- “继续播放”进入 /player 并带书籍及章节；首页大封面与播放页封面打开同一本书的详情。路由切换保留唯一音频实例，不因访问播放页自动开始声音。
+- 首页加载优化不得跳过服务端登录验证；并发设置读取只在同一凭证与服务器内共享进行中的请求，不长期缓存设置。展示快照按账号与服务器隔离。

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import apiClient from '../api/client';
+import { useCallback, useEffect, useState } from 'react';
+import { loadClientSettings } from '../api/clientSettings';
 
 export type Theme = 'light' | 'dark' | 'system';
 
@@ -7,30 +7,31 @@ export const normalizeTheme = (value: unknown): Theme => (
   value === 'light' || value === 'dark' || value === 'system' ? value : 'dark'
 );
 
+const syncThemeToDom = (value: unknown) => {
+  const t = normalizeTheme(value);
+  const root = window.document.documentElement;
+  root.classList.remove('light', 'dark');
+
+  let effectiveTheme = t;
+  if (t === 'system') {
+    effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+
+  root.classList.add(effectiveTheme);
+  localStorage.setItem('theme', t);
+};
+
+
 export const useTheme = () => {
   const [theme, setTheme] = useState<Theme>(() => {
     return normalizeTheme(localStorage.getItem('theme'));
   });
 
-  const syncThemeToDom = (value: unknown) => {
-    const t = normalizeTheme(value);
-    const root = window.document.documentElement;
-    root.classList.remove('light', 'dark');
-
-    let effectiveTheme = t;
-    if (t === 'system') {
-      effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-
-    root.classList.add(effectiveTheme);
-    localStorage.setItem('theme', t);
-  };
-
-  const applyTheme = (value: unknown) => {
+  const applyTheme = useCallback((value: unknown) => {
     const nextTheme = normalizeTheme(value);
     syncThemeToDom(nextTheme);
     setTheme(nextTheme);
-  };
+  }, []);
 
   useEffect(() => {
     // Initial apply
@@ -48,16 +49,16 @@ export const useTheme = () => {
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, [theme]);
 
-  const refreshTheme = async () => {
+  const refreshTheme = useCallback(async () => {
     try {
-      const response = await apiClient.get('/api/settings');
-      if (response.data.theme) {
-        applyTheme(response.data.theme);
+      const settings = await loadClientSettings();
+      if (settings.theme) {
+        applyTheme(settings.theme);
       }
     } catch (err) {
       console.error('从服务器刷新主题失败', err);
     }
-  };
+  }, [applyTheme]);
 
   return { theme, applyTheme, refreshTheme };
 };

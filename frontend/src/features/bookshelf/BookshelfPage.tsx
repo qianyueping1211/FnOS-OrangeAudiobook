@@ -589,7 +589,7 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
   return (
     <div className="reader-page flex-1 min-h-full flex flex-col">
       <div className="flex-1 space-y-6">
-        <div className="flex flex-col min-[880px]:flex-row min-[880px]:items-center justify-between gap-4 mb-2">
+        <div className="reader-library-header">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
               <LibraryIcon className="text-primary-600" />
@@ -598,9 +598,9 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
             <p className="text-sm md:text-base text-slate-500 dark:text-slate-400 mt-1">{t('bookshelf.subtitle')}</p>
           </div>
           
-          <div className="flex flex-wrap min-[550px]:flex-nowrap items-center gap-2 sm:gap-3 w-full min-[880px]:w-auto justify-end">
+          <div className="reader-library-tools">
             {isSelectionMode ? (
-              <div className="flex items-center gap-2 order-1 relative">
+              <div className="reader-selection-actions flex items-center gap-2 order-1 relative">
                 <button
                   onClick={handleSelectAll}
                   className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-sm font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shrink-0"
@@ -712,11 +712,12 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
 
             {/* Library Selector */}
             {libraries.length > 0 && (
-              <div className={`relative order-2 w-[9.75rem] sm:w-[12rem] md:w-[14rem] ${isSelectionMode ? 'hidden sm:block' : ''}`}>
+              <div className={`reader-library-select relative order-2 ${isSelectionMode ? 'hidden sm:block' : ''}`}>
                 <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
                   <LibraryIcon size={16} />
                 </div>
                 <select
+                  aria-label={t('bookshelf.allLibraries')}
                   value={selectedLibraryId}
                   onChange={(e) => handleLibraryChange(e.target.value)}
                   className="w-full pl-8 pr-7 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-primary-500 text-sm font-medium text-slate-700 dark:text-slate-200 appearance-none cursor-pointer truncate"
@@ -736,13 +737,13 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
 
             <Link
               to="/search"
-              className="w-full min-[550px]:w-auto min-[550px]:min-w-48 md:w-64 order-first min-[550px]:order-none inline-flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-500 dark:text-slate-400 hover:text-primary-600 hover:border-primary-200 dark:hover:border-primary-900 transition-colors"
+              className="reader-library-search reader-search-link"
             >
               <Search size={18} className="shrink-0" />
               <span className="text-sm font-medium truncate">{t('bookshelf.searchPlaceholder')}</span>
             </Link>
             <DisplaySettingsMenu
-              className="order-3"
+              className="reader-display-control order-3"
               open={showFilterMenu}
               onOpenChange={setShowFilterMenu}
               sections={[

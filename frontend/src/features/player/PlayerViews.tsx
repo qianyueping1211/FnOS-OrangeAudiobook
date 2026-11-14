@@ -125,15 +125,17 @@ export const MiniPlayerBookInfo: React.FC<MiniPlayerBookInfoProps> = ({
 interface ExpandedCoverProps {
   book: Book | null | undefined;
   expandedCoverSizeClass: string;
+  onOpenBook: () => void;
 }
 
 export const ExpandedCover: React.FC<ExpandedCoverProps> = ({
   book,
   expandedCoverSizeClass,
+  onOpenBook,
 }) => (
-  <div className={`${expandedCoverSizeClass} rounded-[28px] sm:rounded-[36px] overflow-hidden shadow-2xl border-4 sm:border-8 border-white dark:border-slate-800 transition-all duration-500`}>
+  <button type="button" onClick={onOpenBook} aria-label={book?.title} className={`reader-player-book-cover ${expandedCoverSizeClass} rounded-[28px] sm:rounded-[36px] overflow-hidden shadow-2xl border-4 sm:border-8 border-white dark:border-slate-800 transition-all duration-500`}>
     <PlayerCover book={book} />
-  </div>
+  </button>
 );
 
 // ─── ExpandedChapterTitle ──────────────────────────────────────────────────

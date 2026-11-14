@@ -1,12 +1,13 @@
 import React, { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router';
 import { useAuthStore } from './core/stores/authStore';
-import { getGatewayBasePath } from './core/utils/runtimeUrl';
+import { getGatewayBasePath, getRuntimePathname } from './core/utils/runtimeUrl';
 import LoadingSpinner from './shared/ui/LoadingSpinner';
 
 const Layout = lazy(() => import('./shared/layout/Layout'));
 const LoginPage = lazy(() => import('./features/auth/LoginPage'));
-const HomePage = lazy(() => import('./features/home/HomePage'));
+const loadHomePage = () => import('./features/home/HomePage');
+const HomePage = lazy(loadHomePage);
 const PlayerPage = lazy(() => import('./features/player/PlayerPage'));
 const BookshelfPage = lazy(() => import('./features/bookshelf/BookshelfPage'));
 const BookDetailPage = lazy(() => import('./features/bookshelf/BookDetailPage'));
@@ -44,6 +45,10 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 function App() {
+  const authenticated = useAuthStore(state => state.isAuthenticated);
+  React.useEffect(() => {
+    if (authenticated && getRuntimePathname() === '/') void loadHomePage();
+  }, [authenticated]);
   return (
     <Router basename={getGatewayBasePath()}>
       <Suspense fallback={<LoadingSpinner className="min-h-screen" />}>

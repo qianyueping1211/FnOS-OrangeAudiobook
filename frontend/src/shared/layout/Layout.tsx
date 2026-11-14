@@ -26,17 +26,19 @@ import {
   markSessionRestoreLogged,
 } from '../../core/utils/sessionRestore';
 import apiClient from '../../core/api/client';
+import { loadClientSettings } from '../../core/api/clientSettings';
 import { setApplicationTimeZone } from '../../core/utils/timeZone';
 import { useClientExtensions } from '../../core/hooks/useClientExtensions';
 import { useUiPreferencesStore } from '../../core/stores/uiPreferencesStore';
 
-import Player from '../../features/player/Player';
 import DefaultAdminCredentialsDialog from '../../features/auth/DefaultAdminCredentialsDialog';
 import { isMiniPlayerHiddenPath } from '../../features/player/platform';
-import PluginExtensionHost from '../pluginExtensions/PluginExtensionHost';
 import PluginExtensionIcon from '../pluginExtensions/PluginExtensionIcon';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import { useSystemUpdate } from '../../core/hooks/useSystemUpdate';
+
+const Player = React.lazy(() => import('../../features/player/Player'));
+const PluginExtensionHost = React.lazy(() => import('../pluginExtensions/PluginExtensionHost'));
 
 type NavItem = {
   icon: React.ReactNode;
@@ -48,7 +50,7 @@ type NavItem = {
 const Layout: React.FC = () => {
   const { t } = useTranslation();
   const { setLanguage } = useAppLanguage();
-  const { refreshTheme } = useTheme(); // Initialize theme application
+  const { applyTheme } = useTheme();
   const [isConnecting, setIsConnecting] = useState(true);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [dismissedDefaultCredentials, setDismissedDefaultCredentials] = useState<string | null>(null);
@@ -123,8 +125,10 @@ const Layout: React.FC = () => {
     if (user && !isConnecting && !connectionError) {
       setPluginToolMenuEnabled(true);
       setBookshelfProgressEnabled(true);
-      apiClient.get('/api/settings').then(res => {
-        const settings = res.data;
+      let active = true;
+      loadClientSettings().then(settings => {
+        if (!active) return;
+        if (settings.theme) applyTheme(settings.theme);
         const speed = settings.playback_speed;
         if (speed) {
           setPlaybackSpeed(speed);
@@ -139,9 +143,10 @@ const Layout: React.FC = () => {
             ?? true,
         );
         setBookshelfProgressEnabled(settings.bookshelf_progress_enabled ?? settings.settings_json?.bookshelf_progress_enabled ?? true);
-      }).catch(err => console.error('Failed to sync user settings', err));
+      }).catch(err => { if (active) console.error('Failed to sync user settings', err); });
+      return () => { active = false; };
     }
-  }, [user, setPlaybackSpeed, isConnecting, connectionError, setLanguage, setPluginToolMenuEnabled, setBookshelfProgressEnabled]);
+  }, [user, setPlaybackSpeed, isConnecting, connectionError, setLanguage, setPluginToolMenuEnabled, setBookshelfProgressEnabled, applyTheme]);
 
   React.useEffect(() => {
     if (!user || isConnecting || connectionError) return;
@@ -154,10 +159,6 @@ const Layout: React.FC = () => {
       .catch((error) => console.error('Failed to sync application time zone', error));
   }, [user, isConnecting, connectionError]);
 
-  React.useEffect(() => {
-    refreshTheme();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const menuItems = [
     { icon: <Home size={20} />, label: t('nav.home'), path: '/' },
@@ -281,13 +282,13 @@ const Layout: React.FC = () => {
 
       </aside>
       <div className="reader-workspace">
-        <main id="main-content" className="reader-content flex flex-col"
-          style={isMiniPlayerHidden ? { '--safe-bottom-with-player': '0px', '--safe-bottom-base': '0px' } as React.CSSProperties : undefined}>
+        <main id="main-content" className={'reader-content flex flex-col' + (hasCurrentChapter && !isMiniPlayerHidden ? ' has-mini-player' : '')}
+          style={{ '--safe-bottom-with-player': '0px', '--safe-bottom-base': '0px' } as React.CSSProperties}>
           <Suspense fallback={<LoadingSpinner className="min-h-48" />}><Outlet /></Suspense>
         </main>
         <nav className="reader-tabs" aria-label={t('nav.mainMenu')}>{menuItems.map(item => renderNav(item, true))}</nav>
-        {hasCurrentChapter && <Player />}
-        {!location.pathname.startsWith('/plugin-pages') && <PluginExtensionHost />}
+        {hasCurrentChapter && <Suspense fallback={null}><Player /></Suspense>}
+        {pluginExtensionRegistry.extensions.length > 0 && !location.pathname.startsWith('/plugin-pages') && <Suspense fallback={null}><PluginExtensionHost /></Suspense>}
         {user?.role === 'admin' && user.uses_default_admin_credentials &&
           dismissedDefaultCredentials !== credentialReminderIdentity && (
             <DefaultAdminCredentialsDialog
