@@ -78,12 +78,17 @@ export default function HomePage() {
     return () => { request?.abort(); window.removeEventListener('focus', refresh); };
   }, [identity, initial]);
 
-  const recentBooks = useMemo(() => {
-    const seen = new Set<string>();
-    return [...recent].sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))
-      .filter(item => { if (seen.has(item.book_id)) return false; seen.add(item.book_id); return true; });
-  }, [recent]);
-  const latest = useMemo(() => [...books].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)).slice(0, 12), [books]);
+  const recentBookIds = new Set<string>();
+  const recentBooks = [...recent]
+    .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))
+    .filter(item => {
+      if (recentBookIds.has(item.book_id)) return false;
+      recentBookIds.add(item.book_id);
+      return true;
+    });
+  const latest = [...books]
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+    .slice(0, 12);
   const last = recentBooks[0];
   const hero = currentBook || books.find(book => book.id === last?.book_id) || latest[0] || favorites[0];
   const hasResume = !!hero && ((currentBook?.id === hero.id && !!currentChapter) || last?.book_id === hero.id);
