@@ -1,5 +1,9 @@
-/* Locked pages keep their clearance inside their own scrolling result area.
-   Hiding the shell-level spacer prevents a second playback-sized blank region. */
-.reader-content:has(.reader-locked-page) > .reader-scroll-clearance {
-  display: none;
+/* Keep bottom clearance inside the page instead of rendering a visible spacer block.
+   Locked mobile pages and the settings page already own their scrolling clearance. */
+.reader-content:not(:has(.reader-locked-page)):not(:has(.reader-settings-page)) {
+  padding-bottom: var(--reader-base-clearance, 0px);
+}
+
+.reader-content.has-mini-player:not(:has(.reader-locked-page)):not(:has(.reader-settings-page)) {
+  padding-bottom: var(--reader-playing-clearance, 0px);
 }
