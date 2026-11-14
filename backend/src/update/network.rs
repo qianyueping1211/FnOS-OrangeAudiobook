@@ -203,12 +203,11 @@ impl Network {
                         .send(),
                 )
                 .await;
-                if let Ok(Ok(r)) = result {
-                    if r.status().is_success() {
-                        if let Ok(bytes) = small_body(r, 65536).await {
-                            return Ok(bytes);
-                        }
-                    }
+                if let Ok(Ok(r)) = result
+                    && r.status().is_success()
+                    && let Ok(bytes) = small_body(r, 65536).await
+                {
+                    return Ok(bytes);
                 }
             }
             bail!("无法从 GitHub 获取可信校验文件");
