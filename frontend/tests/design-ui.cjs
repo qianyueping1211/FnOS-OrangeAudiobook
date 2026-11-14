@@ -179,8 +179,11 @@ async function fixture(context, gated = false) {
             const main = page.locator('#main-content');
             await main.evaluate(element => element.scrollTo({ top: element.scrollHeight, behavior: 'instant' }));
             const signOut = await page.getByRole('button', { name: '退出登录', exact: true }).boundingBox();
-            const player = await page.locator('.reader-player.is-mini').boundingBox();
-            assert.ok(signOut.y + signOut.height < player.y, name + ' settings last action must clear the mini player');
+            const miniPlayer = page.locator('.reader-player.is-mini');
+            const obstruction = await miniPlayer.isVisible()
+              ? await miniPlayer.boundingBox()
+              : await page.locator('.reader-tabs').boundingBox();
+            assert.ok(signOut.y + signOut.height < obstruction.y, name + ' settings last action must clear floating controls');
           }
         }
         if (slug === 'home') {
