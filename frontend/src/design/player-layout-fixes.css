@@ -1,0 +1,12 @@
+/* Keep one scroll-clearance spacer per page. Locked pages already provide
+   their own end spacer inside the page scroller; the shell spacer was being
+   added a second time and appeared as a large empty area after playback. */
+.reader-content:has(.reader-locked-page) > .reader-scroll-clearance {
+  display: none;
+}
+
+/* Settings previously added another playback-sized spacer of its own. The
+   shell clearance already accounts for the fixed mini player and navigation. */
+.reader-settings-page > .shrink-0 {
+  display: none;
+}
