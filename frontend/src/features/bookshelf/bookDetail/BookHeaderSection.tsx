@@ -39,6 +39,8 @@ interface Props {
   isDescriptionExpanded: boolean;
   isDescriptionOverflowing: boolean;
   onPlayClick: () => void;
+  onOpenChapters: () => void;
+  canPickChapters: boolean;
   onToggleFavorite: () => void;
   onOpenScrapeDiff: () => void;
   refreshingFiles: boolean;
@@ -68,6 +70,8 @@ const BookHeaderSection: React.FC<Props> = ({
   isDescriptionExpanded,
   isDescriptionOverflowing,
   onPlayClick,
+  onOpenChapters,
+  canPickChapters,
   onToggleFavorite,
   onOpenScrapeDiff,
   refreshingFiles,
@@ -135,8 +139,11 @@ const BookHeaderSection: React.FC<Props> = ({
       className={`reader-book-header w-full min-w-0 flex flex-col md:flex-row gap-6 md:gap-8 ${coverShape === "square" ? "md:items-center" : ""}`}
     >
       <div className="w-48 md:w-72 mx-auto md:mx-0 shrink-0">
-        <div
-          className={`${coverShape === "square" ? "aspect-square" : "aspect-[3/4]"} rounded-3xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800`}
+        <button
+          type="button"
+          onClick={canPickChapters ? onOpenChapters : undefined}
+          aria-label={canPickChapters ? t("bookshelf.chapterList") : book.title}
+          className={`relative block w-full ${coverShape === "square" ? "aspect-square" : "aspect-[3/4]"} rounded-3xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800 transition-transform active:scale-[0.98]`}
         >
           <img
             src={getCoverUrl(displayCoverUrl, displayLibraryId, book.id)}
@@ -149,7 +156,12 @@ const BookHeaderSection: React.FC<Props> = ({
               target.onerror = null;
             }}
           />
-        </div>
+          {canPickChapters && (
+            <span className="pointer-events-none absolute bottom-2 right-2 flex items-center justify-center rounded-full bg-slate-900/70 p-1.5 text-white backdrop-blur-sm">
+              <ListMusic size={16} />
+            </span>
+          )}
+        </button>
       </div>
 
       <div className="flex-1 space-y-6 text-center md:text-left flex flex-col">
@@ -158,6 +170,7 @@ const BookHeaderSection: React.FC<Props> = ({
             title={book.title}
             className="font-bold text-slate-900 dark:text-white leading-tight transition-all duration-300 text-xl sm:text-2xl md:text-3xl"
             maxLines={2}
+            onActivate={canPickChapters ? onOpenChapters : undefined}
           />
           <div className="flex w-full min-w-0 flex-nowrap items-center justify-center gap-x-3 overflow-hidden mt-4 text-sm sm:gap-x-4 md:justify-start">
             <div className="flex min-w-0 max-w-[10rem] shrink items-center gap-1.5 text-slate-600 dark:text-slate-400">
@@ -236,12 +249,12 @@ const BookHeaderSection: React.FC<Props> = ({
           <button
             ref={playButtonContainerRef}
             onClick={onPlayClick}
-            className="w-full flex items-center justify-center gap-2 px-5 sm:px-8 py-3.5 sm:py-4 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-2xl shadow-xl shadow-primary-500/30 transition-all active:scale-95 group"
+            className="w-full flex items-center justify-center gap-2 px-5 sm:px-8 py-3.5 sm:py-4 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-2xl transition-all active:scale-95 group"
             style={
               effectiveThemeColor
                 ? {
                     backgroundColor: toSolidColor(effectiveThemeColor),
-                    boxShadow: `0 10px 20px -5px ${setAlpha(effectiveThemeColor, 0.3)}`,
+                    boxShadow: "none",
                     color: isLight(effectiveThemeColor) ? "#475569" : "#ffffff",
                   }
                 : {}

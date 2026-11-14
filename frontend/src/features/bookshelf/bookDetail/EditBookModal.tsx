@@ -4,11 +4,16 @@ import { useTranslation } from 'react-i18next';
 import type { Book } from '../../../core/types';
 import type { RegexGenerationResult } from '../../../core/api/books';
 
+export type EditBookTab = 'metadata' | 'chapters';
+
 interface Props {
   editData: Partial<Book>;
   coverFile: File | null;
   saving: boolean;
   saveError: string | null;
+  activeTab: EditBookTab;
+  onChangeTab: (tab: EditBookTab) => void;
+  chaptersPanel?: React.ReactNode;
   onChangeCoverFile: (file: File | null) => void;
   showRegexGenerator: boolean;
   genFilename: string;
@@ -36,6 +41,9 @@ const EditBookModal: React.FC<Props> = ({
   coverFile,
   saving,
   saveError,
+  activeTab,
+  onChangeTab,
+  chaptersPanel,
   onChangeCoverFile,
   showRegexGenerator,
   genFilename,
@@ -73,7 +81,44 @@ const EditBookModal: React.FC<Props> = ({
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={saving ? undefined : onClose}></div>
-      <div className="relative w-full max-w-2xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-y-auto animate-in zoom-in-95 duration-200 no-scrollbar">
+      <div className={`relative flex w-full ${activeTab === 'chapters' ? 'max-w-5xl' : 'max-w-2xl'} max-h-[90vh] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-200 dark:bg-slate-900`}>
+        {!showRegexGenerator && (
+          <div className="shrink-0 border-b border-slate-100 px-4 pb-3 pt-4 dark:border-slate-800 sm:px-6">
+            <div className="mx-auto grid max-w-md grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+              <button
+                type="button"
+                aria-pressed={activeTab === 'metadata'}
+                onClick={() => onChangeTab('metadata')}
+                className={`rounded-lg px-3 py-2 text-sm font-bold transition-all ${
+                  activeTab === 'metadata'
+                    ? 'bg-white text-primary-600 shadow-sm dark:bg-slate-700'
+                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                {t('bookshelf.metadataTab')}
+              </button>
+              <button
+                type="button"
+                aria-pressed={activeTab === 'chapters'}
+                onClick={() => onChangeTab('chapters')}
+                className={`rounded-lg px-3 py-2 text-sm font-bold transition-all ${
+                  activeTab === 'chapters'
+                    ? 'bg-white text-primary-600 shadow-sm dark:bg-slate-700'
+                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                {t('bookshelf.chaptersTab')}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'chapters' ? (
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            {chaptersPanel}
+          </div>
+        ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar">
         {showRegexGenerator ? (
             <div className="p-4 sm:p-6 md:p-8">
                 <div className="flex items-center justify-between mb-6">
@@ -415,6 +460,8 @@ const EditBookModal: React.FC<Props> = ({
               </button>
             </div>
           </div>
+        </div>
+        )}
         </div>
         )}
       </div>

@@ -14,10 +14,11 @@ import {
 import { useAuthStore } from '../../core/stores/authStore';
 import { setAlpha, isTooLight } from '../../core/utils/color';
 import LoadingSpinner from '../../shared/ui/LoadingSpinner';
-import EditBookModal from './bookDetail/EditBookModal';
+import EditBookModal, { type EditBookTab } from './bookDetail/EditBookModal';
 import DeleteLibraryItemModal from './bookDetail/DeleteLibraryItemModal';
 import BookHeaderSection from './bookDetail/BookHeaderSection';
 import ChapterListSection from './bookDetail/ChapterListSection';
+import ChapterPickerDrawer from './bookDetail/ChapterPickerDrawer';
 import { useBookDetails } from '../../core/hooks/useBooks';
 import { backTarget } from '../../core/utils/appHistory';
 import type { ChapterGroupOrder, RegexGenerationResult } from '../../core/api/books';
@@ -39,10 +40,11 @@ const BookDetailPage: React.FC = () => {
   const chapterScrollTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(chapterScrollTimer.current), [id]);
 
-  const [chapterManagerChapters, setChapterManagerChapters] = useState<Chapter[]>([]);
-  const [chapterManagerLoading, setChapterManagerLoading] = useState(false);
+  const [allChapters, setAllChapters] = useState<Chapter[]>([]);
+  const [allChaptersLoading, setAllChaptersLoading] = useState(false);
+  const [editTab, setEditTab] = useState<EditBookTab>('metadata');
+  const [isChapterPickerOpen, setIsChapterPickerOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isChapterManagerOpen, setIsChapterManagerOpen] = useState(false);
   const [isScrapeDiffOpen, setIsScrapeDiffOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteSourceFiles, setDeleteSourceFiles] = useState(false);
@@ -99,6 +101,8 @@ const BookDetailPage: React.FC = () => {
     const timer = window.setTimeout(() => {
       setHighlightedChapterId(null);
       setEditChapterGroupOrder('asc');
+      setAllChapters([]);
+      setIsChapterPickerOpen(false);
     }, 0);
     return () => window.clearTimeout(timer);
   }, [id, entryChapterId]);
@@ -189,15 +193,17 @@ const BookDetailPage: React.FC = () => {
       targetChapterId
         ? { target_chapter_id: targetChapterId }
         : { tab: activeTab, groupIndex: currentGroupIndex, preferLastGroup }
-    ).then((page) => {
-      if (targetChapterId && page) {
-        clearTimeout(chapterScrollTimer.current);
-        chapterScrollTimer.current = setTimeout(() => scrollToChapterNode(targetChapterId, page?.groupIndex ?? currentGroupIndex), 120);
-      }
-    });
+    );
     hasInitialScrolled.current = true;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [book?.id, activeTab, currentGroupIndex, entryChapterId, chapterGroupsDescending]);
+
+  // Landing on a book has to show the cover and the title first. The page used
+  // to scroll itself down to the resume chapter, which pushed the top out of
+  // view and left the cover cut off under the header.
+  useEffect(() => {
+    document.getElementById('main-content')?.scrollTo({ top: 0 });
+  }, [book?.id]);
 
   // Find the chapter to resume or highlight
   const resumeChapter = React.useMemo(() => {
@@ -271,21 +277,29 @@ const BookDetailPage: React.FC = () => {
     playChapter(book, allChapters, resolvedChapter);
   };
 
-  const openChapterManager = async () => {
-    if (!id) return;
+  const loadAllChapters = async () => {
     const operations = operationsRef.current;
-    setChapterManagerLoading(true);
-    setIsChapterManagerOpen(true);
+    setAllChaptersLoading(true);
     try {
-      const allChapters = await fetchAllChaptersForPlayback();
-      if (allChapters) setChapterManagerChapters(allChapters);
+      const list = await fetchAllChaptersForPlayback();
+      if (list) setAllChapters(list);
     } catch (err) {
       if (operationsRef.current !== operations) return;
-      console.error('Failed to fetch chapters for manager', err);
-      setChapterManagerChapters([]);
+      console.error('Failed to fetch all chapters', err);
+      setAllChapters([]);
     } finally {
-      if (operationsRef.current === operations) setChapterManagerLoading(false);
+      if (operationsRef.current === operations) setAllChaptersLoading(false);
     }
+  };
+
+  const openChapterPicker = () => {
+    setIsChapterPickerOpen(true);
+    void loadAllChapters();
+  };
+
+  const playChapterFromPicker = (chapter: Chapter) => {
+    setIsChapterPickerOpen(false);
+    void playChapterWithFullQueue(chapter);
   };
 
   const handlePlayClick = async () => {
@@ -627,6 +641,8 @@ const BookDetailPage: React.FC = () => {
           isDescriptionExpanded={isDescriptionExpanded}
           isDescriptionOverflowing={isOverflowing}
           onPlayClick={handlePlayClick}
+          onOpenChapters={openChapterPicker}
+          canPickChapters={chapterTotals.total > 1}
           onToggleFavorite={toggleFavorite}
           refreshingFiles={refreshingFiles}
           onOpenScrapeDiff={openScrape}
@@ -644,16 +660,18 @@ const BookDetailPage: React.FC = () => {
               skip_outro: book.skip_outro
             });
             setEditChapterGroupOrder(chapterGroupsDescending ? 'desc' : 'asc');
+            setEditTab('metadata');
             setIsEditModalOpen(true);
           }}
           onSetIsTagsExpanded={setIsTagsExpanded}
           onSetIsDescriptionExpanded={setIsDescriptionExpanded}
         />
 
-        {/* Chapters List */}
+        {/* Chapters List — single-chapter books render inline; anything longer
+            opens the chapter picker from the cover or the title instead. */}
+        {chapterTotals.total <= 1 && (
         <div className="reader-book-chapters w-full min-w-0">
           <ChapterListSection
-            isAdmin={user?.role === 'admin'}
             chapters={chapters}
             visibleChapters={visibleChapters}
             chapterTotals={chapterTotals}
@@ -673,35 +691,27 @@ const BookDetailPage: React.FC = () => {
             onSetCurrentGroupIndex={setCurrentGroupIndex}
             onToggleAscending={() => setChapterAscending(prev => !prev)}
             onPlayChapter={playChapterWithFullQueue}
-            onOpenChapterManager={openChapterManager}
             formatDuration={formatDuration}
             getChapterProgressText={getChapterProgressText}
           />
         </div>
+        )}
 
-      {/* Chapter Manager Modal */}
-      {isChapterManagerOpen && book && chapterManagerLoading && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
-          <div className="relative bg-white dark:bg-slate-900 rounded-3xl shadow-2xl px-8 py-6 flex items-center gap-3 text-slate-600 dark:text-slate-300">
-            <Loader2 className="w-5 h-5 animate-spin text-primary-600" />
-            {t('bookshelf.loadingChapterManager')}
-          </div>
-        </div>
-      )}
-      {isChapterManagerOpen && book && !chapterManagerLoading && (
-        <ChapterManagerModal
-          book={book}
-          bookId={book.id}
-          initialChapters={chapterManagerChapters}
-          onClose={() => setIsChapterManagerOpen(false)}
-          onSave={() => {
-            invalidateChapters();
-            setChapterManagerChapters([]);
-            fetchChapterPage();
-          }}
+        <ChapterPickerDrawer
+          open={isChapterPickerOpen}
+          loading={allChaptersLoading}
+          bookTitle={book.title}
+          chapters={allChapters}
+          currentChapterId={currentChapter?.book_id === book.id ? currentChapter?.id : null}
+          isPlaying={isPlaying}
+          themeColor={effectiveThemeColor}
+          onSelect={playChapterFromPicker}
+          onClose={() => setIsChapterPickerOpen(false)}
+          formatDuration={formatDuration}
+          getChapterProgressText={getChapterProgressText}
         />
-      )}
+
+      {/* Chapter editing lives in the 章节 tab of the edit dialog. */}
 
       {/* Scrape Diff Modal */}
       {isScrapeDiffOpen && book && (
@@ -718,6 +728,32 @@ const BookDetailPage: React.FC = () => {
         <EditBookModal
           editData={editData}
           coverFile={editCoverFile}
+          activeTab={editTab}
+          onChangeTab={(tab) => {
+            setEditTab(tab);
+            if (tab === 'chapters') void loadAllChapters();
+          }}
+          chaptersPanel={
+            allChaptersLoading ? (
+              <div className="flex flex-1 items-center justify-center gap-3 py-16 text-slate-500 dark:text-slate-300">
+                <Loader2 className="h-5 w-5 animate-spin text-primary-600" />
+                {t('bookshelf.loadingChapterManager')}
+              </div>
+            ) : (
+              <ChapterManagerModal
+                embedded
+                book={book}
+                bookId={book.id}
+                initialChapters={allChapters}
+                onClose={() => setEditTab('metadata')}
+                onSave={() => {
+                  invalidateChapters();
+                  setAllChapters([]);
+                  fetchChapterPage();
+                }}
+              />
+            )
+          }
           onChangeCoverFile={setEditCoverFile}
           saving={editSaving}
           saveError={editSaveError}

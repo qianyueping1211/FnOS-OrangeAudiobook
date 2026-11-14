@@ -18,11 +18,13 @@ interface Props {
   initialChapters: Chapter[];
   onClose: () => void;
   onSave: () => void;
+  /** Rendered inside another modal (e.g. the 章节 tab of the edit dialog). */
+  embedded?: boolean;
 }
 
 const groupSize = 100;
 
-const ChapterManagerModal: React.FC<Props> = ({ book, bookId, initialChapters, onClose, onSave }) => {
+const ChapterManagerModal: React.FC<Props> = ({ book, bookId, initialChapters, onClose, onSave, embedded = false }) => {
   const { t } = useTranslation();
   const [chapters, setChapters] = useState<EditableChapter[]>(() => sortChapters(initialChapters));
   const [search, setSearch] = useState('');
@@ -264,12 +266,8 @@ const ChapterManagerModal: React.FC<Props> = ({ book, bookId, initialChapters, o
     ? formatChapterDisplayPath(editingChapter, book, pathLibrary)
     : '';
 
-  return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-0 sm:p-4">
-      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={requestClose} />
-      <div
-        className="absolute inset-x-2 bottom-2 top-2 flex min-w-0 animate-in flex-col overflow-hidden rounded-3xl bg-white shadow-2xl duration-200 zoom-in-95 dark:bg-slate-900 sm:relative sm:inset-auto sm:h-[90vh] sm:w-full sm:max-w-5xl"
-      >
+  const panel = (
+    <>
         <ChapterManagerHeader
           search={search}
           activeTab={activeTab}
@@ -345,6 +343,24 @@ const ChapterManagerModal: React.FC<Props> = ({ book, bookId, initialChapters, o
             onSave={applyChapterEdit}
           />
         )}
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white dark:bg-slate-900">
+        {panel}
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-0 sm:p-4">
+      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={requestClose} />
+      <div
+        className="absolute inset-x-2 bottom-2 top-2 flex min-w-0 animate-in flex-col overflow-hidden rounded-3xl bg-white shadow-2xl duration-200 zoom-in-95 dark:bg-slate-900 sm:relative sm:inset-auto sm:h-[90vh] sm:w-full sm:max-w-5xl"
+      >
+        {panel}
       </div>
     </div>
   );

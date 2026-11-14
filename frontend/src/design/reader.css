@@ -210,6 +210,12 @@ input::placeholder,textarea::placeholder {color:var(--reader-muted);opacity:.8}
 
 /* The playback page reuses the expanded player while keeping navigation available. */
 .reader-player.is-page {bottom:calc(var(--bottom-nav-h,0px) + env(safe-area-inset-bottom,0px))}
+/* Immersive playback: the page owns the viewport, so the tab bar and the space
+   reserved for it are both removed. */
+.reader-shell.is-player-view .reader-tabs {display:none!important}
+.reader-shell.is-player-view .reader-player.is-page {bottom:0}
+.reader-shell.is-player-view .reader-content {padding-bottom:0}
+.reader-shell.is-player-view .reader-player-route-state {bottom:0}
 .reader-player-empty {display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:52vh;gap:16px;text-align:center}
 .reader-player-empty>svg {color:var(--reader-accent)}
 .reader-player-empty h2 {font-size:20px;font-weight:650}
@@ -223,6 +229,9 @@ html,body,#root {overflow:hidden;max-width:100%;-webkit-text-size-adjust:100%;te
 .reader-content.has-mini-player {padding-bottom:var(--reader-playing-clearance)}
 .reader-player.is-mini {position:fixed;left:var(--reader-side-width);right:0;z-index:80}
 .reader-search-page {max-width:1400px;margin-inline:auto}
+/* Search pins its own top bar: without it the back button slid under the header
+   as soon as the results started scrolling. */
+.reader-search-sticky {position:sticky;top:0;z-index:20;background:var(--reader-bg);padding-block:2px 10px}
 .reader-search-header {text-align:left}
 .reader-search-field {width:100%;margin-top:20px}
 .reader-search-field input {min-height:48px;box-shadow:none;padding-block:12px}

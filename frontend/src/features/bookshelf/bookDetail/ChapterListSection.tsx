@@ -6,7 +6,6 @@ import {
   ChevronUp,
   Clock,
   ListMusic,
-  Settings,
   Loader2,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -21,7 +20,6 @@ interface ChapterGroup {
 }
 
 interface Props {
-  isAdmin: boolean;
   chapters: Chapter[];
   visibleChapters: Chapter[];
   chapterTotals: { total: number; main: number; extra: number };
@@ -41,13 +39,11 @@ interface Props {
   onSetCurrentGroupIndex: (index: number) => void;
   onToggleAscending: () => void;
   onPlayChapter: (chapter: Chapter) => void;
-  onOpenChapterManager: () => void;
   formatDuration: (seconds: number) => string;
   getChapterProgressText: (chapter: Chapter) => string | null;
 }
 
 const ChapterListSection: React.FC<Props> = ({
-  isAdmin,
   chapters,
   visibleChapters,
   chapterTotals,
@@ -67,7 +63,6 @@ const ChapterListSection: React.FC<Props> = ({
   onSetCurrentGroupIndex,
   onToggleAscending,
   onPlayChapter,
-  onOpenChapterManager,
   formatDuration,
   getChapterProgressText,
 }) => {
@@ -129,15 +124,6 @@ const ChapterListSection: React.FC<Props> = ({
         <h2 className="text-base min-[361px]:text-lg sm:text-xl md:text-2xl font-bold dark:text-white flex items-center gap-1.5 sm:gap-2 min-w-0">
           <ListMusic size={24} className="w-4 h-4 min-[361px]:w-5 min-[361px]:h-5 sm:w-6 sm:h-6 text-primary-600 shrink-0" />
           <span className="whitespace-nowrap">{t('bookshelf.chapterList')}</span>
-          {isAdmin && (
-            <button
-              onClick={onOpenChapterManager}
-              className="ml-1 p-1 sm:ml-2 sm:p-1.5 text-slate-400 hover:text-primary-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors shrink-0"
-              title={t('bookshelf.manageChapters')}
-            >
-              <Settings size={20} className="w-4 h-4 sm:w-5 sm:h-5" />
-            </button>
-          )}
         </h2>
         {sortButton('inline-flex sm:hidden shrink-0')}
       </div>

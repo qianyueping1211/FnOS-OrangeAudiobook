@@ -302,8 +302,12 @@ const Layout: React.FC = () => {
     );
   };
 
+  // The playback page is immersive: it owns the whole viewport, so the bottom
+  // navigation bar is dropped instead of floating on top of the controls.
+  const isImmersivePlayer = location.pathname === '/player';
+
   return (
-    <div className="reader-shell">
+    <div className={'reader-shell' + (isImmersivePlayer ? ' is-player-view' : '')}>
       <aside className="reader-sidebar" aria-label={t('nav.mainMenu')}>
         <Link to="/" className="reader-brand">
           <img src={getRuntimeAssetUrl('/logo.png')} alt="橙子听书图标" />

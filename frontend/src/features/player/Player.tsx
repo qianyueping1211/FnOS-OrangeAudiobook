@@ -464,11 +464,12 @@ const Player: React.FC = () => {
               void handleExitExpanded();
               if (isPlayerPage) navigate("/bookshelf");
             }}
-            onClosePlayer={isPlayerPage ? () => {
+            onClosePlayer={() => {
               closePlayer();
               setShowSettings(false);
-              navigate('/');
-            } : undefined}
+              if (isPlayerPage) navigate('/');
+              else setIsExpanded(false);
+            }}
             onOpenSettings={() => setShowSettings(true)}
           />
 
