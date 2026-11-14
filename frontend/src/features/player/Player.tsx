@@ -62,6 +62,7 @@ const Player: React.FC = () => {
     isCollapsed,
     setIsCollapsed,
     isSeriesEditing,
+    closePlayer,
   } = usePlayerStore();
 
   const {
@@ -463,6 +464,11 @@ const Player: React.FC = () => {
               void handleExitExpanded();
               if (isPlayerPage) navigate("/bookshelf");
             }}
+            onClosePlayer={isPlayerPage ? () => {
+              closePlayer();
+              setShowSettings(false);
+              navigate('/');
+            } : undefined}
             onOpenSettings={() => setShowSettings(true)}
           />
 
