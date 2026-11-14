@@ -79,9 +79,13 @@ async function fixture(context, gated = false) {
     else if (p === '/api/books/book-0/refresh-files') { refreshCalls++; result = { chapters: 1 }; }
     else if (p === '/api/books/book-0/write-metadata') { writeCalls++; result = { task_id: 'synthetic-write' }; }
     else if (p === '/api/books/book-0/chapters') {
+      // Two chapters: a multi-chapter book keeps the list on wide layouts and
+      // opens it as a sheet on narrow ones.
       const chapters = [{ id: 'chapter-book-0', book_id: 'book-0', title: refreshCalls ? '改名后的章节' : '原始章节',
-        path: '/fixtures/book-0/chapter.mp3', duration: 600, chapter_index: 1, is_extra: 0 }];
-      result = url.searchParams.has('limit') ? { chapters, total: 1, main_total: 1, extra_total: 0, chapter_type: 'main', offset: 0 } : chapters;
+        path: '/fixtures/book-0/chapter.mp3', duration: 600, chapter_index: 1, is_extra: 0 },
+      { id: 'chapter-book-0b', book_id: 'book-0', title: refreshCalls ? '改名后的第二章' : '原始第二章',
+        path: '/fixtures/book-0/chapter2.mp3', duration: 600, chapter_index: 2, is_extra: 0 }];
+      result = url.searchParams.has('limit') ? { chapters, total: 2, main_total: 2, extra_total: 0, chapter_type: 'main', offset: 0 } : chapters;
     }
     else if (p === '/api/books/book-0') {
       const book = { ...books[0], library_type: 'local', can_write_metadata_files: true, manual_corrected: false };
@@ -155,12 +159,12 @@ async function fixture(context, gated = false) {
       assert.equal(new URL(page.url()).pathname, '/player');
       await page.locator('.reader-player-book-cover').click();
       await page.waitForURL('**/book/book-0?chapter_id=chapter-book-0');
-      await page.locator('.reader-book-chapters').waitFor();
+      await page.locator('.reader-book-header').waitFor();
       await page.locator('.reader-mini-info').waitFor();
       await page.locator(mobile ? '.reader-tab[href="/"]' : '.reader-nav[href="/"]').click();
       await page.locator('.reader-hero-cover-link').click();
       await page.waitForURL('**/book/book-0?chapter_id=chapter-book-0');
-      await page.locator('.reader-book-chapters').waitFor();
+      await page.locator('.reader-book-header').waitFor();
       for (const [route, slug] of [['/', 'home'], ['/bookshelf', 'bookshelf'], ['/search', 'search'], ['/mine', 'settings'], ['/playlists', 'playlists']]) {
         await navigateTo(route);
         await page.waitForSelector('#main-content', { timeout: 20000 });
@@ -322,11 +326,23 @@ async function fixture(context, gated = false) {
         throw error;
       });
       const headerBounds = await page.locator('.reader-book-header').boundingBox();
-      const chapterBounds = await page.locator('.reader-book-chapters').boundingBox();
-      assert.ok(Math.abs(headerBounds.x - chapterBounds.x) <= 1, name + ' book sections left alignment');
-      assert.ok(Math.abs(headerBounds.width - chapterBounds.width) <= 1, name + ' book sections width alignment');
+      assert.ok(headerBounds.width > 0 && headerBounds.x >= 0, name + ' book header renders');
+      if (mobile) {
+        // Narrow layouts keep the page short: the chapter list lives in a sheet.
+        assert.equal(await page.locator('.reader-book-chapters').count(), 0, name + ' chapter list must not render inline on mobile');
+      } else {
+        const chapterBounds = await page.locator('.reader-book-chapters').boundingBox();
+        assert.ok(Math.abs(headerBounds.x - chapterBounds.x) <= 1, name + ' book sections left alignment');
+        assert.ok(Math.abs(headerBounds.width - chapterBounds.width) <= 1, name + ' book sections width alignment');
+      }
       assert.equal(await page.getByRole('button', { name: '刷新文件', exact: true }).count(), 0);
       await page.getByRole('button', { name: '刮削', exact: true }).click();
+      if (mobile) {
+        // Close the scrape dialog first, then read the refreshed chapter list
+        // out of the cover sheet - the same place a phone user opens it.
+        await page.getByRole('button', { name: '关闭', exact: true }).click();
+        await page.getByRole('button', { name: '章节列表', exact: true }).click();
+      }
       await page.getByText('改名后的章节', { exact: true }).waitFor();
       await page.getByRole('button', { name: '关闭', exact: true }).click();
       await page.getByRole('button', { name: '编辑', exact: true }).click();

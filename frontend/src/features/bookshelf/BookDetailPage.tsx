@@ -44,6 +44,19 @@ const BookDetailPage: React.FC = () => {
   const [allChaptersLoading, setAllChaptersLoading] = useState(false);
   const [editTab, setEditTab] = useState<EditBookTab>('metadata');
   const [isChapterPickerOpen, setIsChapterPickerOpen] = useState(false);
+  // Wide layouts keep the chapter list on the page; narrow ones open it as a
+  // sheet from the cover art or the title instead.
+  const [isWideViewport, setIsWideViewport] = useState(() =>
+    window.matchMedia('(min-width: 960px)').matches
+  );
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 960px)');
+    const handleChange = (event: MediaQueryListEvent) => setIsWideViewport(event.matches);
+    query.addEventListener('change', handleChange);
+    return () => query.removeEventListener('change', handleChange);
+  }, []);
+  // A single chapter needs neither a list nor a sheet - the play button resumes it.
+  const hasChapterList = chapterTotals.total > 1;
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isScrapeDiffOpen, setIsScrapeDiffOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -642,7 +655,7 @@ const BookDetailPage: React.FC = () => {
           isDescriptionOverflowing={isOverflowing}
           onPlayClick={handlePlayClick}
           onOpenChapters={openChapterPicker}
-          canPickChapters={chapterTotals.total > 1}
+          canPickChapters={!isWideViewport && hasChapterList}
           onToggleFavorite={toggleFavorite}
           refreshingFiles={refreshingFiles}
           onOpenScrapeDiff={openScrape}
@@ -667,9 +680,9 @@ const BookDetailPage: React.FC = () => {
           onSetIsDescriptionExpanded={setIsDescriptionExpanded}
         />
 
-        {/* Chapters List — single-chapter books render inline; anything longer
-            opens the chapter picker from the cover or the title instead. */}
-        {chapterTotals.total <= 1 && (
+        {/* A one-chapter book has no list to show; wider layouts keep the list
+            inline, narrow ones open the chapter sheet from the cover/title. */}
+        {hasChapterList && isWideViewport && (
         <div className="reader-book-chapters w-full min-w-0">
           <ChapterListSection
             chapters={chapters}
