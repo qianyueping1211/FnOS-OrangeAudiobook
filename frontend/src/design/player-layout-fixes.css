@@ -3,8 +3,3 @@
 .reader-content:has(.reader-locked-page) > .reader-scroll-clearance {
   display: none;
 }
-
-/* Settings already has shell clearance for the fixed mini player and navigation. */
-.reader-settings-page > .shrink-0 {
-  display: none;
-}
