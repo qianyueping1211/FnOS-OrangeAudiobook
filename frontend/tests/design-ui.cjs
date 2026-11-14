@@ -116,11 +116,17 @@ async function fixture(context, gated = false) {
       const context = await browser.newContext({ viewport, locale: 'zh-CN', deviceScaleFactor: 1, isMobile: mobile, hasTouch: mobile, serviceWorkers: 'block' });
       const startup = await fixture(context, true);
       const page = await context.newPage();
+      // A full document navigation must not interrupt the API fixtures of the
+      // preceding screen. WebKit otherwise reports its aborted XHR as a CORS error.
+      const navigateTo = async route => {
+        if (page.url() !== 'about:blank') await page.waitForLoadState('networkidle');
+        return page.goto(base + route);
+      };
       const errors = [];
       page.on('pageerror', error => { errors.push(error.message); console.error(name + ' runtime error:', error.stack || error.message); });
       page.on('console', message => { if (message.type() === 'error') console.error(name + ' browser:', message.text()); });
       const started = Date.now();
-      await page.goto(base + '/');
+      await navigateTo('/');
       await startup.authStarted;
       assert.equal(await page.locator('#main-content').count(), 0, 'Cached content must remain behind server authentication');
       startup.releaseAuth();
@@ -140,12 +146,14 @@ async function fixture(context, gated = false) {
       assert.equal(new URL(page.url()).pathname, '/player');
       await page.locator('.reader-player-book-cover').click();
       await page.waitForURL('**/book/book-0?chapter_id=chapter-book-0');
+      await page.locator('.reader-book-chapters').waitFor();
       await page.locator('.reader-mini-info').waitFor();
       await page.locator(mobile ? '.reader-tab[href="/"]' : '.reader-nav[href="/"]').click();
       await page.locator('.reader-hero-cover-link').click();
       await page.waitForURL('**/book/book-0?chapter_id=chapter-book-0');
+      await page.locator('.reader-book-chapters').waitFor();
       for (const [route, slug] of [['/', 'home'], ['/bookshelf', 'bookshelf'], ['/search', 'search'], ['/mine', 'settings'], ['/playlists', 'playlists']]) {
-        await page.goto(base + route);
+        await navigateTo(route);
         await page.waitForSelector('#main-content', { timeout: 20000 });
         await page.locator('h1').first().waitFor({ state: 'visible' });
         await page.evaluate(() => document.fonts.ready);
@@ -202,7 +210,7 @@ async function fixture(context, gated = false) {
         await page.screenshot({ path: path.join(root, 'ui-artifacts', name + '-' + slug + '.png'), fullPage: false });
       }
       hasRecent = false;
-      await page.goto(base + '/player');
+      await navigateTo('/player');
       await page.getByText('还没有正在播放的书籍', { exact: true }).waitFor();
       assert.equal(await page.locator('audio').count(), 0);
       hasRecent = true;
@@ -244,7 +252,7 @@ async function fixture(context, gated = false) {
       assert.equal(await page.evaluate(() => window.__playCalls), 0);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), false, name + '/player viewport overflow');
       refreshCalls = 0; writeCalls = 0; metadataEdits = 0;
-      await page.goto(base + '/book/book-0');
+      await navigateTo('/book/book-0');
       await page.getByRole('button', { name: '编辑', exact: true }).waitFor().catch(async error => {
         console.error(name + ' book details DOM:', await page.locator('body').innerText());
         console.error(name + ' runtime errors:', errors);
@@ -270,7 +278,7 @@ async function fixture(context, gated = false) {
       assert.equal(refreshCalls, 2);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), false, name + '/book viewport overflow');
       if (!mobile) {
-        await page.goto(base + '/about');
+        await navigateTo('/about');
         await page.getByRole('button', { name: '检查更新', exact: true }).waitFor();
         assert.equal(await page.locator('.reader-update-panel').count(), 1);
         assert.equal(await page.locator('#main-content').getByText('橙子听书', { exact: true }).count(), 0, 'Update page must not repeat the app/version footer');
