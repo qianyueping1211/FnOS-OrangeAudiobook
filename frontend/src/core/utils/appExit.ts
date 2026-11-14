@@ -35,3 +35,33 @@ export const consumeInternalBack = () => {
   internalBackPending = false;
   return true;
 };
+
+// 与橙子音乐同一套兜底：宿主没把这次右滑当成"关窗"时，由页面自己喊 exitPage。
+export function installSwipeExit() {
+  if (typeof window === 'undefined') return;
+  const touchDevice = navigator.maxTouchPoints > 0 || /Android|iPhone|iPad|iPod|Mobile/.test(navigator.userAgent);
+  if (!touchDevice) return;
+  const EDGE = 32;
+  const DISTANCE = 80;
+  let tracking = false;
+  let startX = 0;
+  let startY = 0;
+  const onStart = (event: TouchEvent) => {
+    if (event.touches.length !== 1) return;
+    const first = event.touches[0];
+    tracking = first.clientX <= EDGE;
+    startX = first.clientX;
+    startY = first.clientY;
+  };
+  const onEnd = (event: TouchEvent) => {
+    if (!tracking) return;
+    tracking = false;
+    const point = event.changedTouches[0];
+    if (!point) return;
+    if (point.clientX - startX >= DISTANCE && Math.abs(point.clientY - startY) <= 60) exitApp();
+  };
+  const onCancel = () => { tracking = false; };
+  document.addEventListener('touchstart', onStart, { passive: true, capture: true });
+  document.addEventListener('touchend', onEnd, { passive: true, capture: true });
+  document.addEventListener('touchcancel', onCancel, { passive: true, capture: true });
+}
