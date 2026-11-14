@@ -12,7 +12,6 @@ import SeriesModal from '../../shared/modals/SeriesModal';
 import DeleteLibraryItemModal from './bookDetail/DeleteLibraryItemModal';
 import DisplaySettingsMenu from '../../shared/widgets/DisplaySettingsMenu';
 import { Search, Database, Plus, Library as LibraryIcon, Layers, Check, X, CheckSquare, ChevronDown, Trash2, BookCheck, BookX } from 'lucide-react';
-import { usePlayerStore } from '../../core/stores/playerStore';
 import { useAuthStore } from '../../core/stores/authStore';
 import { getPinyinInitial } from '../../core/utils/pinyin';
 import { localeCompare } from '../../core/utils/locale';
@@ -43,7 +42,6 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
   const loadedLibrary = React.useRef(snapshot?.libraryId);
   const bookOperations = useBookOperations();
   const { t } = useTranslation();
-  const currentChapter = usePlayerStore((state) => state.currentChapter);
   const user = useAuthStore((state) => state.user);
   const isAdmin = user?.role === 'admin';
   const [books, setBooks] = useState<Book[]>(snapshot?.books ?? []);
@@ -86,12 +84,13 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
   }, [confirmUnread, savingReadStatus]);
 
   // Lazy loading state
-  const [visibleCount, setVisibleCount] = useState(savedView?.count ?? 50);
+  const initialVisibleCount = () => window.matchMedia('(min-width: 960px)').matches ? 18 : 12;
+  const [visibleCount, setVisibleCount] = useState(initialVisibleCount);
   const loadMoreRef = React.useRef<HTMLDivElement>(null);
   const visibleCountRef = React.useRef(visibleCount);
   useEffect(() => { visibleCountRef.current = visibleCount; }, [visibleCount]);
   React.useLayoutEffect(() => {
-    const container = document.getElementById('main-content');
+    const container = document.querySelector<HTMLElement>('.reader-bookshelf-page .reader-page-scroll');
     if (!container) return;
     const scroll = savedView?.scroll ?? 0;
     container.scrollTo({ top: scroll, behavior: 'instant' });
@@ -108,7 +107,7 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
-          setVisibleCount((prev) => prev + 50);
+          setVisibleCount((prev) => prev + 12);
         }
       },
       { threshold: 0.1 }
@@ -133,7 +132,7 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
     const filter = `${sortBy}:${selectedLibraryId}`;
     if (previousFilter.current === filter) return;
     previousFilter.current = filter;
-    const timer = window.setTimeout(() => setVisibleCount(50), 0);
+    const timer = window.setTimeout(() => setVisibleCount(initialVisibleCount()), 0);
     return () => window.clearTimeout(timer);
   }, [sortBy, selectedLibraryId]);
 
@@ -577,18 +576,8 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
     );
   };
 
-  if (loading) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center min-h-full">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">{t('common.loading')}</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="reader-page flex-1 min-h-full flex flex-col">
-      <div className="flex-1 space-y-6">
+    <div className="reader-page reader-bookshelf-page reader-locked-page flex-1 min-h-full flex flex-col">
         <div className="reader-library-header reader-page-toolbar">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
@@ -791,7 +780,13 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
           </div>
         </div>
 
-      {books.length > 0 || series.length > 0 ? (
+      <div className="reader-page-scroll space-y-6">
+      {loading ? (
+        <div className="flex min-h-52 flex-col items-center justify-center" aria-label={t('common.loading')}>
+          <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-primary-600" />
+          <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">{t('common.loading')}</p>
+        </div>
+      ) : books.length > 0 || series.length > 0 ? (
         <>
           {/* Alphabet Scroll Bar */}
           {groupedItems && (
@@ -940,11 +935,6 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
         />
       )}
 
-      {/* Dynamic Safe Bottom Spacer */}
-      <div 
-        className="shrink-0 transition-all duration-300" 
-        style={{ height: currentChapter ? 'var(--safe-bottom-with-player)' : 'var(--safe-bottom-base)' }} 
-      />
     </div>
   );
 };

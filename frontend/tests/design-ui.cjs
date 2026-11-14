@@ -7,7 +7,7 @@ const path = require('node:path');
 const root = process.cwd();
 const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'preview', '--host', '127.0.0.1', '--port', '4173'], { cwd: root, stdio: 'ignore' });
 const base = 'http://127.0.0.1:4173';
-const books = Array.from({ length: 12 }, (_, i) => ({
+const books = Array.from({ length: 30 }, (_, i) => ({
   id: 'book-' + i, library_id: 'library-1', title: ['山海之间', '长安十二时辰', '人间草木', '月亮与六便士', '山河故人', '浮生六记'][i % 6],
   author: ['王小川', '马伯庸', '汪曾祺'][i % 3], narrator: '书声工作室', description: '在日常的片刻里，与一个好故事相遇。让声音陪伴每一段旅程。',
   path: '/fixtures/book-' + i, hash: 'fixture-' + i, created_at: '2026-11-13T12:00:00Z', progress_percent: i * 7, cover_url: '/fixture-cover-' + i + '.svg',
@@ -164,6 +164,7 @@ async function fixture(context, gated = false) {
         if (slug === 'playlists') assert.equal(await page.locator('.reader-page.animate-in').count(), 0);
         if (slug === 'settings') {
           assert.equal(await page.locator('input[type=password]').count(), 0);
+          assert.equal(await page.locator('.reader-settings-title').isVisible(), true);
           assert.equal(await page.getByText('通知与事件', { exact: true }).count(), 0);
           assert.equal(await page.locator('#main-content a[href="/admin/libraries"]').count(), 0);
           assert.equal(await page.locator('#main-content input').count(), 0);
@@ -174,6 +175,13 @@ async function fixture(context, gated = false) {
           assert.equal(await management.locator('a').first().innerText().then(text => text.split('\n')[0]), '系统更新');
           assert.equal(await page.locator('.reader-settings-title + section h2').innerText(), '我的内容');
           assert.equal(await page.locator('.reader-sidebar-toggle').count(), 0);
+          if (mobile) {
+            const main = page.locator('#main-content');
+            await main.evaluate(element => element.scrollTo({ top: element.scrollHeight, behavior: 'instant' }));
+            const signOut = await page.getByRole('button', { name: '退出登录', exact: true }).boundingBox();
+            const player = await page.locator('.reader-player.is-mini').boundingBox();
+            assert.ok(signOut.y + signOut.height < player.y, name + ' settings last action must clear the mini player');
+          }
         }
         if (slug === 'home') {
           await page.locator('.reader-book-card').first().waitFor();
@@ -181,6 +189,14 @@ async function fixture(context, gated = false) {
           assert.equal(await page.getByRole('heading', { name: '为你推荐', exact: true }).count(), 0);
           assert.equal(await page.locator('.reader-brand strong').textContent(), '橙子听书');
           assert.equal(await page.locator('.reader-brand img').evaluate(image => image.complete && image.naturalWidth > 0), true);
+          if (mobile) {
+            const toolbar = page.locator('.reader-home .reader-page-toolbar');
+            const scroller = page.locator('.reader-home .reader-page-scroll');
+            const beforeTop = (await toolbar.boundingBox()).y;
+            await scroller.evaluate(element => element.scrollTo({ top: 360, behavior: 'instant' }));
+            assert.equal(Math.round((await toolbar.boundingBox()).y), Math.round(beforeTop), name + ' home toolbar moved with content');
+            assert.equal(await page.locator('#main-content').evaluate(element => element.scrollTop), 0);
+          }
           const heroCover = await page.locator('.reader-hero-cover').boundingBox();
           assert.ok(Math.abs(heroCover.width - heroCover.height) <= 1, name + ' home hero cover must be square');
           assert.equal(await page.locator('.reader-hero-cover').evaluate(element => getComputedStyle(element).transform), 'none');
@@ -201,6 +217,16 @@ async function fixture(context, gated = false) {
           await page.getByRole('button', { name: '清除筛选', exact: true }).click();
         }
         if (slug === 'bookshelf') {
+          if (mobile) {
+            const toolbar = page.locator('.reader-bookshelf-page .reader-page-toolbar');
+            const scroller = page.locator('.reader-bookshelf-page .reader-page-scroll');
+            const beforeTop = (await toolbar.boundingBox()).y;
+            assert.equal(await page.locator('.reader-bookshelf-page .reader-book-card').count(), 12);
+            await scroller.evaluate(element => element.scrollTo({ top: element.scrollHeight, behavior: 'instant' }));
+            await page.waitForFunction(() => document.querySelectorAll('.reader-bookshelf-page .reader-book-card').length > 12);
+            assert.equal(Math.round((await toolbar.boundingBox()).y), Math.round(beforeTop), name + ' bookshelf toolbar moved with content');
+            assert.equal(await page.locator('#main-content').evaluate(element => element.scrollTop), 0);
+          }
           await page.locator('.reader-display-trigger').click();
           const dialog = page.getByRole('dialog');
           await dialog.waitFor();

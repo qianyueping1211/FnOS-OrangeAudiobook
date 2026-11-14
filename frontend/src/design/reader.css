@@ -327,3 +327,47 @@ html.reader-ios { touch-action:pan-x pan-y }
   .reader-home .reader-heading.reader-page-toolbar { margin-bottom:6px }
   .reader-library-header.reader-page-toolbar { margin-bottom:24px }
 }
+
+
+/* Fixed mobile page chrome: pull-to-refresh bounce stays inside the content pane. */
+@media(max-width:959px) {
+  .reader-locked-page {
+    height:100%;
+    min-height:0;
+    overflow:hidden;
+  }
+  .reader-locked-page .reader-page-toolbar {
+    position:relative;
+    top:auto;
+    z-index:30;
+    flex:none;
+    margin-top:0;
+    padding-top:0;
+    background:var(--reader-bg);
+  }
+  .reader-locked-page .reader-page-scroll {
+    flex:1;
+    min-height:0;
+    overflow-x:hidden;
+    overflow-y:auto;
+    overscroll-behavior-y:none;
+    -webkit-overflow-scrolling:touch;
+  }
+  .reader-locked-page .reader-page-scroll::after {
+    content:"";
+    display:block;
+    width:100%;
+    height:var(--reader-base-clearance);
+    min-height:var(--reader-base-clearance);
+    background:var(--reader-bg);
+    pointer-events:none;
+  }
+  .reader-content.has-mini-player .reader-locked-page .reader-page-scroll::after {
+    height:var(--reader-playing-clearance);
+    min-height:var(--reader-playing-clearance);
+  }
+  .reader-home .reader-page-scroll,
+  .reader-bookshelf-page .reader-page-scroll {
+    padding-top:14px;
+  }
+}

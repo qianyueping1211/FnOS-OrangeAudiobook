@@ -57,6 +57,11 @@ const Layout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const isMiniPlayerHidden = isMiniPlayerHiddenPath(location.pathname);
+
+  React.useEffect(() => {
+    if (location.pathname === '/bookshelf') return;
+    document.getElementById('main-content')?.scrollTo({ top: 0, behavior: 'instant' });
+  }, [location.pathname]);
   
   // Use selectors to prevent unnecessary re-renders when currentTime updates
   const user = useAuthStore(state => state.user);

@@ -98,11 +98,12 @@ export default function HomePage() {
   if (resumeChapterId) playerQuery.set('chapter', resumeChapterId);
   const bookUrl = hero ? '/book/' + encodeURIComponent(hero.id) + (resumeChapterId ? '?chapter_id=' + encodeURIComponent(resumeChapterId) : '') : '/bookshelf';
 
-  return <div className="reader-page reader-home flex-1">
+  return <div className="reader-page reader-home reader-locked-page flex flex-1 flex-col">
     <header className="reader-heading reader-page-toolbar">
       <div><div className="reader-eyebrow">{t('reader.privateLibrary')}</div><h1>{t('reader.homeTitle')}</h1><p>{t('reader.homeSubtitle')}</p></div>
       <Link to="/search" className="reader-search-link"><Search size={19} /><span>{t('reader.searchPlaceholder')}</span></Link>
     </header>
+    <div className="reader-page-scroll">
     {layout.showHero && <section className="reader-hero" aria-busy={loading && !hero}>
       <div className="reader-hero-copy">
         <div className="reader-eyebrow"><Headphones size={15} />{hasResume ? t('home.continueListening') : t('home.todayRecommendation')}</div>
@@ -144,6 +145,7 @@ export default function HomePage() {
       </div> : <Empty />}
     </section>}
     <div style={{ height: currentChapter ? 'var(--safe-bottom-with-player)' : 'var(--safe-bottom-base)' }} />
+    </div>
   </div>;
 }
 

@@ -58,7 +58,7 @@ const MyPage: React.FC = () => {
   const listenedMetric = formatMinuteMetric(listenedMinutes);
   const recentBookCount = historySummary.books;
   return (
-    <div className="reader-page flex-1 min-h-full flex flex-col animate-in fade-in duration-500">
+    <div className="reader-page reader-settings-page flex-1 min-h-full flex flex-col animate-in fade-in duration-500">
       <div className="flex-1 space-y-6 max-w-5xl w-full mx-auto">
         <header className="reader-settings-title"><h1>{t('reader.settings')}</h1><p>{t('reader.tagline')}</p></header>
         <section className="space-y-3">
@@ -157,8 +157,8 @@ const MyPage: React.FC = () => {
         className="shrink-0 transition-all duration-300"
         style={{
           height: currentChapter
-            ? "var(--safe-bottom-with-player)"
-            : "var(--safe-bottom-base)",
+            ? "var(--reader-playing-clearance)"
+            : "var(--reader-base-clearance)",
         }}
       />
     </div>
