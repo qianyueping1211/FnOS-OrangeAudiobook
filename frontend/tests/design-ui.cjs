@@ -214,7 +214,7 @@ async function fixture(context, gated = false) {
       assert.equal(await page.locator('.reader-mini-info').count(), 0, 'Player page must not render a mini player');
       await page.locator('audio').evaluate(audio => { audio.dataset.navigationIdentity = 'same-player'; });
       await page.screenshot({ path: path.join(root, 'ui-artifacts', name + '-player.png'), fullPage: false });
-      const nav = name === 'desktop' ? '.reader-sidebar' : '.reader-tabs';
+      const nav = !mobile ? '.reader-sidebar' : '.reader-tabs';
       await page.locator(nav + ' a[href="/bookshelf"]').click();
       await page.locator('.reader-mini-info').waitFor();
       assert.equal(await page.locator('audio').getAttribute('data-navigation-identity'), 'same-player');
