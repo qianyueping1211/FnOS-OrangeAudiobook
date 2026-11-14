@@ -286,3 +286,6 @@ html,body,#root {overflow:hidden;max-width:100%;-webkit-text-size-adjust:100%;te
   .reader-display-options button span {white-space:nowrap}
   .reader-display-options button:last-child:nth-child(odd) {grid-column:1/-1}
 }
+
+/* A fixed mini player must not tween its layout after leaving the full page. */
+.reader-player.is-mini {transition-property:opacity,transform}

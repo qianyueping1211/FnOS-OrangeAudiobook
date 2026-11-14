@@ -232,14 +232,18 @@ async function fixture(context, gated = false) {
       if (mobile) assert.equal(await page.locator('.reader-tabs').evaluate(element => getComputedStyle(element).position), 'fixed');
       await page.locator(nav + ' a[href="/bookshelf"]').click();
       await page.locator('.reader-library-search').click();
+      await page.locator('.reader-player.is-mini').evaluate(async element => {
+        await Promise.allSettled(element.getAnimations().map(animation => animation.finished));
+      });
       const miniBefore = await page.locator('.reader-player.is-mini').boundingBox();
       const tabsBefore = mobile ? await page.locator('.reader-tabs').boundingBox() : null;
       await page.locator('.reader-search-field input').fill('山海');
       await page.locator('.reader-book-card').first().waitFor();
       await page.locator('.reader-search-field input').blur();
       await page.locator('#main-content').evaluate(element => { element.scrollTop = element.scrollHeight; });
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       const miniAfter = await page.locator('.reader-player.is-mini').boundingBox();
-      assert.ok(Math.abs(miniBefore.y - miniAfter.y) <= 1, name + ' mini-player moved while scrolling');
+      assert.ok(Math.abs(miniBefore.y - miniAfter.y) <= 1, name + ' mini-player moved while scrolling: ' + JSON.stringify({ miniBefore, miniAfter }));
       if (mobile) {
         const tabsAfter = await page.locator('.reader-tabs').boundingBox();
         assert.ok(Math.abs(tabsBefore.y - tabsAfter.y) <= 1 && Math.abs(tabsBefore.width - tabsAfter.width) <= 1);
