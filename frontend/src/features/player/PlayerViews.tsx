@@ -71,6 +71,7 @@ export const ExpandedPlayerHeader: React.FC<ExpandedPlayerHeaderProps> = ({
         onClick={onExit}
         className="p-2 -ml-2 rounded-full text-slate-700 dark:text-white hover:bg-white/50 dark:hover:bg-slate-800/60 transition-colors"
         title={t('player.collapse')}
+        aria-label={t('player.collapse')}
       >
         <ChevronUp size={24} className="rotate-180" />
       </button>

@@ -263,14 +263,25 @@ async function fixture(context, gated = false) {
       hasRecent = true;
       await page.reload();
       await page.locator('.reader-player.is-page').waitFor();
-      assert.equal(await page.locator(!mobile ? '.reader-sidebar a[href="/player"]' : '.reader-tabs a[href="/player"]').innerText().then(text => text.trim()), '播放');
+      if (mobile) {
+        // The playback page is immersive: no tab bar at all.
+        assert.equal(await page.locator('.reader-tabs').isVisible(), false, name + ' playback page must hide the bottom navigation');
+      } else {
+        assert.equal(await page.locator('.reader-sidebar a[href="/player"]').innerText().then(text => text.trim()), '播放');
+      }
       assert.equal(await page.locator('audio').count(), 1);
       assert.equal(await page.evaluate(() => window.__playCalls), 0, 'Loading recent playback must stay paused');
       assert.equal(await page.locator('.reader-mini-info').count(), 0, 'Player page must not render a mini player');
       await page.locator('audio').evaluate(audio => { audio.dataset.navigationIdentity = 'same-player'; });
       await page.screenshot({ path: path.join(root, 'ui-artifacts', name + '-player.png'), fullPage: false });
       const nav = !mobile ? '.reader-sidebar nav' : '.reader-tabs';
-      await page.locator(nav + ' a[href="/bookshelf"]').click();
+      if (mobile) {
+        // The player page hides the tab bar, so leave it through the header's
+        // collapse control - still an in-app navigation, no reload.
+        await page.getByRole('button', { name: '收起', exact: true }).click();
+      } else {
+        await page.locator(nav + ' a[href="/bookshelf"]').click();
+      }
       await page.locator('.reader-mini-info').waitFor();
       assert.equal(await page.locator('audio').getAttribute('data-navigation-identity'), 'same-player');
       await page.locator(nav + ' a[href="/mine"]').click();
