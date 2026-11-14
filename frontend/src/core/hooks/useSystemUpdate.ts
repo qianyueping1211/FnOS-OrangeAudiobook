@@ -13,7 +13,7 @@ export type UpdateInfo = {
   checked_at?: number;
   has_token: boolean;
   update_available: boolean;
-  installer: { state: string; message?: string; progress?: number; version?: string };
+  installer: { network?: string; state: string; message?: string; progress?: number; version?: string };
 };
 
 export const notifyUpdateChanged = () => window.dispatchEvent(new Event('ting-updates-changed'));

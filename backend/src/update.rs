@@ -1,17 +1,20 @@
 //! Private-repository updates. Business APIs and user media are untouched.
 use anyhow::{Context, Result, bail, ensure};
 use flate2::read::GzDecoder;
-use reqwest::{Client, redirect::Policy};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+mod network;
+mod download;
+use network::Network;
+use download::download;
 
 const REPO: &str = "qianyueping1211/FnOS-OrangeAudiobook";
 const APP: &str = "ting-reader";
@@ -25,6 +28,8 @@ const MAX_EXPANDED: u64 = 1024 * 1024 * 1024;
 pub struct InstallStatus {
     pub state: String,
     pub message: String,
+    #[serde(default)]
+    pub network: String,
     pub progress: u32,
     pub version: String,
     #[serde(default)]
@@ -185,7 +190,7 @@ pub fn parse_release(value: &Value) -> Result<Release> {
         "不支持预览版本"
     );
     let version = parsed.to_string();
-    let name = format!("ting-reader-native-x86_64-{version}.fpk");
+    let name = format!("FnOS-OrangeAudiobook-x86_64-{version}.fpk");
     let assets = value["assets"].as_array().context("发布附件缺失")?;
     let package = assets
         .iter()
@@ -216,55 +221,9 @@ pub fn parse_release(value: &Value) -> Result<Release> {
     })
 }
 
-fn github_client(token: &str) -> Result<Client> {
-    let mut headers = reqwest::header::HeaderMap::new();
-    let mut authorization = reqwest::header::HeaderValue::from_str(&format!("Bearer {token}"))?;
-    authorization.set_sensitive(true);
-    headers.insert(reqwest::header::AUTHORIZATION, authorization);
-    headers.insert(
-        reqwest::header::CACHE_CONTROL,
-        reqwest::header::HeaderValue::from_static("no-cache"),
-    );
-    Ok(Client::builder()
-        .default_headers(headers)
-        .user_agent("TingReader-PrivateUpdater")
-        .connect_timeout(Duration::from_secs(15))
-        .timeout(Duration::from_secs(180))
-        .redirect(Policy::custom(|attempt| {
-            let host = attempt.url().host_str().unwrap_or_default();
-            if attempt.previous().len() < 5
-                && attempt.url().scheme() == "https"
-                && (host == "api.github.com"
-                    || host == "github.com"
-                    || host.ends_with(".githubusercontent.com"))
-            {
-                attempt.follow()
-            } else {
-                attempt.stop()
-            }
-        }))
-        .build()?)
-}
-
-async fn github_json(client: &Client, suffix: &str) -> Result<Value> {
-    let response = client
-        .get(format!("https://api.github.com/repos/{REPO}/{suffix}"))
-        .header("Accept", "application/vnd.github+json")
-        .send()
-        .await
-        .map_err(|_| anyhow::anyhow!("连接 GitHub 失败，请检查 NAS 网络"))?;
-    ensure!(
-        response.status().is_success(),
-        "无法读取私有版本，请检查令牌的仓库范围和 Contents 读取权限"
-    );
-    let bytes = response.bytes().await?;
-    ensure!(bytes.len() <= 2 * 1024 * 1024, "GitHub 版本信息过大");
-    Ok(serde_json::from_slice(&bytes)?)
-}
-
 pub async fn check() -> Result<Value> {
-    let client = github_client(&token_from(&data_dir())?)?;
-    let release = parse_release(&github_json(&client, "releases/latest").await?)?;
+    let client = Network::new(&token_from(&data_dir())?)?;
+    let release = parse_release(&client.json("releases/latest", None).await?)?;
     write_json(
         &data_dir().join("update-check.json"),
         &json!({ "release": release, "checked_at": now() }),
@@ -305,12 +264,10 @@ pub async fn status() -> Result<Value> {
 }
 
 pub async fn install(version: String, tag: String) -> Result<Value> {
-    let client = github_client(&token_from(&data_dir())?)?;
-    let release = parse_release(&github_json(&client, "releases/latest").await?)?;
-    ensure!(
-        version == release.version && tag == release.tag && newer(&version, &installed_version()),
-        "版本已变化，请重新检查更新"
-    );
+    // Queue promptly; the privileged worker independently validates the latest release.
+    token_from(&data_dir())?;
+    ensure!(Version::parse(&version).is_ok() && newer(&version, &installed_version()),
+        "目标版本无效或不高于当前版本");
     write_json(
         &data_dir().join("update-request.json"),
         &InstallRequest {
@@ -330,21 +287,6 @@ pub async fn install(version: String, tag: String) -> Result<Value> {
         "无法启动更新，请检查飞牛安装权限或应用中心中的上次升级结果"
     );
     status().await
-}
-
-async fn asset_response(client: &Client, id: u64) -> Result<reqwest::Response> {
-    let response = client
-        .get(format!(
-            "https://api.github.com/repos/{REPO}/releases/assets/{id}"
-        ))
-        .header("Accept", "application/octet-stream")
-        .send()
-        .await?;
-    ensure!(
-        response.status().is_success(),
-        "下载安装包失败，请检查 GitHub 访问权限"
-    );
-    Ok(response)
 }
 
 fn root_status() -> InstallStatus {
@@ -445,48 +387,6 @@ pub fn validate_fpk(path: &Path, version: &str) -> Result<()> {
     Ok(())
 }
 
-async fn download(client: &Client, release: &Release, info: &mut InstallStatus) -> Result<PathBuf> {
-    let text = asset_response(client, release.checksums_id)
-        .await?
-        .text()
-        .await?;
-    ensure!(text.len() <= 65536, "校验文件过大");
-    let name = format!("ting-reader-native-x86_64-{}.fpk", release.version);
-    let expected = text
-        .lines()
-        .find_map(|line| {
-            let (digest, file) = line.split_once(char::is_whitespace)?;
-            (file.trim().trim_start_matches('*') == name
-                && digest.len() == 64
-                && digest.bytes().all(|b| b.is_ascii_hexdigit()))
-            .then(|| digest.to_ascii_lowercase())
-        })
-        .context("找不到对应安装包的 SHA-256")?;
-    let path = Path::new(ROOT).join(&name);
-    let mut response = asset_response(client, release.asset_id).await?;
-    let mut file = File::create(&path)?;
-    let mut digest = Sha256::new();
-    let mut received = 0_u64;
-    while let Some(chunk) = response.chunk().await? {
-        received += chunk.len() as u64;
-        ensure!(received <= release.size, "安装包大小超出发布信息");
-        file.write_all(&chunk)?;
-        digest.update(&chunk);
-        let progress = (received * 45 / release.size) as u32;
-        if progress != info.progress {
-            info.progress = progress;
-            save_status(info)?;
-        }
-    }
-    file.sync_all()?;
-    ensure!(
-        received == release.size && format!("{:x}", digest.finalize()) == expected,
-        "安装包 SHA-256 校验失败"
-    );
-    validate_fpk(&path, &release.version)?;
-    Ok(path)
-}
-
 fn center_call(route: &str, payload: &Value) -> Result<Value> {
     ensure!(
         matches!(
@@ -529,11 +429,10 @@ fn center_call(route: &str, payload: &Value) -> Result<Value> {
 }
 
 async fn apply_release(request: &InstallRequest, info: &mut InstallStatus) -> Result<()> {
-    let client = github_client(&token_from(Path::new(DATA))?)?;
-    let release =
-        parse_release(&github_json(&client, &format!("releases/tags/{}", request.tag)).await?)?;
+    let client = Network::new(&token_from(Path::new(DATA))?)?;
+    let release = parse_release(&client.json("releases/latest", Some(&mut *info)).await?)?;
     ensure!(
-        release.version == request.version && newer(&release.version, &installed_version()),
+        release.version == request.version && release.tag == request.tag && newer(&release.version, &installed_version()),
         "请求版本与发布版本不一致"
     );
     let package = download(&client, &release, info).await?;
@@ -735,7 +634,8 @@ pub async fn root_main(action: &str, request_id: Option<&str>) -> Result<Install
         let unit = format!("ting-reader-upgrade-{}", uuid::Uuid::new_v4().simple());
         let mut info = InstallStatus {
             state: "downloading".to_owned(),
-            message: "正在读取并校验私有版本".to_owned(),
+            network: "正在检测本机加速".to_owned(),
+            message: "正在选择可用加速线路".to_owned(),
             version: request.version.clone(),
             unit: unit.clone(),
             started: now(),
@@ -780,7 +680,7 @@ mod tests {
 
     fn release() -> Value {
         json!({ "draft": false, "prerelease": false, "tag_name": "v2.1.0-build.2",
-            "assets": [{ "name": "ting-reader-native-x86_64-2.1.0.fpk", "id": 11, "size": 123 },
+            "assets": [{ "name": "FnOS-OrangeAudiobook-x86_64-2.1.0.fpk", "id": 11, "size": 123 },
                 { "name": "SHA256SUMS.txt", "id": 12 }], "body": "Notes" })
     }
 
@@ -788,7 +688,7 @@ mod tests {
     fn only_private_release_with_correct_arch_and_checksums_is_accepted() {
         assert_eq!(parse_release(&release()).unwrap().version, "2.1.0");
         let mut bad = release();
-        bad["assets"][0]["name"] = json!("ting-reader-native-arm64-2.1.0.fpk");
+        bad["assets"][0]["name"] = json!("FnOS-OrangeAudiobook-arm64-2.1.0.fpk");
         assert!(parse_release(&bad).is_err());
         let mut bad = release();
         bad["prerelease"] = json!(true);

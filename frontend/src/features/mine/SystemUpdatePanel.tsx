@@ -20,7 +20,7 @@ export default function SystemUpdatePanel() {
   useEffect(() => {
     if (!active) return;
     const controller = new AbortController();
-    const timer = window.setInterval(() => { void refresh(controller.signal).catch(() => {}); }, 2500);
+    const timer = window.setInterval(() => { void refresh(controller.signal).catch(() => {}); }, 1000);
     return () => { controller.abort(); window.clearInterval(timer); };
   }, [active, refresh]);
 
@@ -78,6 +78,7 @@ export default function SystemUpdatePanel() {
     {active && <progress className="reader-update-progress" max={100} value={info?.installer.progress || 0} />}
     {(error || message || info?.installer.message) && <div role="status" className={'reader-update-message' + (error || info?.installer.state === 'error' ? ' error' : '')}>
       {!error && info?.installer.state === 'completed' && <Check size={16} className="inline mr-2" />}
+      {info?.installer.network && <div className="mb-2 font-medium">{info.installer.network}</div>}
       {error || message || info?.installer.message}
     </div>}
     {info?.update_available && info.notes && <details className="mt-5"><summary className="text-sm cursor-pointer">{t('reader.releaseNotes')}</summary><div className="reader-release-notes">{info.notes}</div></details>}

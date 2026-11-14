@@ -20,8 +20,9 @@ let refreshCalls = 0;
 let writeCalls = 0;
 let metadataEdits = 0;
 let hasRecent = true;
+let installerOverride = null;
 const info = () => ({ current_version: '2.1.0', latest_version: latest, tag: latest ? 'v' + latest : '', notes: '本次更新统一了移动端与桌面端的阅读体验。', has_token: hasToken,
-  checked_at: Math.floor(Date.now() / 1000), update_available: !!latest, installer: { state: 'idle', progress: 0, message: '' } });
+  checked_at: Math.floor(Date.now() / 1000), update_available: !!latest, installer: installerOverride || { state: 'idle', progress: 0, message: '' } });
 async function ready() {
   for (let i = 0; i < 100; i++) {
     try { if ((await fetch(base)).ok) return; } catch {}
@@ -91,7 +92,7 @@ async function fixture(context, gated = false) {
     else if (p === '/api/scraper/sources') result = { sources: [] };
     else if (p === '/api/system/updates/token') { hasToken = request.method() === 'PUT'; result = { has_token: hasToken }; }
     else if (p === '/api/system/updates/check') { latest = '2.1.1'; result = info(); }
-    else if (p === '/api/system/updates/install') { installCalls++; result = info(); }
+    else if (p === '/api/system/updates/install') { installCalls++; installerOverride = { state: 'downloading', progress: 0, network: '本机加速：127.0.0.1:7890', message: '正在读取并校验私有版本' }; result = info(); }
     else if (p === '/api/system/updates') result = info();
     return route.fulfill({ contentType: 'application/json', body: JSON.stringify(result) });
   });
@@ -301,6 +302,15 @@ async function fixture(context, gated = false) {
         await page.getByRole('button', { name: '取消', exact: true }).click();
         await page.locator('input[type=password]').fill('ghp_changed_synthetic_fixture_12345');
         await page.getByRole('button', { name: '保存令牌', exact: true }).waitFor();
+        const updateHeadingBefore = await page.locator('.reader-update-summary').boundingBox();
+        await page.getByRole('button', { name: '升级', exact: true }).click();
+        await page.getByRole('button', { name: '确认', exact: true }).click();
+        await page.getByText('本机加速：127.0.0.1:7890', { exact: true }).waitFor();
+        const updateMessage = await page.locator('.reader-update-message').innerText();
+        assert.ok(updateMessage.indexOf('本机加速') < updateMessage.indexOf('正在读取并校验私有版本'));
+        assert.equal(await page.locator('.reader-update-summary').boundingBox().then(b => b.y), updateHeadingBefore.y);
+        assert.equal(installCalls, 1, 'This install call is intercepted by the synthetic fixture');
+        installerOverride = null;
       }
       assert.deepEqual(errors, [], name + ' runtime errors');
       await context.close();

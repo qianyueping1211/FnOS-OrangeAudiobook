@@ -342,10 +342,10 @@ jobs:
           if [ "$TARGET" = "beta" ]; then
             echo "Building for Beta release..."
             VERSION="beta"
-            FN_OUTPUT="ting-reader-native-${{ matrix.fpk_suffix }}-beta.fpk"
+            FN_OUTPUT="FnOS-OrangeAudiobook-${{ matrix.fpk_suffix }}-beta.fpk"
           else
             echo "Building for Formal release v$VERSION..."
-            FN_OUTPUT="ting-reader-native-${{ matrix.fpk_suffix }}-${VERSION}.fpk"
+            FN_OUTPUT="FnOS-OrangeAudiobook-${{ matrix.fpk_suffix }}-${VERSION}.fpk"
           fi
 
           # Update manifest with version
@@ -369,8 +369,8 @@ jobs:
       - name: Verify FPK integrity and write release checksums
         run: |
           set -euo pipefail
-          set -- ting-reader-native-*.fpk
-          if [ "$#" -ne 1 ] || [[ "$1" != ting-reader-native-x86_64-*.fpk ]]; then
+          set -- FnOS-OrangeAudiobook-*.fpk
+          if [ "$#" -ne 1 ] || [[ "$1" != FnOS-OrangeAudiobook-x86_64-*.fpk ]]; then
             echo "::error::Only the standard x86_64 fnOS package may be published."
             exit 1
           fi
@@ -380,7 +380,7 @@ jobs:
           python3 - <<'PY'
           import io, tarfile
           from pathlib import Path
-          for package in Path('.').glob('ting-reader-native-*.fpk'):
+          for package in Path('.').glob('FnOS-OrangeAudiobook-*.fpk'):
               with tarfile.open(package) as outer:
                   payload = outer.extractfile(next(member for member in outer.getmembers() if member.name.lstrip('./') == 'app.tgz'))
                   assert payload is not None
@@ -391,13 +391,13 @@ jobs:
                       assert all(name in names for name in required)
           print('Verified documentation artwork is excluded and fixed fnOS icon sizes are present.')
           PY
-          sha256sum ting-reader-native-*.fpk > SHA256SUMS.txt
+          sha256sum FnOS-OrangeAudiobook-*.fpk > SHA256SUMS.txt
 
       - uses: actions/upload-artifact@v4
         with:
           name: native-fpk-x86_64
           path: |
-            ting-reader-native-*.fpk
+            FnOS-OrangeAudiobook-*.fpk
             SHA256SUMS.txt
 
 
@@ -421,7 +421,7 @@ jobs:
         run: |
           set -euo pipefail
           sha256sum --check SHA256SUMS.txt
-          test -f "ting-reader-native-x86_64-${VERSION}.fpk"
+          test -f "FnOS-OrangeAudiobook-x86_64-${VERSION}.fpk"
           if [ "${{ github.ref }}" = "refs/heads/main" ]; then
             test "$(git ls-remote origin refs/heads/main | cut -f1)" = "${{ needs.source.outputs.sha }}"
           fi
@@ -444,7 +444,7 @@ jobs:
           make_latest: false
           overwrite_files: true
           files: |
-            ting-reader-native-x86_64-beta.fpk
+            FnOS-OrangeAudiobook-x86_64-beta.fpk
             SHA256SUMS.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -469,7 +469,7 @@ jobs:
           target_commitish: ${{ needs.source.outputs.sha }}
           body_path: RELEASE_NOTES.md
           files: |
-            ting-reader-native-x86_64-${{ env.VERSION }}.fpk
+            FnOS-OrangeAudiobook-x86_64-${{ env.VERSION }}.fpk
             SHA256SUMS.txt
           fail_on_unmatched_files: false
           overwrite_files: true
