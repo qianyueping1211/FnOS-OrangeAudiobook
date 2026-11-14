@@ -252,7 +252,9 @@ const enUS = {
     changelogDescription: "Versions and fixes",
   },
   player: {
-    resumeFailed: "Unable to load your recent book",
+    
+    closePlayer: "Close player",
+resumeFailed: "Unable to load your recent book",
     emptyTitle: "No book selected",
     emptyDescription: "Choose a book from your bookshelf to start listening here.",
     collapse: "Collapse player",
