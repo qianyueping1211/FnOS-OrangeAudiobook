@@ -41,7 +41,6 @@ interface Props {
   onPlayClick: () => void;
   onToggleFavorite: () => void;
   onOpenScrapeDiff: () => void;
-  onRefreshFiles: () => void;
   refreshingFiles: boolean;
   onOpenEditModal: () => void;
   onSetIsTagsExpanded: (expanded: boolean) => void;
@@ -71,7 +70,6 @@ const BookHeaderSection: React.FC<Props> = ({
   onPlayClick,
   onToggleFavorite,
   onOpenScrapeDiff,
-  onRefreshFiles,
   refreshingFiles,
   onOpenEditModal,
   onSetIsTagsExpanded,
@@ -98,9 +96,8 @@ const BookHeaderSection: React.FC<Props> = ({
   const editLabel = t("common.edit");
   const moreLabel = t("bookshelf.more");
   const canEditMetadata = isAdmin;
-  const canRefreshFiles = isAdmin && book.library_type === "local";
   const actionButtonLabels = canEditMetadata
-    ? [favoriteLabel, scrapeLabel, ...(canRefreshFiles ? [t("bookshelf.refreshFiles")] : []), editLabel, moreLabel]
+    ? [favoriteLabel, scrapeLabel, editLabel, moreLabel]
     : [favoriteLabel, moreLabel];
   const actionButtonWidthLabels = canEditMetadata
     ? [
@@ -264,7 +261,7 @@ const BookHeaderSection: React.FC<Props> = ({
           </button>
 
           <div
-            className={`grid w-full gap-1 min-[430px]:gap-1.5 md:gap-3 ${canRefreshFiles ? "grid-cols-3 sm:grid-cols-none sm:grid-flow-col sm:auto-cols-fr" : "grid-flow-col auto-cols-fr"}`}
+            className="grid w-full grid-flow-col auto-cols-fr gap-1 min-[430px]:gap-1.5 md:gap-3"
           >
             <button
               onClick={onToggleFavorite}
@@ -294,20 +291,12 @@ const BookHeaderSection: React.FC<Props> = ({
                 >
                   <RefreshCw
                     size={20}
-                    className="h-4 w-4 shrink-0 lg:h-5 lg:w-5"
+                    className={refreshingFiles ? "h-4 w-4 shrink-0 animate-spin lg:h-5 lg:w-5" : "h-4 w-4 shrink-0 lg:h-5 lg:w-5"}
                   />
                   <span className="hidden min-[380px]:inline">
                     {scrapeLabel}
                   </span>
                 </button>
-                {canRefreshFiles && (
-                  <button type="button" onClick={onRefreshFiles} disabled={refreshingFiles} aria-label={t("bookshelf.refreshFiles")}
-                    title={t("bookshelf.refreshFiles")}
-                    className="w-full min-w-0 px-1.5 py-2.5 rounded-xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-300 hover:text-primary-600 disabled:opacity-50 flex items-center justify-center gap-1 font-bold text-[11px] lg:text-sm whitespace-nowrap">
-                    <RefreshCw size={18} className={refreshingFiles ? "animate-spin shrink-0" : "shrink-0"} />
-                    <span className="hidden min-[380px]:inline">{t("bookshelf.refreshFiles")}</span>
-                  </button>
-                )}
                 <button
                   onClick={onOpenEditModal}
                   className="w-full min-w-0 px-1.5 min-[430px]:px-2 lg:px-4 py-2.5 lg:py-3 rounded-xl lg:rounded-2xl border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-300 hover:text-primary-600 transition-all active:scale-95 flex items-center justify-center gap-1 min-[430px]:gap-1.5 lg:gap-2 font-bold text-[11px] min-[430px]:text-xs lg:text-sm whitespace-nowrap"

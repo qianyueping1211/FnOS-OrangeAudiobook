@@ -68,6 +68,7 @@ async function fixture(context, gated = false) {
     else if (p === '/api/system/time-zone') result = { time_zone: 'Asia/Shanghai' };
     else if (p === '/api/health') result = { version: '2.1.0', status: 'ok' };
     else if (p === '/api/books' || p === '/api/search') result = books;
+    else if (p === '/api/scraper/sources') result = [];
     else if (p === '/api/books/book-0/refresh-files') { refreshCalls++; result = { chapters: 1 }; }
     else if (p === '/api/books/book-0/write-metadata') { writeCalls++; result = { task_id: 'synthetic-write' }; }
     else if (p === '/api/books/book-0/chapters') {
@@ -177,8 +178,12 @@ async function fixture(context, gated = false) {
         if (slug === 'home') {
           await page.locator('.reader-book-card').first().waitFor();
           assert.ok(await page.locator('.reader-book-card').count() >= 6);
+          assert.equal(await page.getByRole('heading', { name: '为你推荐', exact: true }).count(), 0);
           assert.equal(await page.locator('.reader-brand strong').textContent(), '橙子听书');
           assert.equal(await page.locator('.reader-brand img').evaluate(image => image.complete && image.naturalWidth > 0), true);
+          const heroCover = await page.locator('.reader-hero-cover').boundingBox();
+          assert.ok(Math.abs(heroCover.width - heroCover.height) <= 1, name + ' home hero cover must be square');
+          assert.equal(await page.locator('.reader-hero-cover').evaluate(element => getComputedStyle(element).transform), 'none');
         }
         if (slug === 'search') {
           const input = page.locator('.reader-search-field input');
@@ -268,8 +273,10 @@ async function fixture(context, gated = false) {
       const chapterBounds = await page.locator('.reader-book-chapters').boundingBox();
       assert.ok(Math.abs(headerBounds.x - chapterBounds.x) <= 1, name + ' book sections left alignment');
       assert.ok(Math.abs(headerBounds.width - chapterBounds.width) <= 1, name + ' book sections width alignment');
-      await page.getByRole('button', { name: '刷新文件', exact: true }).click();
+      assert.equal(await page.getByRole('button', { name: '刷新文件', exact: true }).count(), 0);
+      await page.getByRole('button', { name: '刮削', exact: true }).click();
       await page.getByText('改名后的章节', { exact: true }).waitFor();
+      await page.getByRole('button', { name: '关闭', exact: true }).click();
       await page.getByRole('button', { name: '编辑', exact: true }).click();
       const lock = page.getByRole('checkbox', { name: /锁定元数据/ });
       assert.equal(await lock.isChecked(), true);

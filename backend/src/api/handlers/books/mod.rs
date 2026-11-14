@@ -104,11 +104,8 @@ pub async fn get_book(
     response.is_favorite = is_fav;
     response.progress_percent =
         crate::db::repository::reading::ReadingRepository::new(state.book_repo.db().clone())
-            .percentages(&user.id)
-            .await?
-            .get(&id)
-            .copied()
-            .unwrap_or(0.0);
+            .percentage(&user.id, &id)
+            .await?;
 
     Ok((StatusCode::OK, Json(response)))
 }

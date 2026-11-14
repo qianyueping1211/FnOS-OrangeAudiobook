@@ -289,3 +289,41 @@ html,body,#root {overflow:hidden;max-width:100%;-webkit-text-size-adjust:100%;te
 
 /* A fixed mini player must not tween its layout after leaving the full page. */
 .reader-player.is-mini {transition-property:opacity,transform}
+
+
+/* iOS viewport stability and real scroll clearance above floating controls. */
+html.reader-ios { touch-action:pan-x pan-y }
+.reader-content { padding-bottom:0 }
+.reader-scroll-clearance {
+  flex:0 0 var(--reader-base-clearance);
+  width:100%;
+  min-height:var(--reader-base-clearance);
+  background:var(--reader-bg);
+  pointer-events:none;
+}
+.reader-content.has-mini-player .reader-scroll-clearance {
+  flex-basis:var(--reader-playing-clearance);
+  min-height:var(--reader-playing-clearance);
+}
+
+/* Home listening covers are shown straight-on and square without changing source files. */
+.reader-home .reader-hero-cover { aspect-ratio:1;transform:none }
+.reader-home .reader-recent .reader-cover { width:68px;height:68px;aspect-ratio:1 }
+
+/* Mobile page tools remain visible while only the result area scrolls. */
+@media(max-width:959px) {
+  :root {
+    --reader-base-clearance:calc(var(--bottom-nav-h) + 48px + env(safe-area-inset-bottom,0px));
+    --reader-playing-clearance:calc(var(--mini-player-offset) + var(--player-h) + 48px);
+  }
+  .reader-page-toolbar {
+    position:sticky;
+    top:0;
+    z-index:30;
+    background:var(--reader-bg);
+    padding-block:14px;
+    margin-top:-14px;
+  }
+  .reader-home .reader-heading.reader-page-toolbar { margin-bottom:6px }
+  .reader-library-header.reader-page-toolbar { margin-bottom:24px }
+}

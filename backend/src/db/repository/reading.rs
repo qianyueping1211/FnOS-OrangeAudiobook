@@ -115,6 +115,35 @@ impl ReadingRepository {
             .await
     }
 
+    pub async fn percentage(&self, user: &str, book: &str) -> Result<f64> {
+        let user = user.to_owned();
+        let book = book.to_owned();
+        self.db
+            .execute(move |conn| {
+                conn.query_row(
+                    "SELECT CASE
+                       WHEN EXISTS (
+                         SELECT 1 FROM book_read_marks
+                         WHERE user_id = :user AND book_id = :book
+                       ) THEN 100.0
+                       ELSE COALESCE((
+                         SELECT 100.0 * SUM(CASE
+                           WHEN COALESCE(NULLIF(c.duration, 0), NULLIF(p.duration, 0), 0) > 0
+                           THEN MIN(1.0, MAX(0.0, p.position) /
+                             COALESCE(NULLIF(c.duration, 0), NULLIF(p.duration, 0)))
+                           ELSE 0 END) /
+                           NULLIF((SELECT COUNT(*) FROM chapters WHERE book_id = :book), 0)
+                         FROM progress p JOIN chapters c ON c.id = p.chapter_id
+                         WHERE p.user_id = :user AND p.book_id = :book
+                       ), 0.0)
+                     END",
+                    named_params! { ":user": user, ":book": book },
+                    |row| row.get(0),
+                )
+            })
+            .await
+    }
+
     pub async fn mark_books(&self, user: &str, books: Vec<String>, read: bool) -> Result<()> {
         let user = user.to_owned();
         self.db

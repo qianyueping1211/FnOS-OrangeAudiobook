@@ -427,14 +427,27 @@ const BookDetailPage: React.FC = () => {
   };
 
   const [refreshingFiles, setRefreshingFiles] = useState(false);
-  const refreshFiles = async () => {
+  const refreshPromiseRef = React.useRef<Promise<void> | null>(null);
+  const refreshFiles = () => {
+    const active = refreshPromiseRef.current;
+    if (active) return active;
     const operations = operationsRef.current;
-    if (!book || !operations || refreshingFiles) return;
+    if (!book || !operations || book.library_type !== 'local') return Promise.resolve();
     setRefreshingFiles(true);
-    try {
-      if (book.library_type === 'local') await operations.refreshFiles(book.id);
-      if (operationsRef.current === operations) await reloadBook();
-    } finally { setRefreshingFiles(false); }
+    const pending = operations.refreshFiles(book.id)
+      .then(async () => {
+        if (operationsRef.current === operations) await reloadBook();
+      })
+      .finally(() => {
+        if (refreshPromiseRef.current === pending) refreshPromiseRef.current = null;
+        setRefreshingFiles(false);
+      });
+    refreshPromiseRef.current = pending;
+    return pending;
+  };
+  const openScrape = () => {
+    setIsScrapeDiffOpen(true);
+    void refreshFiles().catch(error => alert(apiErrorMessage(error, t('bookshelf.refreshFilesFailed'))));
   };
 
   const handleEditSave = async () => {
@@ -615,8 +628,7 @@ const BookDetailPage: React.FC = () => {
           onPlayClick={handlePlayClick}
           onToggleFavorite={toggleFavorite}
           refreshingFiles={refreshingFiles}
-          onRefreshFiles={() => { void refreshFiles().catch(error => alert(apiErrorMessage(error, t('bookshelf.refreshFilesFailed')))); }}
-          onOpenScrapeDiff={() => setIsScrapeDiffOpen(true)}
+          onOpenScrapeDiff={openScrape}
           onOpenEditModal={() => {
             setEditLockTouched(false);
             setEditCoverFile(null);

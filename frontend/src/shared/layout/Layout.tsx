@@ -285,6 +285,7 @@ const Layout: React.FC = () => {
         <main id="main-content" className={'reader-content flex flex-col' + (hasCurrentChapter && !isMiniPlayerHidden ? ' has-mini-player' : '')}
           style={{ '--safe-bottom-with-player': '0px', '--safe-bottom-base': '0px' } as React.CSSProperties}>
           <Suspense fallback={<LoadingSpinner className="min-h-48" />}><Outlet /></Suspense>
+          <div className="reader-scroll-clearance" aria-hidden="true" />
         </main>
         <nav className="reader-tabs" aria-label={t('nav.mainMenu')}>{menuItems.map(item => renderNav(item, true))}</nav>
         {hasCurrentChapter && <Suspense fallback={null}><Player /></Suspense>}

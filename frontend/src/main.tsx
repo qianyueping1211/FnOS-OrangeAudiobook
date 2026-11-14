@@ -5,6 +5,9 @@ import './index.css'
 import './design/reader.css'
 import i18n from './core/i18n'
 import App from './App.tsx'
+import { installIOSViewportGuards } from './core/utils/iosViewport'
+
+installIOSViewportGuards();
 
 const savedTheme = localStorage.getItem('theme') || 'dark';
 document.documentElement.classList.add(savedTheme === 'system'

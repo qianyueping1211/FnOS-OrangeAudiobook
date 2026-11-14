@@ -31,16 +31,56 @@ use uuid::Uuid;
 
 const SESSION_RESTORE_LOG_TTL: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 static SESSION_RESTORE_LOGS: OnceLock<Mutex<HashMap<String, Instant>>> = OnceLock::new();
+static DEFAULT_CREDENTIAL_STATUS: OnceLock<Mutex<HashMap<String, bool>>> = OnceLock::new();
 
-fn user_info_from_user(user: &User) -> Result<UserInfo> {
+fn default_credential_cache_key(user: &User) -> String {
+    format!("{}|{}|{}|{}", user.id, user.role, user.username, user.password_hash)
+}
+
+fn uses_default_admin_credentials(user: &User, verified_password: Option<&str>) -> Result<bool> {
+    if user.role != "admin" || user.username != DEFAULT_ADMIN_USERNAME {
+        return Ok(false);
+    }
+    let key = default_credential_cache_key(user);
+    if let Some(value) = DEFAULT_CREDENTIAL_STATUS
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .expect("default credential cache lock")
+        .get(&key)
+        .copied()
+    {
+        return Ok(value);
+    }
+
+    let value = match verified_password {
+        Some(password) => password == DEFAULT_ADMIN_PASSWORD,
+        None => verify_password(DEFAULT_ADMIN_PASSWORD, &user.password_hash)?,
+    };
+    let mut cache = DEFAULT_CREDENTIAL_STATUS
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .expect("default credential cache lock");
+    if cache.len() >= 64 {
+        cache.clear();
+    }
+    cache.insert(key, value);
+    Ok(value)
+}
+
+fn user_info_from_user_with_password(
+    user: &User,
+    verified_password: Option<&str>,
+) -> Result<UserInfo> {
     Ok(UserInfo {
         id: user.id.clone(),
         username: user.username.clone(),
         role: user.role.clone(),
-        uses_default_admin_credentials: user.role == "admin"
-            && user.username == DEFAULT_ADMIN_USERNAME
-            && verify_password(DEFAULT_ADMIN_PASSWORD, &user.password_hash)?,
+        uses_default_admin_credentials: uses_default_admin_credentials(user, verified_password)?,
     })
+}
+
+fn user_info_from_user(user: &User) -> Result<UserInfo> {
+    user_info_from_user_with_password(user, None)
 }
 
 fn record_login_success(
@@ -318,7 +358,7 @@ pub async fn login(
     record_login_success(&state, &user, &request_info, "password");
 
     Ok(Json(LoginResponse {
-        user: user_info_from_user(&user)?,
+        user: user_info_from_user_with_password(&user, Some(&req.password))?,
         token,
     }))
 }

@@ -84,12 +84,8 @@ export default function HomePage() {
       .filter(item => { if (seen.has(item.book_id)) return false; seen.add(item.book_id); return true; });
   }, [recent]);
   const latest = useMemo(() => [...books].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at)).slice(0, 12), [books]);
-  const recommended = useMemo(() => {
-    const seen = new Set<string>();
-    return [...favorites, ...latest].filter(book => { if (seen.has(book.id)) return false; seen.add(book.id); return true; }).slice(0, 6);
-  }, [favorites, latest]);
   const last = recentBooks[0];
-  const hero = currentBook || books.find(book => book.id === last?.book_id) || recommended[0];
+  const hero = currentBook || books.find(book => book.id === last?.book_id) || latest[0] || favorites[0];
   const hasResume = !!hero && ((currentBook?.id === hero.id && !!currentChapter) || last?.book_id === hero.id);
   const resumeChapterId = currentBook?.id === hero?.id ? currentChapter?.id : last?.book_id === hero?.id ? last.chapter_id : undefined;
   const playerQuery = new URLSearchParams();
@@ -98,7 +94,7 @@ export default function HomePage() {
   const bookUrl = hero ? '/book/' + encodeURIComponent(hero.id) + (resumeChapterId ? '?chapter_id=' + encodeURIComponent(resumeChapterId) : '') : '/bookshelf';
 
   return <div className="reader-page reader-home flex-1">
-    <header className="reader-heading">
+    <header className="reader-heading reader-page-toolbar">
       <div><div className="reader-eyebrow">{t('reader.privateLibrary')}</div><h1>{t('reader.homeTitle')}</h1><p>{t('reader.homeSubtitle')}</p></div>
       <Link to="/search" className="reader-search-link"><Search size={19} /><span>{t('reader.searchPlaceholder')}</span></Link>
     </header>
@@ -134,10 +130,6 @@ export default function HomePage() {
     {layout.showRecentlyAdded && <section className="reader-section">
       <SectionTitle title={t('home.recentlyAdded')} to="/bookshelf" />
       {loading && !latest.length ? <LoadingSpinner className="min-h-40" /> : latest.length ? <div className="reader-grid">{latest.map(book => <BookCard key={book.id} book={book} coverShape={coverShape} />)}</div> : <Empty />}
-    </section>}
-    {layout.showRecommended && recommended.length > 0 && <section className="reader-section">
-      <SectionTitle title={t('home.recommended')} to="/bookshelf" />
-      <div className="reader-grid">{recommended.map(book => <BookCard key={book.id} book={book} coverShape={coverShape} />)}</div>
     </section>}
     {layout.showCollections && (playlists.length > 0 || series.length > 0) && <section className="reader-section">
       <SectionTitle title={t('home.collections')} to="/playlists" />
