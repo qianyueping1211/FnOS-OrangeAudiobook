@@ -34,7 +34,10 @@ static SESSION_RESTORE_LOGS: OnceLock<Mutex<HashMap<String, Instant>>> = OnceLoc
 static DEFAULT_CREDENTIAL_STATUS: OnceLock<Mutex<HashMap<String, bool>>> = OnceLock::new();
 
 fn default_credential_cache_key(user: &User) -> String {
-    format!("{}|{}|{}|{}", user.id, user.role, user.username, user.password_hash)
+    format!(
+        "{}|{}|{}|{}",
+        user.id, user.role, user.username, user.password_hash
+    )
 }
 
 fn uses_default_admin_credentials(user: &User, verified_password: Option<&str>) -> Result<bool> {
