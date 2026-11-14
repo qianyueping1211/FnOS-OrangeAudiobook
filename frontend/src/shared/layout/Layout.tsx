@@ -47,13 +47,22 @@ type NavItem = {
   matches?: string[];
 };
 
+// 移动端按下 tab 时的预高亮：记录目标路径和按下那一刻的 location 引用。
+// location 引用一旦变化就说明导航已经发生，预高亮随之失效，
+// 因此不需要在 effect 里 setState（react-hooks/set-state-in-effect），
+// 也不会出现返回上一页时残留旧高亮的问题。
+type PendingMobileNav = {
+  path: string;
+  origin: ReturnType<typeof useLocation>;
+};
+
 const Layout: React.FC = () => {
   const { t } = useTranslation();
   const { setLanguage } = useAppLanguage();
   const { applyTheme } = useTheme();
   const [isConnecting, setIsConnecting] = useState(true);
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const [pendingMobilePath, setPendingMobilePath] = useState<string | null>(null);
+  const [pendingMobileNav, setPendingMobileNav] = useState<PendingMobileNav | null>(null);
   const [dismissedDefaultCredentials, setDismissedDefaultCredentials] = useState<string | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
@@ -246,9 +255,10 @@ const Layout: React.FC = () => {
     );
   }
 
-  React.useEffect(() => {
-    setPendingMobilePath(null);
-  }, [location.pathname]);
+  // 预高亮只在“尚未发生导航”时有效；location 引用变了就自动回落到真实路径。
+  const pendingMobilePath = pendingMobileNav && pendingMobileNav.origin === location
+    ? pendingMobileNav.path
+    : null;
 
   const renderNav = (item: NavItem, mobile = false) => {
     const activePath = mobile && pendingMobilePath ? pendingMobilePath : location.pathname;
@@ -258,8 +268,8 @@ const Layout: React.FC = () => {
     return (
       <Link key={item.path} to={item.path} title={item.label}
         aria-current={active ? 'page' : undefined}
-        onPointerDown={() => { if (mobile) setPendingMobilePath(item.path); }}
-        onClick={() => { if (mobile) setPendingMobilePath(item.path); }}
+        onPointerDown={() => { if (mobile) setPendingMobileNav({ path: item.path, origin: location }); }}
+        onClick={() => { if (mobile) setPendingMobileNav({ path: item.path, origin: location }); }}
         className={(mobile ? 'reader-tab' : 'reader-nav') + (active ? ' is-active' : '')}>
         {item.icon}<span>{item.label}</span>
       </Link>
