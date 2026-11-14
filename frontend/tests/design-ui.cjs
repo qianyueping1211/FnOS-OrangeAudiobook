@@ -278,7 +278,7 @@ async function fixture(context, gated = false) {
       if (mobile) {
         // The player page hides the tab bar, so leave it through the header's
         // collapse control - still an in-app navigation, no reload.
-        await page.getByRole('button', { name: '收起', exact: true }).click();
+        await page.getByRole('button', { name: '收起播放器', exact: true }).click();
       } else {
         await page.locator(nav + ' a[href="/bookshelf"]').click();
       }
