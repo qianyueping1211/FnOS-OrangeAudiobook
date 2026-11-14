@@ -15,11 +15,11 @@ permissions:
 
 jobs:
   backend:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       CARGO_INCREMENTAL: 0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.source_ref || github.sha }}
       - name: Install build dependencies
@@ -28,17 +28,14 @@ jobs:
         with:
           toolchain: '1.93.1'
           components: rustfmt, clippy
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            backend/target
-          key: quality-target-v2-ubuntu-rust1.93.1-${{ hashFiles('backend/Cargo.lock', 'backend/Cargo.toml') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: quality-cargo-v3-ubuntu-rust1.93.1-${{ hashFiles('backend/Cargo.lock', 'backend/Cargo.toml') }}
           restore-keys: |
-            quality-target-v2-ubuntu-rust1.93.1-${{ hashFiles('backend/Cargo.lock', 'backend/Cargo.toml') }}-
-            quality-target-v2-ubuntu-rust1.93.1-
-            v0-rust-backend-Linux-x64-
+            quality-cargo-v3-ubuntu-rust1.93.1-
 
       - name: Fetch official JavaScript plugin test sources
         shell: bash
@@ -73,10 +70,10 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.source_ref || github.sha }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -96,7 +93,7 @@ jobs:
           "$RUNNER_TEMP/ting-ui-tools/node_modules/.bin/playwright" install --with-deps chromium webkit
       - name: Verify desktop and iPhone layouts in Chromium and WebKit
         run: NODE_PATH="$RUNNER_TEMP/ting-ui-tools/node_modules" node tests/design-ui.cjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: responsive-ui-screenshots

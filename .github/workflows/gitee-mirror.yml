@@ -32,11 +32,11 @@ jobs:
        (github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.event != 'pull_request' &&
         github.event.workflow_run.head_repository.full_name == github.repository))
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Notify Gitee to pull updates
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           SYNC_GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         with:
