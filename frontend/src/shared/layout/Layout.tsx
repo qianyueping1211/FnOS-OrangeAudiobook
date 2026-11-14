@@ -31,6 +31,7 @@ import { setApplicationTimeZone } from '../../core/utils/timeZone';
 import { useClientExtensions } from '../../core/hooks/useClientExtensions';
 import { useUiPreferencesStore } from '../../core/stores/uiPreferencesStore';
 import { consumeInternalBack, exitApp } from '../../core/utils/appExit';
+import { rememberPath } from '../../core/utils/appHistory';
 
 import DefaultAdminCredentialsDialog from '../../features/auth/DefaultAdminCredentialsDialog';
 import { isMiniPlayerHiddenPath } from '../../features/player/platform';
@@ -74,9 +75,14 @@ const Layout: React.FC = () => {
     document.getElementById('main-content')?.scrollTo({ top: 0, behavior: 'instant' });
   }, [location.pathname]);
 
+  // 历史栈被压平后由我们自己记路径，站内返回按钮从这里取上一页。
+  React.useEffect(() => {
+    rememberPath(`${location.pathname}${location.search}`);
+  }, [location.pathname, location.search]);
+
   // 在飞牛宿主（或触屏设备）里，从左边缘向右滑就是 WebView 的"返回"手势。
-  // 听书没有上一页：这个手势一律当作关闭当前窗口，不留在应用内的历史里。
-  // 应用内的"返回"按钮会先 beginInternalBack()，那次 popstate 照常交给路由。
+  // 站内跳转已经压成 replace（见 appHistory），历史里只剩一条，
+  // 手势没有可退的页面时宿主会直接关掉窗口，和橙子音乐一致。
   React.useEffect(() => {
     const host = (window as unknown as { flutter_inappwebview?: unknown }).flutter_inappwebview;
     const touchFirst = window.matchMedia('(pointer: coarse)').matches;

@@ -19,7 +19,7 @@ import DeleteLibraryItemModal from './bookDetail/DeleteLibraryItemModal';
 import BookHeaderSection from './bookDetail/BookHeaderSection';
 import ChapterListSection from './bookDetail/ChapterListSection';
 import { useBookDetails } from '../../core/hooks/useBooks';
-import { beginInternalBack } from '../../core/utils/appExit';
+import { backTarget } from '../../core/utils/appHistory';
 import type { ChapterGroupOrder, RegexGenerationResult } from '../../core/api/books';
 
 const BookDetailPage: React.FC = () => {
@@ -598,7 +598,7 @@ const BookDetailPage: React.FC = () => {
         {/* Header */}
         <button 
           type="button"
-          onClick={() => { beginInternalBack(); navigate(-1); }}
+          onClick={() => navigate(backTarget('/bookshelf'), { replace: true })}
           className="flex items-center gap-2 text-slate-500 hover:text-primary-600 transition-colors"
         >
           <ChevronLeft size={20} />

@@ -7,7 +7,10 @@ import './design/player-layout-fixes.css'
 import i18n from './core/i18n'
 import App from './App.tsx'
 import { installIOSViewportGuards } from './core/utils/iosViewport'
+import { installFlatHistory } from './core/utils/appHistory'
 
+// 必须在路由首次跳转前装上：站内跳转不压历史，宿主手势才会关窗而不是退一页。
+installFlatHistory();
 installIOSViewportGuards();
 
 const savedTheme = localStorage.getItem('theme') || 'dark';
