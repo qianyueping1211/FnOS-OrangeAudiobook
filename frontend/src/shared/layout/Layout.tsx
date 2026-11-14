@@ -53,6 +53,7 @@ const Layout: React.FC = () => {
   const { applyTheme } = useTheme();
   const [isConnecting, setIsConnecting] = useState(true);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [pendingMobilePath, setPendingMobilePath] = useState<string | null>(null);
   const [dismissedDefaultCredentials, setDismissedDefaultCredentials] = useState<string | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
@@ -77,7 +78,6 @@ const Layout: React.FC = () => {
   const setBookshelfProgressEnabled = useUiPreferencesStore(state => state.setBookshelfProgressEnabled);
   const { registry: pluginExtensionRegistry } = useClientExtensions();
   const { info: updateInfo } = useSystemUpdate(user?.role === 'admin');
-  const showPlayerClearance = hasCurrentChapter && !isMiniPlayerHidden;
 
   // Validate Token on Mount
   React.useEffect(() => {
@@ -246,13 +246,20 @@ const Layout: React.FC = () => {
     );
   }
 
+  React.useEffect(() => {
+    setPendingMobilePath(null);
+  }, [location.pathname]);
+
   const renderNav = (item: NavItem, mobile = false) => {
+    const activePath = mobile && pendingMobilePath ? pendingMobilePath : location.pathname;
     const active = item.path === '/'
-      ? location.pathname === '/'
-      : location.pathname === item.path || item.matches?.some(match => location.pathname.startsWith(match));
+      ? activePath === '/'
+      : activePath === item.path || item.matches?.some(match => activePath.startsWith(match));
     return (
       <Link key={item.path} to={item.path} title={item.label}
         aria-current={active ? 'page' : undefined}
+        onPointerDown={() => { if (mobile) setPendingMobilePath(item.path); }}
+        onClick={() => { if (mobile) setPendingMobilePath(item.path); }}
         className={(mobile ? 'reader-tab' : 'reader-nav') + (active ? ' is-active' : '')}>
         {item.icon}<span>{item.label}</span>
       </Link>
@@ -288,10 +295,8 @@ const Layout: React.FC = () => {
 
       </aside>
       <div className="reader-workspace">
-        <main id="main-content" className={'reader-content flex flex-col' + (hasCurrentChapter && !isMiniPlayerHidden ? ' has-mini-player' : '')}
-          style={{ '--safe-bottom-with-player': '0px', '--safe-bottom-base': '0px' } as React.CSSProperties}>
+        <main id="main-content" className={'reader-content flex flex-col' + (hasCurrentChapter && !isMiniPlayerHidden ? ' has-mini-player' : '')}>
           <Suspense fallback={<LoadingSpinner className="min-h-48" />}><Outlet /></Suspense>
-          {showPlayerClearance && <div className="reader-scroll-clearance" aria-hidden="true" />}
         </main>
         <nav className="reader-tabs" aria-label={t('nav.mainMenu')}>{menuItems.map(item => renderNav(item, true))}</nav>
         {hasCurrentChapter && <Suspense fallback={null}><Player /></Suspense>}
