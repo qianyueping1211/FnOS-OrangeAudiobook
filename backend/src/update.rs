@@ -11,10 +11,10 @@ use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-mod network;
 mod download;
-use network::Network;
+mod network;
 use download::download;
+use network::Network;
 
 const REPO: &str = "qianyueping1211/FnOS-OrangeAudiobook";
 const APP: &str = "ting-reader";
@@ -266,8 +266,10 @@ pub async fn status() -> Result<Value> {
 pub async fn install(version: String, tag: String) -> Result<Value> {
     // Queue promptly; the privileged worker independently validates the latest release.
     token_from(&data_dir())?;
-    ensure!(Version::parse(&version).is_ok() && newer(&version, &installed_version()),
-        "目标版本无效或不高于当前版本");
+    ensure!(
+        Version::parse(&version).is_ok() && newer(&version, &installed_version()),
+        "目标版本无效或不高于当前版本"
+    );
     write_json(
         &data_dir().join("update-request.json"),
         &InstallRequest {
@@ -432,7 +434,9 @@ async fn apply_release(request: &InstallRequest, info: &mut InstallStatus) -> Re
     let client = Network::new(&token_from(Path::new(DATA))?)?;
     let release = parse_release(&client.json("releases/latest", Some(&mut *info)).await?)?;
     ensure!(
-        release.version == request.version && release.tag == request.tag && newer(&release.version, &installed_version()),
+        release.version == request.version
+            && release.tag == request.tag
+            && newer(&release.version, &installed_version()),
         "请求版本与发布版本不一致"
     );
     let package = download(&client, &release, info).await?;
