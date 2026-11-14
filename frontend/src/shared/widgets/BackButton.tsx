@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router';
 import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { beginInternalBack } from '../../core/utils/appExit';
 
 interface BackButtonProps {
   fallback?: string;
@@ -14,6 +15,7 @@ const BackButton: React.FC<BackButtonProps> = ({ fallback = '/mine', label }) =>
 
   const handleBack = () => {
     if (window.history.length > 1) {
+      beginInternalBack();
       navigate(-1);
     } else {
       navigate(fallback);

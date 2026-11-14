@@ -11,6 +11,7 @@ import BookSelector from '../../shared/modals/BookSelector';
 import DisplaySettingsMenu from '../../shared/widgets/DisplaySettingsMenu';
 import { ArrowLeft, Trash2, Save, Settings, X, Plus, Check, CheckSquare, Layers, ChevronDown, BookCheck, BookX } from 'lucide-react';
 import { getCoverUrl } from '../../core/utils/image';
+import { beginInternalBack } from '../../core/utils/appExit';
 import { localeCompare } from '../../core/utils/locale';
 import { usePlayerStore } from '../../core/stores/playerStore';
 import { useAuthStore } from '../../core/stores/authStore';
@@ -298,7 +299,7 @@ const SeriesDetailPage: React.FC = () => {
       <div className="flex flex-col min-[880px]:flex-row min-[880px]:items-center justify-between gap-4">
         <div className="flex items-center gap-4 min-w-0">
           <button 
-            onClick={() => isEditing ? cancelEditing() : navigate(-1)}
+            onClick={() => { if (isEditing) { cancelEditing(); } else { beginInternalBack(); navigate(-1); } }}
             className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full shrink-0"
             title={t('common.back')}
           >

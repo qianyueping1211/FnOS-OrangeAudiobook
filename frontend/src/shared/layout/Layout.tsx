@@ -30,6 +30,7 @@ import { loadClientSettings } from '../../core/api/clientSettings';
 import { setApplicationTimeZone } from '../../core/utils/timeZone';
 import { useClientExtensions } from '../../core/hooks/useClientExtensions';
 import { useUiPreferencesStore } from '../../core/stores/uiPreferencesStore';
+import { consumeInternalBack, exitApp } from '../../core/utils/appExit';
 
 import DefaultAdminCredentialsDialog from '../../features/auth/DefaultAdminCredentialsDialog';
 import { isMiniPlayerHiddenPath } from '../../features/player/platform';
@@ -72,6 +73,25 @@ const Layout: React.FC = () => {
     if (location.pathname === '/bookshelf') return;
     document.getElementById('main-content')?.scrollTo({ top: 0, behavior: 'instant' });
   }, [location.pathname]);
+
+  // 在飞牛宿主（或触屏设备）里，从左边缘向右滑就是 WebView 的"返回"手势。
+  // 听书没有上一页：这个手势一律当作关闭当前窗口，不留在应用内的历史里。
+  // 应用内的"返回"按钮会先 beginInternalBack()，那次 popstate 照常交给路由。
+  React.useEffect(() => {
+    const host = (window as unknown as { flutter_inappwebview?: unknown }).flutter_inappwebview;
+    const touchFirst = window.matchMedia('(pointer: coarse)').matches;
+    if (!host && !touchFirst) return;
+
+    const onPopState = () => {
+      if (consumeInternalBack()) return;
+      exitApp();
+      // 退出指令没生效时（普通标签页不允许脚本关窗）至少回到原页面，
+      // 不让手势把用户带到上一页。
+      window.history.go(1);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
   
   // Use selectors to prevent unnecessary re-renders when currentTime updates
   const user = useAuthStore(state => state.user);

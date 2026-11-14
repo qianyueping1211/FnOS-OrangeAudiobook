@@ -67,7 +67,14 @@ async function fixture(context, gated = false) {
     else if (p === '/api/settings') result = { theme: 'dark', language: 'zh-CN', bookshelf_progress_enabled: true, settings_json: { bookshelf_cover_shape: 'rect' } };
     else if (p === '/api/system/time-zone') result = { time_zone: 'Asia/Shanghai' };
     else if (p === '/api/health') result = { version: '2.1.0', status: 'ok' };
-    else if (p === '/api/books' || p === '/api/search') result = books;
+    else if (p === '/api/books') result = books;
+    else if (p === '/api/books/page') {
+      const pageSize = Number(url.searchParams.get('page_size') || 24);
+      const offset = Number(url.searchParams.get('offset') || 0);
+      const items = books.slice(offset, offset + pageSize);
+      result = { items, total: books.length, page: Math.floor(offset / pageSize) + 1, page_size: pageSize };
+    }
+    else if (p === '/api/search') result = books;
     else if (p === '/api/scraper/sources') result = [];
     else if (p === '/api/books/book-0/refresh-files') { refreshCalls++; result = { chapters: 1 }; }
     else if (p === '/api/books/book-0/write-metadata') { writeCalls++; result = { task_id: 'synthetic-write' }; }
@@ -224,9 +231,15 @@ async function fixture(context, gated = false) {
             const toolbar = page.locator('.reader-bookshelf-page .reader-page-toolbar');
             const scroller = page.locator('.reader-bookshelf-page .reader-page-scroll');
             const beforeTop = (await toolbar.boundingBox()).y;
-            assert.equal(await page.locator('.reader-bookshelf-page .reader-book-card').count(), 12);
+            // The shelf pages on the server: one screen first, then more as the
+            // reader scrolls - never the whole 30-book fixture in one response.
+            await page.waitForFunction(() => document.querySelectorAll('.reader-bookshelf-page .reader-book-card').length >= 12);
+            const firstCount = await page.locator('.reader-bookshelf-page .reader-book-card').count();
+            assert.ok(firstCount >= 12, name + ' bookshelf paints a full first screen');
+            assert.ok(firstCount <= 24, name + ' bookshelf does not load the whole library at once');
+            assert.ok(counts['/api/books/page'] >= 1, name + ' bookshelf asked the server for a page');
             await scroller.evaluate(element => element.scrollTo({ top: element.scrollHeight, behavior: 'instant' }));
-            await page.waitForFunction(() => document.querySelectorAll('.reader-bookshelf-page .reader-book-card').length > 12);
+            await page.waitForFunction(before => document.querySelectorAll('.reader-bookshelf-page .reader-book-card').length > before, firstCount);
             assert.equal(Math.round((await toolbar.boundingBox()).y), Math.round(beforeTop), name + ' bookshelf toolbar moved with content');
             assert.equal(await page.locator('#main-content').evaluate(element => element.scrollTop), 0);
           }
