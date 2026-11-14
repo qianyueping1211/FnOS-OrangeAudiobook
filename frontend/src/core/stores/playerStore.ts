@@ -35,6 +35,7 @@ interface PlayerState {
   setIsExpanded: (isExpanded: boolean) => void;
   setIsCollapsed: (isCollapsed: boolean) => void;
   setIsSeriesEditing: (isSeriesEditing: boolean) => void;
+  closePlayer: () => void;
 }
 
 /** Check if a chapter's progress indicates it has been fully played */
@@ -64,6 +65,18 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       setIsExpanded: (isExpanded) => set({ isExpanded }),
       setIsCollapsed: (isCollapsed) => set({ isCollapsed }),
       setIsSeriesEditing: (isSeriesEditing) => set({ isSeriesEditing }),
+      closePlayer: () => set((state) => ({
+        currentBook: null,
+        currentChapter: null,
+        chapters: [],
+        isPlaying: false,
+        duration: 0,
+        currentTime: 0,
+        isExpanded: false,
+        isCollapsed: false,
+        isSeriesEditing: false,
+        playbackRevision: state.playbackRevision + 1,
+      })),
 
       playBook: (book, chapters, startChapterId) => {
         const orderedChapters = sortChaptersForPlayback(chapters);
