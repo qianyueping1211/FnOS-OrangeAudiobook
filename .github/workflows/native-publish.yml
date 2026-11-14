@@ -56,13 +56,21 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/releases/latest")"
           LATEST_TAG="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])' <<<"$RELEASE_JSON")"
+          LATEST_TARGET="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["target_commitish"])' <<<"$RELEASE_JSON")"
           LATEST_VERSION="${LATEST_TAG#v}"
           LATEST_VERSION="${LATEST_VERSION%%-build.*}"
           if [ "$CURRENT_VERSION" = "$LATEST_VERSION" ]; then
-            echo "::error::当前应用版本 $CURRENT_VERSION 已经发布。请先提升 backend、frontend、FPK 清单和更新日志中的版本号，避免生成飞牛无法安装的同版本 build。"
-            exit 1
+            git fetch --no-tags --depth=1 origin "$LATEST_TARGET"
+            NON_CI_CHANGES="$(git diff --name-only "$LATEST_TARGET"...HEAD | grep -Ev '^\.github/(actions|workflows)/' || true)"
+            if [ -n "$NON_CI_CHANGES" ]; then
+              echo "::error::当前应用版本 $CURRENT_VERSION 已经发布。以下应用或安装包内容有变化，请先提升 backend、frontend、FPK 清单和更新日志中的版本号："
+              printf '%s\n' "$NON_CI_CHANGES"
+              exit 1
+            fi
+            echo "::notice::本次只有 GitHub 构建配置变化，允许同应用版本重新验证；现有用户无需安装此构建。"
+          else
+            printf 'Release version check passed: %s -> %s\n' "$LATEST_VERSION" "$CURRENT_VERSION"
           fi
-          printf 'Release version check passed: %s -> %s\n' "$LATEST_VERSION" "$CURRENT_VERSION"
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: '1.93.1'

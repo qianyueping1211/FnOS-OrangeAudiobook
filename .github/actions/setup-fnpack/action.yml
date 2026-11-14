@@ -53,7 +53,7 @@ runs:
 
     - name: Cache fnpack
       id: cache
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ${{ steps.resolve.outputs.install_dir }}
         key: ${{ steps.resolve.outputs.cache_key }}
