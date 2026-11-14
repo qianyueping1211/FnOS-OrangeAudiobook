@@ -85,8 +85,14 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
 
   // Lazy loading state
   const initialVisibleCount = () => window.matchMedia('(min-width: 960px)').matches ? 18 : 12;
-  const [visibleCount, setVisibleCount] = useState(initialVisibleCount);
-  const loadMoreRef = React.useRef<HTMLDivElement>(null);
+  // Restore how many items were already revealed: restoring the scroll offset
+  // alone leaves the list cut back to the first screen.
+  const [visibleCount, setVisibleCount] = useState(() => {
+    const restored = savedView?.count;
+    return typeof restored === 'number' && Number.isFinite(restored) && restored > 0
+      ? restored
+      : initialVisibleCount();
+  });
   const visibleCountRef = React.useRef(visibleCount);
   useEffect(() => { visibleCountRef.current = visibleCount; }, [visibleCount]);
   React.useLayoutEffect(() => {
@@ -103,28 +109,46 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
     };
   }, [cacheIdentity, savedView]);
 
+  // Reveal one more batch when the shelf pane gets close to its end. A scroll
+  // listener is deterministic: an IntersectionObserver sentinel can stay inside
+  // the viewport after an append, never report a second crossing, and leave the
+  // list stuck at a single extra batch.
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          setVisibleCount((prev) => prev + 12);
-        }
-      },
-      { threshold: 0.1 }
-    );
+    if (loading) return;
+    const pane = document.querySelector<HTMLElement>('.reader-bookshelf-page .reader-page-scroll');
+    const shell = document.getElementById('main-content');
+    const scrollable = (element: HTMLElement | null): element is HTMLElement => {
+      if (!element) return false;
+      const style = window.getComputedStyle(element);
+      return style.overflowY === 'auto' || style.overflowY === 'scroll';
+    };
+    const target = scrollable(pane) ? pane : scrollable(shell) ? shell : null;
+    if (!target) return;
+    const totalCount = books.length + series.length;
+    let frame = 0;
 
-    const currentRef = loadMoreRef.current;
+    const check = () => {
+      frame = 0;
+      if (visibleCountRef.current >= totalCount) return;
+      const remaining = target.scrollHeight - target.scrollTop - target.clientHeight;
+      if (remaining > 320) return;
+      setVisibleCount((prev) => (prev >= totalCount ? prev : prev + 12));
+    };
+    const onScroll = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(check);
+    };
 
-    if (currentRef) {
-      observer.observe(currentRef);
-    }
+    target.addEventListener('scroll', onScroll, { passive: true });
+    // A short list may leave the pane with room to spare: top it up.
+    const topUp = window.setTimeout(check, 0);
 
     return () => {
-      if (currentRef) {
-        observer.unobserve(currentRef);
-      }
+      target.removeEventListener('scroll', onScroll);
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(topUp);
     };
-  }, [books.length, series.length, sortBy, selectedLibraryId]);
+  }, [loading, books.length, series.length, sortBy, selectedLibraryId, visibleCount]);
 
   // Reset visible count when filters change
   const previousFilter = React.useRef(`${sortBy}:${selectedLibraryId}`);
@@ -276,7 +300,7 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
     } satisfies ShelfSnapshot);
   }, [cacheIdentity, books, series, libraries, selectedLibraryId, sortBy, iconSize, coverShape, viewMode, loading]);
 
-  const sortedBooks = [...books].sort((a, b) => {
+  const sortedBooks = React.useMemo(() => [...books].sort((a, b) => {
     if (sortBy === 'title') return localeCompare(a.title, b.title);
     if (sortBy === 'author') return localeCompare(a.author || '', b.author || '');
     if (sortBy === 'year') {
@@ -285,12 +309,18 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
       return yearB - yearA; // Descending order (newest first)
     }
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-  });
+  }), [books, sortBy]);
 
   // Collect all book IDs that are in a series
-  const booksInSeries = new Set(series.flatMap(s => s.books?.map(b => b.id) || []));
+  const booksInSeries = React.useMemo(
+    () => new Set(series.flatMap(s => s.books?.map(b => b.id) || [])),
+    [series],
+  );
 
-  const filteredBooks = sortedBooks.filter(book => !booksInSeries.has(book.id));
+  const filteredBooks = React.useMemo(
+    () => sortedBooks.filter(book => !booksInSeries.has(book.id)),
+    [sortedBooks, booksInSeries],
+  );
 
   const filteredSeries = series;
 
@@ -862,8 +892,8 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
             </div>
           )}
 
-          {/* Observer target for lazy loading */}
-          <div ref={loadMoreRef} className="h-10 w-full" />
+          {/* Bottom spacer: the shelf pane loads the next batch as it gets near the end */}
+          <div className="h-10 w-full" aria-hidden="true" />
 
           {filteredBooks.length === 0 && (filteredSeries.length === 0 || (isSelectionMode && sortBy === 'createdAt')) && (
             <div className="py-20 text-center">

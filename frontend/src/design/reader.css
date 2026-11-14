@@ -277,6 +277,9 @@ html,body,#root {overflow:hidden;max-width:100%;-webkit-text-size-adjust:100%;te
   .reader-library-tools {grid-template-columns:minmax(220px,1fr) auto minmax(160px,220px) auto}
   .reader-library-search {grid-column:auto;order:0}
   .reader-selection-actions {grid-column:auto}
+  /* Desktop had no spacing after the toolbar, so the first cover row sat
+     against the filter row and read as an overlap. */
+  .reader-library-header.reader-page-toolbar { margin-bottom:20px }
 }
 
 /* Keep the app's clear control singular, and mobile filter choices legible. */
@@ -353,6 +356,10 @@ html.reader-ios { touch-action:pan-x pan-y }
     overscroll-behavior-y:none;
     -webkit-overflow-scrolling:touch;
   }
+  /* The locked page owns its scroll pane and its own bottom clearance, so the
+     shell clearance would only lift that pane and leave a dead band above the
+     floating player. Let the page spacer do the work instead. */
+  .reader-content:has(> .reader-locked-page) { padding-bottom:0 }
   .reader-locked-page .reader-page-scroll::after {
     content:"";
     display:block;
