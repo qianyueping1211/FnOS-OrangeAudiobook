@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronUp, Settings } from 'lucide-react';
+import { ChevronUp, Power, Settings } from 'lucide-react';
 import type { Book } from '../../core/types';
 import { setAlpha } from '../../core/utils/color';
 import { getCoverUrl } from '../../core/utils/image';
@@ -53,6 +53,7 @@ interface ExpandedPlayerHeaderProps {
   authorText?: string;
   onExit: () => void;
   onOpenSettings: () => void;
+  onClosePlayer?: () => void;
 }
 
 export const ExpandedPlayerHeader: React.FC<ExpandedPlayerHeaderProps> = ({
@@ -60,6 +61,7 @@ export const ExpandedPlayerHeader: React.FC<ExpandedPlayerHeaderProps> = ({
   authorText,
   onExit,
   onOpenSettings,
+  onClosePlayer,
 }) => {
   const { t } = useTranslation();
 
@@ -76,13 +78,27 @@ export const ExpandedPlayerHeader: React.FC<ExpandedPlayerHeaderProps> = ({
         <h2 className="text-sm sm:text-base font-bold dark:text-white text-[#4A3728] truncate">{bookTitle}</h2>
         <p className="text-[10px] sm:text-xs text-slate-500 truncate">{authorText}</p>
       </div>
-      <button
-        onClick={onOpenSettings}
-        className="p-2 -mr-2 rounded-full text-slate-700 dark:text-white hover:bg-white/50 dark:hover:bg-slate-800/60 transition-colors"
-        title={t('player.settings')}
-      >
-        <Settings size={22} />
-      </button>
+      <div className="flex items-center -mr-2">
+        {onClosePlayer && (
+          <button
+            type="button"
+            onClick={onClosePlayer}
+            className="p-2 rounded-full text-slate-700 dark:text-white hover:bg-white/50 dark:hover:bg-slate-800/60 transition-colors"
+            title={t('player.closePlayer', { defaultValue: '关闭播放器' })}
+            aria-label={t('player.closePlayer', { defaultValue: '关闭播放器' })}
+          >
+            <Power size={22} />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          className="p-2 rounded-full text-slate-700 dark:text-white hover:bg-white/50 dark:hover:bg-slate-800/60 transition-colors"
+          title={t('player.settings')}
+        >
+          <Settings size={22} />
+        </button>
+      </div>
     </div>
   );
 };
