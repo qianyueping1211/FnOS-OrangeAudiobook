@@ -208,7 +208,7 @@ async function fixture(context, gated = false) {
       hasRecent = true;
       await page.reload();
       await page.locator('.reader-player.is-page').waitFor();
-      assert.equal(await page.locator(!mobile ? '.reader-sidebar a[href="/player"]' : '.reader-tabs a[href="/player"]').innerText(), '播放');
+      assert.equal(await page.locator(!mobile ? '.reader-sidebar a[href="/player"]' : '.reader-tabs a[href="/player"]').innerText().then(text => text.trim()), '播放');
       assert.equal(await page.locator('audio').count(), 1);
       assert.equal(await page.evaluate(() => window.__playCalls), 0, 'Loading recent playback must stay paused');
       assert.equal(await page.locator('.reader-mini-info').count(), 0, 'Player page must not render a mini player');
@@ -237,6 +237,7 @@ async function fixture(context, gated = false) {
         assert.ok(Math.abs(tabsBefore.y - tabsAfter.y) <= 1 && Math.abs(tabsBefore.width - tabsAfter.width) <= 1);
       }
       assert.equal(await page.locator('audio').getAttribute('data-navigation-identity'), 'same-player');
+      await page.screenshot({ path: path.join(root, 'ui-artifacts', name + '-floating-search.png') });
       await page.locator(nav + ' a[href="/player"]').click();
       await page.locator('.reader-player.is-page').waitFor();
       assert.equal(await page.locator('audio').getAttribute('data-navigation-identity'), 'same-player');

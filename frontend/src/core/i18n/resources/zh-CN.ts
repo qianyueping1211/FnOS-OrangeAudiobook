@@ -511,6 +511,8 @@ const zhCN = {
     noMatchedBooks: "未找到相关书籍",
   },
   searchPage: {
+    filtersTitle: "筛选",
+    clear: "清除筛选",
     scope: "搜索范围",
     allScope: "全部",
     localScope: "书架",

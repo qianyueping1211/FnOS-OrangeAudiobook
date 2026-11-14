@@ -534,6 +534,8 @@ const enUS = {
     noMatchedBooks: "No matching books",
   },
   searchPage: {
+    filtersTitle: "Filters",
+    clear: "Clear filters",
     scope: "Search in",
     allScope: "All",
     localScope: "Bookshelf",

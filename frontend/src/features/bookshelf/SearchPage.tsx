@@ -631,11 +631,11 @@ const SearchPage: React.FC = () => {
         {showLocalFilters && showFilters && (
           <div id="search-filters" className="reader-filter-panel">
             <div className="reader-filter-panel-heading">
-              <strong>{t('searchPage.showFilters')}</strong>
+              <strong>{t('searchPage.filtersTitle')}</strong>
               <button type="button" className="reader-button" onClick={() => {
                 setSelectedLibraryId(''); setSelectedSeries(''); setSelectedTag(''); setSelectedGenre('');
                 setSelectedYear(''); setSelectedAuthor(''); setSelectedNarrator('');
-              }}>{t('searchPage.clear', { defaultValue: '清除筛选' })}</button>
+              }}>{t('searchPage.clear')}</button>
             </div>
             <div className="reader-filter-groups">
               <FilterRow

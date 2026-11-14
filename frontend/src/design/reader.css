@@ -278,3 +278,11 @@ html,body,#root {overflow:hidden;max-width:100%;-webkit-text-size-adjust:100%;te
   .reader-library-search {grid-column:auto;order:0}
   .reader-selection-actions {grid-column:auto}
 }
+
+/* Keep the app's clear control singular, and mobile filter choices legible. */
+.reader-search-field input::-webkit-search-cancel-button { -webkit-appearance:none;appearance:none }
+@media(max-width:959px) {
+  .reader-display-options {grid-template-columns:repeat(2,minmax(0,1fr))}
+  .reader-display-options button span {white-space:nowrap}
+  .reader-display-options button:last-child:nth-child(odd) {grid-column:1/-1}
+}
