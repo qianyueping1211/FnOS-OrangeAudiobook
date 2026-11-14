@@ -140,6 +140,7 @@ impl ReadingRepository {
                     named_params! { ":user": user, ":book": book },
                     |row| row.get(0),
                 )
+                .map_err(Into::into)
             })
             .await
     }
