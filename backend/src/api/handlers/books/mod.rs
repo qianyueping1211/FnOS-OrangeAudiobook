@@ -70,6 +70,83 @@ pub async fn list_books(
     Ok(Json(book_responses))
 }
 
+/// Handler for GET /api/v1/books/page - One page of bookshelf books
+///
+/// The bookshelf used to pull the whole library in one request. Paging here
+/// keeps the first paint small: the client asks for the first screen only and
+/// appends a page whenever the reader nears the end of the list.
+pub async fn list_books_page(
+    State(state): State<AppState>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+    user: crate::auth::middleware::AuthUser,
+) -> Result<Json<serde_json::Value>> {
+    let page = params
+        .get("page")
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(1)
+        .max(1);
+    let page_size = params
+        .get("page_size")
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(24)
+        .clamp(1, 200);
+    // The client measures the grid and may ask for a different page size later,
+    // so it can send an exact row offset instead of a page number.
+    let offset = params
+        .get("offset")
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or((page - 1) * page_size);
+
+    let filter = crate::db::repository::book::BookFilter {
+        user_id: user.id.clone(),
+        is_admin: user.role == "admin",
+        search: params.get("search").cloned(),
+        tag: params.get("tag").cloned(),
+        library_id: params.get("library_id").cloned(),
+        sort: params
+            .get("sort")
+            .cloned()
+            .unwrap_or_else(|| "created".to_string()),
+        limit: page_size,
+        offset,
+        exclude_series: params
+            .get("include_series")
+            .map(|value| value != "true")
+            .unwrap_or(true),
+    };
+
+    let (books, total) = state.book_repo.find_page(filter).await?;
+
+    let libraries = state.library_repo.find_all().await?;
+    let library_info: std::collections::HashMap<String, (String, bool)> = libraries
+        .into_iter()
+        .map(|library| {
+            let can_write = library.can_write_metadata_files();
+            (library.id, (library.library_type, can_write))
+        })
+        .collect();
+
+    let mut book_responses: Vec<BookResponse> = books.into_iter().map(BookResponse::from).collect();
+    let percentages =
+        crate::db::repository::reading::ReadingRepository::new(state.book_repo.db().clone())
+            .percentages(&user.id)
+            .await?;
+    for response in &mut book_responses {
+        if let Some((kind, can_write)) = library_info.get(&response.library_id) {
+            response.library_type = Some(kind.clone());
+            response.can_write_metadata_files = Some(*can_write);
+        }
+        response.progress_percent = percentages.get(&response.id).copied().unwrap_or(0.0);
+    }
+
+    Ok(Json(serde_json::json!({
+        "items": book_responses,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    })))
+}
+
 /// Handler for GET /api/v1/books/:id - Get book by ID
 pub async fn get_book(
     State(state): State<AppState>,

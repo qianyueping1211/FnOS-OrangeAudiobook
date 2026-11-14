@@ -30,6 +30,8 @@ interface ShelfSnapshot {
   viewMode: 'grid' | 'list';
 }
 
+const sortForApi = (value: ShelfSnapshot['sortBy']) => (value === 'createdAt' ? 'created' : value);
+
 const BookshelfPage: React.FC = () => {
   const identity = useAuthStore(state => libraryCacheIdentity(state.serverUrl || state.activeUrl, state.token ? state.user?.id : undefined));
   return <BookshelfContents key={identity} cacheIdentity={identity} />;
@@ -83,18 +85,33 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [confirmUnread, savingReadStatus]);
 
-  // Lazy loading state
-  const initialVisibleCount = () => window.matchMedia('(min-width: 960px)').matches ? 18 : 12;
-  // Restore how many items were already revealed: restoring the scroll offset
-  // alone leaves the list cut back to the first screen.
-  const [visibleCount, setVisibleCount] = useState(() => {
-    const restored = savedView?.count;
-    return typeof restored === 'number' && Number.isFinite(restored) && restored > 0
-      ? restored
-      : initialVisibleCount();
-  });
-  const visibleCountRef = React.useRef(visibleCount);
-  useEffect(() => { visibleCountRef.current = visibleCount; }, [visibleCount]);
+  // Paging: the shelf asks the server for one screen at a time. A media query
+  // answered ">=960" even on phones, so every device used to pull 18 rows
+  // regardless of how many cards actually fit. The size now follows the
+  // rendered grid: columns x (visible rows + 1), measured after the first paint.
+  const SHELF_PAGE_SIZE = 12;
+  const pageSizeRef = React.useRef(SHELF_PAGE_SIZE);
+  const measurePageSize = () => {
+    const grid = document.querySelector<HTMLElement>('[data-shelf-grid]');
+    const pane = document.querySelector<HTMLElement>('.reader-bookshelf-page .reader-page-scroll');
+    if (!grid || !pane) return SHELF_PAGE_SIZE;
+    const gridStyle = window.getComputedStyle(grid);
+    const columns = gridStyle.gridTemplateColumns.split(' ').filter(Boolean).length;
+    const gap = parseFloat(gridStyle.rowGap || '0');
+    const rowHeight = ((grid.firstElementChild as HTMLElement | null)?.offsetHeight ?? 0)
+      + (Number.isFinite(gap) ? gap : 0);
+    if (columns <= 0 || rowHeight <= 0) return SHELF_PAGE_SIZE;
+    const rows = Math.max(1, Math.ceil(pane.clientHeight / rowHeight));
+    // One extra row keeps the next batch queued before the reader reaches the end.
+    return Math.min(Math.max(columns * (rows + 1), columns), 80);
+  };
+  useEffect(() => {
+    pageSizeRef.current = measurePageSize();
+  }, [books.length, series.length, viewMode, iconSize, coverShape, loading, selectedLibraryId]);
+  const [totalBooks, setTotalBooks] = useState(snapshot?.books?.length ?? 0);
+  const loadingMoreRef = React.useRef(false);
+  const booksRef = React.useRef(books);
+  useEffect(() => { booksRef.current = books; }, [books]);
   React.useLayoutEffect(() => {
     const container = document.querySelector<HTMLElement>('.reader-bookshelf-page .reader-page-scroll');
     if (!container) return;
@@ -105,16 +122,15 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
     container.addEventListener('scroll', record, { passive: true });
     return () => {
       container.removeEventListener('scroll', record);
-      libraryViewCache.set(cacheIdentity, 'shelf-view', { count: visibleCountRef.current, scroll: latestScroll });
+      libraryViewCache.set(cacheIdentity, 'shelf-view', { count: booksRef.current.length, scroll: latestScroll });
     };
   }, [cacheIdentity, savedView]);
 
-  // Reveal one more batch when the shelf pane gets close to its end. A scroll
-  // listener is deterministic: an IntersectionObserver sentinel can stay inside
-  // the viewport after an append, never report a second crossing, and leave the
-  // list stuck at a single extra batch.
+  // Append the next page when the shelf pane nears its end. The rows come from
+  // the server (series members are filtered there), so a 700-book library no
+  // longer arrives in a single response before the first card can paint.
   useEffect(() => {
-    if (loading) return;
+    if (loading || books.length >= totalBooks) return;
     const pane = document.querySelector<HTMLElement>('.reader-bookshelf-page .reader-page-scroll');
     const shell = document.getElementById('main-content');
     const scrollable = (element: HTMLElement | null): element is HTMLElement => {
@@ -124,15 +140,39 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
     };
     const target = scrollable(pane) ? pane : scrollable(shell) ? shell : null;
     if (!target) return;
-    const totalCount = books.length + series.length;
     let frame = 0;
+
+    const loadNextPage = async () => {
+      if (loadingMoreRef.current || books.length >= totalBooks) return;
+      loadingMoreRef.current = true;
+      try {
+        const res = await apiClient.get('/api/books/page', {
+          params: {
+            library_id: selectedLibraryId || undefined,
+            offset: books.length,
+            page_size: pageSizeRef.current,
+            sort: sortForApi(sortBy),
+          },
+        });
+        const data = res.data as { items: Book[]; total: number };
+        const items = data.items || [];
+        setTotalBooks(typeof data.total === 'number' ? data.total : books.length + items.length);
+        setBooks((prev) => {
+          const seen = new Set(prev.map((book) => book.id));
+          return [...prev, ...items.filter((book) => !seen.has(book.id))];
+        });
+      } catch (err) {
+        console.error('Failed to load the next bookshelf page', err);
+      } finally {
+        loadingMoreRef.current = false;
+      }
+    };
 
     const check = () => {
       frame = 0;
-      if (visibleCountRef.current >= totalCount) return;
       const remaining = target.scrollHeight - target.scrollTop - target.clientHeight;
       if (remaining > 320) return;
-      setVisibleCount((prev) => (prev >= totalCount ? prev : prev + 12));
+      void loadNextPage();
     };
     const onScroll = () => {
       if (frame) return;
@@ -140,7 +180,8 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
     };
 
     target.addEventListener('scroll', onScroll, { passive: true });
-    // A short list may leave the pane with room to spare: top it up.
+    // A first page that does not overflow still has to grow, otherwise a tall
+    // window would never fire a scroll event.
     const topUp = window.setTimeout(check, 0);
 
     return () => {
@@ -148,17 +189,7 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
       window.cancelAnimationFrame(frame);
       window.clearTimeout(topUp);
     };
-  }, [loading, books.length, series.length, sortBy, selectedLibraryId, visibleCount]);
-
-  // Reset visible count when filters change
-  const previousFilter = React.useRef(`${sortBy}:${selectedLibraryId}`);
-  useEffect(() => {
-    const filter = `${sortBy}:${selectedLibraryId}`;
-    if (previousFilter.current === filter) return;
-    previousFilter.current = filter;
-    const timer = window.setTimeout(() => setVisibleCount(initialVisibleCount()), 0);
-    return () => window.clearTimeout(timer);
-  }, [sortBy, selectedLibraryId]);
+  }, [loading, books, totalBooks, sortBy, selectedLibraryId]);
 
   useEffect(() => {
     const request = new AbortController();
@@ -267,14 +298,25 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
         }
       }
 
-      // 3. Fetch Books & Series with effective ID
+      // 3. Fetch the first page of books plus the series list
+      const pageSize = pageSizeRef.current;
       const [booksRes, seriesRes] = await Promise.all([
-        apiClient.get('/api/books', { signal: request.signal, params: { library_id: effectiveLibraryId || undefined } }),
+        apiClient.get('/api/books/page', {
+          signal: request.signal,
+          params: {
+            library_id: effectiveLibraryId || undefined,
+            page: 1,
+            page_size: pageSize,
+            sort: sortForApi(sortBy),
+          },
+        }),
         apiClient.get('/api/v1/series', { signal: request.signal, params: { library_id: effectiveLibraryId || undefined } })
       ]);
       if (request.signal.aborted) return;
+      const pageData = booksRes.data as { items: Book[]; total: number };
       loadedLibrary.current = effectiveLibraryId;
-      setBooks(booksRes.data);
+      setBooks(pageData.items || []);
+      setTotalBooks(typeof pageData.total === 'number' ? pageData.total : (pageData.items?.length ?? 0));
       setSeries(seriesRes.data);
     } catch (err) {
       if (!request.signal.aborted) console.error('Failed to fetch bookshelf data', err);
@@ -289,7 +331,7 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
       return () => { window.clearTimeout(timer); dataRequest.current?.abort(); };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLibraryId, settingsLoaded]);
+  }, [selectedLibraryId, settingsLoaded, sortBy]);
 
   useEffect(() => {
     if (loading || loadedLibrary.current !== selectedLibraryId) return;
@@ -323,6 +365,9 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
   );
 
   const filteredSeries = series;
+  // Everything fetched so far is on screen: the server already cut the list
+  // into pages, so there is nothing left to hide here.
+  const visibleCount = filteredBooks.length + filteredSeries.length;
 
   const toggleBookSelection = (id: string) => {
     setSelectedBookIds(prev => 
@@ -878,7 +923,7 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
                    <div className="text-xs font-bold text-slate-400 dark:text-slate-500 mb-2 pl-1">
                       {key}
                    </div>
-                   <div className={shelfLayoutClass}>
+                   <div className={shelfLayoutClass} data-shelf-grid>
                      {visibleGroupedItems.groups[key].map(item => renderShelfItem(item, 'books' in item ? 'series' : 'book'))}
                    </div>
                  </div>
@@ -886,7 +931,7 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
              </div>
           ) : (
             // Default Layout (Recent)
-            <div className={shelfLayoutClass}>
+            <div className={shelfLayoutClass} data-shelf-grid>
               {visibleSeries.map(item => renderShelfItem(item, 'series'))}
               {visibleBooks.map(item => renderShelfItem(item, 'book'))}
             </div>

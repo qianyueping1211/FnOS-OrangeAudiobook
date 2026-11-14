@@ -89,6 +89,7 @@ use crate::api::handlers::{
     invoke_plugin_host,
     list_bookmarks,
     list_books,
+    list_books_page,
     list_libraries,
     list_notification_events,
     list_notification_webhooks,
@@ -284,6 +285,7 @@ pub fn build_api_routes(state: AppState) -> Router {
         )
         // Book CRUD endpoints (with /v1 prefix)
         .route("/api/v1/books", get(list_books).post(create_book))
+        .route("/api/v1/books/page", get(list_books_page))
         .route(
             "/api/v1/books/:id",
             get(get_book)
@@ -399,6 +401,7 @@ pub fn build_api_routes(state: AppState) -> Router {
         .route("/api/v1/system/logs/export", get(export_system_logs))
         // Book CRUD endpoints (without /v1 prefix for frontend compatibility)
         .route("/api/books", get(list_books).post(create_book))
+        .route("/api/books/page", get(list_books_page))
         .route(
             "/api/books/:id",
             get(get_book)

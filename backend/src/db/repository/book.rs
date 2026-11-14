@@ -6,6 +6,20 @@ use async_trait::async_trait;
 use rusqlite::{OptionalExtension, Row};
 use std::sync::Arc;
 
+/// Everything `BookRepository::find_page` needs to build one bookshelf page.
+#[derive(Debug, Clone)]
+pub struct BookFilter {
+    pub user_id: String,
+    pub is_admin: bool,
+    pub search: Option<String>,
+    pub tag: Option<String>,
+    pub library_id: Option<String>,
+    pub sort: String,
+    pub limit: usize,
+    pub offset: usize,
+    pub exclude_series: bool,
+}
+
 pub(crate) fn map_book_row(row: &Row<'_>) -> rusqlite::Result<Book> {
     Ok(Book {
         id: row.get(0)?,
@@ -539,6 +553,93 @@ impl BookRepository {
 
             Ok(books)
         }).await
+    }
+
+    /// Fetch one page of books for the bookshelf, together with the total
+    /// number of matching rows.
+    ///
+    /// The bookshelf paints series and standalone books in separate blocks, so
+    /// series members are filtered out in SQL rather than in the client: a page
+    /// of twelve would otherwise arrive with only a handful of usable cards.
+    pub async fn find_page(&self, filter: BookFilter) -> Result<(Vec<Book>, usize)> {
+        self.db
+            .execute(move |conn| {
+                let mut conditions: Vec<String> = Vec::new();
+                let mut params: Vec<String> = Vec::new();
+
+                if let Some(s) = filter.search.as_deref() {
+                    conditions.push("(b.title LIKE ? OR b.author LIKE ? OR b.description LIKE ? OR b.narrator LIKE ?)".to_string());
+                    let pattern = format!("%{}%", s);
+                    for _ in 0..4 {
+                        params.push(pattern.clone());
+                    }
+                }
+
+                if let Some(t) = filter.tag.as_deref() {
+                    conditions.push("b.tags LIKE ?".to_string());
+                    params.push(format!("%{}%", t));
+                }
+
+                if let Some(lid) = filter.library_id.as_deref() {
+                    conditions.push("b.library_id = ?".to_string());
+                    params.push(lid.to_string());
+                }
+
+                if filter.exclude_series {
+                    conditions.push("b.id NOT IN (SELECT book_id FROM series_books)".to_string());
+                }
+
+                if !filter.is_admin {
+                    conditions.push(
+                        "(
+                            b.library_id IN (SELECT library_id FROM user_library_access WHERE user_id = ?)
+                            OR
+                            b.id IN (SELECT book_id FROM user_book_access WHERE user_id = ?)
+                        )"
+                        .to_string(),
+                    );
+                    params.push(filter.user_id.clone());
+                    params.push(filter.user_id.clone());
+                }
+
+                let where_clause = if conditions.is_empty() {
+                    String::new()
+                } else {
+                    format!(" WHERE {}", conditions.join(" AND "))
+                };
+
+                let count_query = format!("SELECT COUNT(*) FROM books b{}", where_clause);
+                let total: i64 = conn
+                    .query_row(&count_query, rusqlite::params_from_iter(params.iter()), |row| {
+                        row.get(0)
+                    })
+                    .map_err(TingError::DatabaseError)?;
+
+                let order = match filter.sort.as_str() {
+                    "title" => "b.title COLLATE NOCASE ASC",
+                    "author" => "b.author COLLATE NOCASE ASC",
+                    "year" => "b.year DESC",
+                    _ => "b.created_at DESC",
+                };
+
+                let query = format!(
+                    "SELECT b.id, b.library_id, b.title, b.author, b.narrator, b.cover_url, b.theme_color, \
+                     b.description, b.skip_intro, b.skip_outro, b.path, b.hash, b.tags, b.genre, b.year, b.created_at, \
+                     b.manual_corrected, b.match_pattern, b.chapter_regex \
+                     FROM books b{} ORDER BY {} LIMIT {} OFFSET {}",
+                    where_clause, order, filter.limit, filter.offset
+                );
+
+                let mut stmt = conn.prepare(&query).map_err(TingError::DatabaseError)?;
+                let books = stmt
+                    .query_map(rusqlite::params_from_iter(params.iter()), map_book_row)
+                    .map_err(TingError::DatabaseError)?
+                    .collect::<std::result::Result<Vec<_>, _>>()
+                    .map_err(TingError::DatabaseError)?;
+
+                Ok((books, total as usize))
+            })
+            .await
     }
 
     pub async fn check_access(&self, book_id: &str, user_id: &str, is_admin: bool) -> Result<bool> {
