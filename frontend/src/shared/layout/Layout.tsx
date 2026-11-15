@@ -36,7 +36,7 @@ import { rememberPath } from '../../core/utils/appHistory';
 import DefaultAdminCredentialsDialog from '../../features/auth/DefaultAdminCredentialsDialog';
 import { isMiniPlayerHiddenPath } from '../../features/player/platform';
 import PluginExtensionIcon from '../pluginExtensions/PluginExtensionIcon';
-import LoadingSpinner from '../ui/LoadingSpinner';
+import ReaderPageSkeleton from './ReaderPageSkeleton';
 import { useSystemUpdate } from '../../core/hooks/useSystemUpdate';
 
 const Player = React.lazy(() => import('../../features/player/Player'));
@@ -74,6 +74,26 @@ const Layout: React.FC = () => {
     if (location.pathname === '/bookshelf') return;
     document.getElementById('main-content')?.scrollTo({ top: 0, behavior: 'instant' });
   }, [location.pathname]);
+
+  // 底部 tab 的目标页面是懒加载的：外壳起来后把它们的 chunk 提前取回来，
+  // 第一次点 tab 时锁定区就能立刻画出来，而不是先空一会儿再整页一起出现。
+  React.useEffect(() => {
+    const idleWindow = window as unknown as {
+      requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+    const warm = () => {
+      void import('../../features/bookshelf/BookshelfPage');
+      void import('../../features/playlists/MyPlaylistsPage');
+      void import('../../features/mine/MyPage');
+    };
+    if (typeof idleWindow.requestIdleCallback === 'function') {
+      const handle = idleWindow.requestIdleCallback(warm, { timeout: 3000 });
+      return () => idleWindow.cancelIdleCallback?.(handle);
+    }
+    const timer = window.setTimeout(warm, 1500);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   // 历史栈被压平后由我们自己记路径，站内返回按钮从这里取上一页。
   React.useEffect(() => {
@@ -374,7 +394,7 @@ const Layout: React.FC = () => {
       </aside>
       <div className="reader-workspace">
         <main id="main-content" className={'reader-content flex flex-col' + (hasCurrentChapter && !isMiniPlayerHidden ? ' has-mini-player' : '')}>
-          <Suspense fallback={<LoadingSpinner className="min-h-48" />}><Outlet /></Suspense>
+          <Suspense fallback={<ReaderPageSkeleton />}><Outlet /></Suspense>
         </main>
         <nav className="reader-tabs" aria-label={t('nav.mainMenu')}>{menuItems.map(item => renderNav(item, true))}</nav>
         {/* The floating bar leaves a strip of raw page background under it; a soft

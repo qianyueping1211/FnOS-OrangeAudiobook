@@ -71,11 +71,21 @@ const BookDetailPage: React.FC = () => {
   const [isOverflowing, setIsOverflowing] = useState(false);
   const [viewingLocal, setViewingLocal] = useState(false);
   const [localViewError, setLocalViewError] = useState('');
+  const [localViewNote, setLocalViewNote] = useState('');
   const handleViewLocal = () => {
     if (!book) return;
     setLocalViewError('');
+    setLocalViewNote('');
     setViewingLocal(true);
     void revealBookOnNas(book)
+      .then(result => {
+        // A phone (or a plain browser tab) has no fnOS file-manager bridge. The
+        // bridge answers with the folder instead: show the path that was copied
+        // rather than the SDK's version-gate error.
+        if (result.mode === 'copied') {
+          setLocalViewNote(t(result.copied ? 'bookshelf.viewLocalCopied' : 'bookshelf.viewLocalCopyFailed', { path: result.folder }));
+        }
+      })
       .catch((error: unknown) => {
         setLocalViewError(error instanceof Error ? error.message : t('bookshelf.viewLocalFailed'));
       })
@@ -687,6 +697,7 @@ const BookDetailPage: React.FC = () => {
           onViewLocal={handleViewLocal}
           viewingLocal={viewingLocal}
           localViewError={localViewError}
+      localViewNote={localViewNote}
         />
 
         {/* A one-chapter book has no list to show; wider layouts keep the list

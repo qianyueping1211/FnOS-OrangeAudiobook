@@ -52,6 +52,7 @@ interface Props {
   onViewLocal?: () => void;
   viewingLocal?: boolean;
   localViewError?: string;
+  localViewNote?: string;
 }
 
 const BookHeaderSection: React.FC<Props> = ({
@@ -87,6 +88,7 @@ const BookHeaderSection: React.FC<Props> = ({
   onViewLocal,
   viewingLocal,
   localViewError,
+  localViewNote,
 }) => {
   const { t } = useTranslation();
   const playLabel =
@@ -382,6 +384,9 @@ const BookHeaderSection: React.FC<Props> = ({
           </div>
           {localViewError && (
             <p className="text-xs font-bold text-red-500 dark:text-red-400">{localViewError}</p>
+          )}
+          {localViewNote && (
+            <p className="text-xs font-bold text-slate-500 break-all dark:text-slate-400">{localViewNote}</p>
           )}
           <div className="relative">
             <p

@@ -329,8 +329,8 @@ const PlaylistDetailPage: React.FC = () => {
   });
 
   return (
-    <div className="reader-page flex-1 min-h-full flex flex-col">
-      <div className="flex-1 space-y-6">
+    <div className={`reader-page flex-1 min-h-full flex flex-col${isManaging ? ' reader-locked-page' : ''}`}>
+      <div className={`${isManaging ? 'reader-page-toolbar ' : ''}space-y-6`}>
         <BackButton fallback="/playlists" />
 
         <div className="rounded-3xl border border-slate-200/60 dark:border-slate-800 bg-gradient-to-br from-primary-50/70 via-white to-slate-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800/60 p-4 sm:p-6 flex flex-col xl:flex-row xl:items-center justify-between gap-5">
@@ -414,20 +414,10 @@ const PlaylistDetailPage: React.FC = () => {
         </div>
 
         {isManaging && (
-          // The tabs and the search row stay pinned while the result grid scrolls:
-          // managing content means scanning a long list of covers, so the controls
-          // must not leave the screen. The band spans the page padding so nothing
-          // shows through underneath while it is stuck to the top.
-          <div
-            className="sticky top-0 z-30 space-y-3 pb-3 pt-2"
-            style={{
-              background: 'var(--reader-bg)',
-              marginLeft: 'calc(var(--reader-page-pad) * -1)',
-              marginRight: 'calc(var(--reader-page-pad) * -1)',
-              paddingLeft: 'var(--reader-page-pad)',
-              paddingRight: 'var(--reader-page-pad)',
-            }}
-          >
+          // While managing content the whole page is a locked page: the back
+          // button, the playlist card, the tabs and the search box all stay put
+          // and only the grid underneath scrolls.
+          <div className="space-y-3">
           <div className="mx-auto grid w-full max-w-md grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
             <button
               type="button"
@@ -472,7 +462,9 @@ const PlaylistDetailPage: React.FC = () => {
             )}
           </div>
         )}
+      </div>
 
+      <div className={`${isManaging ? 'reader-page-scroll' : 'flex-1'} mt-6 space-y-6`}>
         {isManaging ? (
           manageTab === 'selected' ? (
             <SelectedOrderPanel
