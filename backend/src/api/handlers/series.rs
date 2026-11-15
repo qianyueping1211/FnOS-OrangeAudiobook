@@ -446,14 +446,13 @@ async fn update_book_metadata_series(state: &AppState, book_id: &str) -> Result<
 
 /// Case-insensitive title/author/narrator match for the on-demand search.
 fn series_matches(series: &crate::db::models::Series, query: &str) -> bool {
-    let contains = |value: &str| value.to_lowercase().contains(query);
-    contains(&series.title)
+    series.title.to_lowercase().contains(query)
         || series
             .author
             .as_deref()
-            .is_some_and(|value| contains(value))
+            .is_some_and(|value| value.to_lowercase().contains(query))
         || series
             .narrator
             .as_deref()
-            .is_some_and(|value| contains(value))
+            .is_some_and(|value| value.to_lowercase().contains(query))
 }
