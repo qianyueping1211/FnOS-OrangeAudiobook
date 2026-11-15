@@ -307,7 +307,7 @@ const ChapterManagerModal: React.FC<Props> = ({ book, bookId, initialChapters, o
           />
         </div>
 
-        <div className="flex min-w-0 shrink-0 items-center gap-3 border-t border-slate-100 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900 sm:px-6 sm:py-4">
+        <div className="flex min-w-0 shrink-0 items-center gap-3 border-t border-slate-100 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-950 sm:px-6 sm:py-4">
           <button
             type="button"
             onClick={requestClose}
@@ -348,7 +348,7 @@ const ChapterManagerModal: React.FC<Props> = ({ book, bookId, initialChapters, o
 
   if (embedded) {
     return (
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white dark:bg-slate-900">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white dark:bg-slate-950">
         {panel}
       </div>
     );

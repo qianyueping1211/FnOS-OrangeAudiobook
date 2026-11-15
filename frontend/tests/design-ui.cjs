@@ -376,6 +376,20 @@ async function fixture(context, gated = false) {
       assert.equal(await lock.isChecked(), true);
       assert.equal(await page.getByRole('button', { name: '写入文件', exact: true }).count(), 0);
       await page.screenshot({ path: path.join(root, 'ui-artifacts', name + '-book-edit.png'), fullPage: false });
+      // The edit dialog shares the manual scrape shell: the page behind it is
+      // dimmed and blurred, and the header carries the close control.
+      const editDialog = page.locator('.fixed.inset-0.z-\\[200\\]');
+      const editMask = editDialog.locator('.absolute.inset-0');
+      const editMaskBox = await editMask.boundingBox();
+      const viewportSize = page.viewportSize();
+      assert.ok(editMaskBox.width >= viewportSize.width - 1 && editMaskBox.height >= viewportSize.height - 1, name + ' edit dialog dims the whole page');
+      assert.ok((await editMask.evaluate(element => getComputedStyle(element).backdropFilter)).includes('blur'), name + ' edit dialog blurs the page behind it');
+      assert.equal(await editDialog.getByRole('button', { name: '关闭', exact: true }).count(), 1, name + ' edit dialog header close control');
+      assert.equal((await editDialog.locator('h2').first().innerText()).trim(), '编辑书籍元数据', name + ' edit dialog carries the header title');
+      await editDialog.getByRole('button', { name: '关闭', exact: true }).click();
+      await lock.waitFor({ state: 'hidden' });
+      await page.getByRole('button', { name: '编辑', exact: true }).click();
+      await lock.waitFor();
       // The 章节 tab keeps the chapter manager inside the dialog. Its list is
       // virtualized, so a container without a resolved height paints zero rows.
       await page.getByRole('button', { name: '章节', exact: true }).click();

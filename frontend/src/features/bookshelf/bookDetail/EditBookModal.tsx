@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2, Save, Trash2, Upload, Wand2, X } from 'lucide-react';
+import { Loader2, Pencil, Save, Trash2, Upload, Wand2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Book } from '../../../core/types';
 import type { RegexGenerationResult } from '../../../core/api/books';
@@ -79,12 +79,30 @@ const EditBookModal: React.FC<Props> = ({
   const bookLocation = editData.path || '';
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-2 sm:p-4">
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={saving ? undefined : onClose}></div>
-      <div className={`relative flex w-full ${activeTab === 'chapters' ? 'h-[90vh] max-w-5xl' : 'max-h-[90vh] max-w-2xl'} flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-200 dark:bg-slate-900`}>
-        {!showRegexGenerator && (
-          <div className="shrink-0 border-b border-slate-100 px-4 pb-3 pt-4 dark:border-slate-800 sm:px-6">
-            <div className="mx-auto grid max-w-md grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+      {/* Same shell as the manual scrape dialog: fixed 92vh panel on a dimmed,
+          blurred page, a titled header with the close control top right. */}
+      <div className={`relative flex h-[92vh] w-full ${activeTab === 'chapters' ? 'max-w-5xl' : 'max-w-2xl'} flex-col overflow-hidden rounded-2xl bg-white shadow-2xl animate-in zoom-in-95 duration-200 dark:bg-slate-950`}>
+        <div className="shrink-0 border-b border-slate-100 px-4 pb-3 pt-4 dark:border-slate-800 sm:px-6">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2 text-lg font-bold text-slate-950 dark:text-white sm:text-xl">
+              <Pencil size={20} className="text-primary-600" />
+              {t('bookshelf.editBookMetadata')}
+            </h2>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              aria-label={t('common.close')}
+              title={t('common.close')}
+              className="rounded-full p-2 transition-colors hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-800"
+            >
+              <X size={22} className="text-slate-500" />
+            </button>
+          </div>
+          {!showRegexGenerator && (
+            <div className="mx-auto mt-3 grid max-w-md grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
               <button
                 type="button"
                 aria-pressed={activeTab === 'metadata'}
@@ -110,14 +128,15 @@ const EditBookModal: React.FC<Props> = ({
                 {t('bookshelf.chaptersTab')}
               </button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {activeTab === 'chapters' ? (
           <div className="chapter-tab-panel flex min-h-0 flex-1 flex-col overflow-hidden">
             {chaptersPanel}
           </div>
         ) : (
+        <>
         <div className="min-h-0 flex-1 overflow-y-auto no-scrollbar">
         {showRegexGenerator ? (
             <div className="p-4 sm:p-6 md:p-8">
@@ -206,10 +225,6 @@ const EditBookModal: React.FC<Props> = ({
             </div>
         ) : (
         <div className="p-4 sm:p-6 md:p-8">
-          <div className="flex items-center justify-between mb-4 sm:mb-6">
-            <h2 className="text-xl sm:text-2xl font-bold dark:text-white">{t('bookshelf.editBookMetadata')}</h2>
-          </div>
-
           <label className="mb-4 sm:mb-6 flex items-start gap-3 rounded-xl border border-primary-100 bg-primary-50/70 px-3 py-3 dark:border-primary-900/40 dark:bg-primary-900/20">
             <input
               type="checkbox"
@@ -431,38 +446,43 @@ const EditBookModal: React.FC<Props> = ({
             />
           </div>
 
-          {saveError && <p role="alert" className="mt-4 text-sm text-red-500">{saveError}</p>}
-          <div className="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4 mt-6 sm:mt-8">
-            <button
-              onClick={onDelete}
-              disabled={saving}
-              className="px-4 py-2.5 sm:py-3 font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all flex items-center justify-center gap-2 sm:justify-start whitespace-nowrap text-xs sm:text-base"
-            >
-              <Trash2 size={18} className="sm:w-5 sm:h-5" />
-              {t('bookshelf.deleteBook')}
-            </button>
-            <div className="flex-1" />
-            <div className="flex gap-2 sm:gap-3">
-              <button
-                onClick={onClose}
-                disabled={saving}
-                className="flex-1 sm:flex-none px-3 sm:px-6 py-2.5 sm:py-3 font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all text-xs sm:text-base whitespace-nowrap"
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                onClick={onSave}
-                disabled={saving}
-                className="flex-1 sm:flex-none px-3 sm:px-8 py-2.5 sm:py-3 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-lg shadow-primary-500/30 flex items-center justify-center gap-1.5 sm:gap-2 transition-all text-xs sm:text-base whitespace-nowrap"
-              >
-                {saving ? <Loader2 size={16} className="animate-spin sm:w-5 sm:h-5" /> : <Save size={16} className="sm:w-5 sm:h-5" />}
-                <span>{t(saving ? 'common.saving' : 'common.save')}</span>
-              </button>
-            </div>
-          </div>
         </div>
         )}
         </div>
+        {!showRegexGenerator && (
+          <div className="shrink-0 border-t border-slate-100 px-4 py-3 dark:border-slate-800 sm:px-6 sm:py-4">
+            {saveError && <p role="alert" className="mb-3 text-sm text-red-500">{saveError}</p>}
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:gap-4">
+              <button
+                onClick={onDelete}
+                disabled={saving}
+                className="px-4 py-2.5 font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all flex items-center justify-center gap-2 sm:justify-start whitespace-nowrap text-xs sm:text-base"
+              >
+                <Trash2 size={18} className="sm:w-5 sm:h-5" />
+                {t('bookshelf.deleteBook')}
+              </button>
+              <div className="flex-1" />
+              <div className="flex gap-2 sm:gap-3">
+                <button
+                  onClick={onClose}
+                  disabled={saving}
+                  className="flex-1 sm:flex-none px-3 sm:px-6 py-2.5 sm:py-3 font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all text-xs sm:text-base whitespace-nowrap"
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  onClick={onSave}
+                  disabled={saving}
+                  className="flex-1 sm:flex-none px-3 sm:px-8 py-2.5 sm:py-3 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-lg shadow-primary-500/30 flex items-center justify-center gap-1.5 sm:gap-2 transition-all text-xs sm:text-base whitespace-nowrap"
+                >
+                  {saving ? <Loader2 size={16} className="animate-spin sm:w-5 sm:h-5" /> : <Save size={16} className="sm:w-5 sm:h-5" />}
+                  <span>{t(saving ? 'common.saving' : 'common.save')}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        </>
         )}
       </div>
     </div>
