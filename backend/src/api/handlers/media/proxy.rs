@@ -1,9 +1,9 @@
 //! Cover image proxy handler
 
 use crate::api::state::AppState;
+use crate::core::LruCache;
 use crate::core::app::error::{InputErrorKind, LookupErrorKind, SecurityErrorKind};
 use crate::core::app::error::{Result, TingError};
-use crate::core::LruCache;
 use crate::db::repository::Repository;
 use axum::{
     body::Body,
@@ -150,10 +150,7 @@ pub async fn proxy_cover(
             StatusCode::NOT_MODIFIED,
             [
                 (header::ETAG, etag),
-                (
-                    header::CACHE_CONTROL,
-                    COVER_CACHE_CONTROL.to_string(),
-                ),
+                (header::CACHE_CONTROL, COVER_CACHE_CONTROL.to_string()),
             ],
         )
             .into_response());
@@ -164,7 +161,10 @@ pub async fn proxy_cover(
         .to_string();
     let body_bytes: Bytes = match thumb_width {
         Some(width) => {
-            let cache_key = format!("{}|{file_len}|{modified_nanos}|{width}", final_path.display());
+            let cache_key = format!(
+                "{}|{file_len}|{modified_nanos}|{width}",
+                final_path.display()
+            );
             let cached = cover_cache()
                 .lock()
                 .ok()
@@ -177,15 +177,12 @@ pub async fn proxy_cover(
                 None => {
                     let source = Bytes::from(tokio::fs::read(&final_path).await?);
                     let input = source.clone();
-                    match tokio::task::spawn_blocking(move || thumbnail_bytes(&input, width)).await {
+                    match tokio::task::spawn_blocking(move || thumbnail_bytes(&input, width)).await
+                    {
                         Ok(Some(thumbnail)) => {
                             let thumbnail = Bytes::from(thumbnail);
                             if let Ok(mut cache) = cover_cache().lock() {
-                                cache.insert(
-                                    cache_key,
-                                    thumbnail.clone(),
-                                    thumbnail.len() as u64,
-                                );
+                                cache.insert(cache_key, thumbnail.clone(), thumbnail.len() as u64);
                             }
                             content_type = "image/jpeg".to_string();
                             thumbnail
@@ -233,8 +230,8 @@ fn thumbnail_bytes(source: &[u8], width: u32) -> Option<Vec<u8>> {
     if source_width == 0 || source_height == 0 || source_width <= width {
         return None;
     }
-    let target_height = ((u64::from(source_height) * u64::from(width)) / u64::from(source_width))
-        .max(1) as u32;
+    let target_height =
+        ((u64::from(source_height) * u64::from(width)) / u64::from(source_width)).max(1) as u32;
     let mut rgba = decoded.into_rgba8();
     for pixel in rgba.pixels_mut() {
         let alpha = u32::from(pixel[3]);
