@@ -86,10 +86,22 @@ const resetFileManagerHost = () => {
   hostPromise = null;
 };
 
+// `books.path` — the「书籍位置」field shown in the metadata editor — already
+// points at the folder that holds the audiobook:
+//
+//   /vol2/1000/Learn/0 有声读物/樊登作品/万历传
+//
+// so it is handed to the host unchanged. Only the rare library that stores a
+// single audio file as the book (no per-book folder) needs one level up.
+const AUDIO_FILE = /\.(mp3|m4a|m4b|aac|flac|wav|ogg|opus|ape|wma|mp4|m4v|mkv|webm|ts)$/i;
+
 export const nasFolderOf = (path?: string): string | null => {
   if (!path || !path.startsWith('/') || path.includes('\0') || path.split('/').includes('..')) return null;
-  const cut = path.lastIndexOf('/');
-  return cut <= 0 ? '/' : path.slice(0, cut);
+  const trimmed = path.replace(/\/+$/, '');
+  if (!trimmed) return '/';
+  if (!AUDIO_FILE.test(trimmed)) return trimmed;
+  const cut = trimmed.lastIndexOf('/');
+  return cut <= 0 ? '/' : trimmed.slice(0, cut);
 };
 
 export const canRevealNasFolder = (book?: Pick<Book, 'path' | 'library_type'> | null): boolean =>
@@ -117,12 +129,16 @@ interface HostReply {
   detail: string;
 }
 
-// The host answers with { result: "<json>" }; the SDK parses both layers. A
-// missing handler answers null, which is the only reliable "not supported"
-// signal — an empty or error payload is kept as the detail.
+// The host opens the file manager and answers nothing — OrangeMusic never
+// inspects this return value for that reason. A real refusal arrives as a
+// rejected promise (Flutter throws for an unknown handler), so "no reply"
+// means "sent", not "unsupported"; only an explicit error payload fails.
 const readHostReply = (raw: unknown): HostReply => {
-  if (raw === null || raw === undefined || raw === '' || raw === false) {
-    return { opened: false, detail: 'empty' };
+  if (raw === null || raw === undefined || raw === '') {
+    return { opened: true, detail: '' };
+  }
+  if (raw === false) {
+    return { opened: false, detail: 'rejected' };
   }
   let payload: unknown = raw;
   if (typeof raw === 'string') {
@@ -173,23 +189,12 @@ export async function revealNasFolder(path: string): Promise<RevealResult> {
 
   const notes: string[] = [];
 
-  // 1) The message the SDK would send, straight to the host bridge. This works
-  //    even when the SDK's own initialisation is still parked on an event this
-  //    host never fires.
-  const bridge = await waitForBridge(6000);
-  if (bridge) {
-    for (const method of FILE_MANAGER_METHODS) {
-      const reply = await callHost(bridge, method, folder);
-      if (reply.opened) return { mode: 'opened' };
-      notes.push(method + '=' + reply.detail);
-    }
-  } else {
-    notes.push('bridge=absent');
-  }
-
-  // 2) The SDK's own call, for hosts that do initialise. `ready()` is capped
-  //    instead of fatal: the desktop extension window and mobile builds answer
-  //    here, and a timeout no longer ends the attempt.
+  // 1) OrangeMusic's order, step for step: the warmed SDK instance → ready() →
+  //    native.openFileManager(folder). That is the message this host answers by
+  //    opening its file manager at the folder. The instance is warmed when the
+  //    app shell mounts, so a tap normally finds it already settled — no polling,
+  //    no visible delay. `ready()` stays capped instead of fatal, because the
+  //    Windows client parks it on an event it never fires.
   let native = await warmFileManager().catch(() => null);
   if (native?.isStandaloneWeb) return { mode: 'desktopOnly' };
 
@@ -254,6 +259,20 @@ export async function revealNasFolder(path: string): Promise<RevealResult> {
       }
     }
     if (!native.appApiVersion) notes.push('appApi=absent');
+  }
+
+  // 2) Fallback: send the same message straight to the host bridge, for a host
+  //    that injects `flutter_inappwebview` without ever firing the SDK's
+  //    platform-ready event.
+  const bridge = await waitForBridge(6000);
+  if (bridge) {
+    for (const method of FILE_MANAGER_METHODS) {
+      const reply = await callHost(bridge, method, folder);
+      if (reply.opened) return { mode: 'opened' };
+      notes.push(method + '=' + reply.detail);
+    }
+  } else {
+    notes.push('bridge=absent');
   }
 
   const detail = notes.filter(Boolean).slice(0, 4).join(' | ');
