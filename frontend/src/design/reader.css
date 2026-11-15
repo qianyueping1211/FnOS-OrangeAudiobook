@@ -231,7 +231,7 @@ html,body,#root {overflow:hidden;max-width:100%;-webkit-text-size-adjust:100%;te
 .reader-search-page {max-width:1400px;margin-inline:auto}
 /* Search pins its own top bar: without it the back button slid under the header
    as soon as the results started scrolling. */
-.reader-search-sticky {position:sticky;top:0;z-index:20;background:var(--reader-bg);padding-block:2px 10px}
+.reader-search-toolbar {position:relative;margin-bottom:24px;text-align:left}
 .reader-search-header {text-align:left}
 .reader-search-field {width:100%;margin-top:20px}
 .reader-search-field input {min-height:48px;box-shadow:none;padding-block:12px}
@@ -288,7 +288,7 @@ html,body,#root {overflow:hidden;max-width:100%;-webkit-text-size-adjust:100%;te
   .reader-selection-actions {grid-column:auto}
   /* Desktop had no spacing after the toolbar, so the first cover row sat
      against the filter row and read as an overlap. */
-  .reader-library-header.reader-page-toolbar { margin-bottom:20px }
+  .reader-library-header.reader-page-toolbar { margin-bottom:24px }
 }
 
 /* Keep the app's clear control singular, and mobile filter choices legible. */
@@ -336,8 +336,9 @@ html.reader-ios { touch-action:pan-x pan-y }
     padding-block:14px;
     margin-top:-14px;
   }
-  .reader-home .reader-heading.reader-page-toolbar { margin-bottom:6px }
-  .reader-library-header.reader-page-toolbar { margin-bottom:24px }
+  /* One chrome rule for every locked page: home, bookshelf and search share
+     the same bar-to-content gap, so the top bar never reads as a different
+     component from page to page. */
 }
 
 
@@ -355,6 +356,7 @@ html.reader-ios { touch-action:pan-x pan-y }
     flex:none;
     margin-top:0;
     padding-top:0;
+    margin-bottom:6px;
     background:var(--reader-bg);
   }
   .reader-locked-page .reader-page-scroll {

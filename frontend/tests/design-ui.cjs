@@ -209,6 +209,7 @@ async function fixture(context, gated = false) {
             const beforeTop = (await toolbar.boundingBox()).y;
             await scroller.evaluate(element => element.scrollTo({ top: 360, behavior: 'instant' }));
             assert.equal(Math.round((await toolbar.boundingBox()).y), Math.round(beforeTop), name + ' home toolbar moved with content');
+            assert.equal(await toolbar.evaluate(element => parseFloat(getComputedStyle(element).marginBottom)), 6, name + ' toolbar gap matches home');
             assert.equal(await page.locator('#main-content').evaluate(element => element.scrollTop), 0);
           }
           const heroCover = await page.locator('.reader-hero-cover').boundingBox();
@@ -222,6 +223,17 @@ async function fixture(context, gated = false) {
           if (mobile) assert.ok(await input.evaluate(element => parseFloat(getComputedStyle(element).fontSize)) >= 16);
           await input.fill('山海');
           await page.locator('.reader-book-card').first().waitFor();
+          if (mobile) {
+            // Search shares the home/bookshelf chrome now: one fixed top bar with
+            // the same bar-to-content gap, and only the results pane scrolling.
+            const toolbar = page.locator('.reader-search-page .reader-page-toolbar');
+            const scroller = page.locator('.reader-search-page .reader-page-scroll');
+            assert.equal(await toolbar.evaluate(element => parseFloat(getComputedStyle(element).marginBottom)), 6, name + ' search toolbar gap matches home');
+            const searchTop = (await toolbar.boundingBox()).y;
+            await scroller.evaluate(element => element.scrollTo({ top: 360, behavior: 'instant' }));
+            assert.equal(Math.round((await toolbar.boundingBox()).y), Math.round(searchTop), name + ' search toolbar moved with content');
+            assert.equal(await page.locator('#main-content').evaluate(element => element.scrollTop), 0);
+          }
           await input.blur();
           const after = await page.evaluate(() => ({ width: innerWidth, scale: visualViewport?.scale || 1 }));
           assert.deepEqual(after, before, name + ' search focus changed the visual viewport');
@@ -244,6 +256,7 @@ async function fixture(context, gated = false) {
             await scroller.evaluate(element => element.scrollTo({ top: element.scrollHeight, behavior: 'instant' }));
             await page.waitForFunction(before => document.querySelectorAll('.reader-bookshelf-page .reader-book-card').length > before, firstCount);
             assert.equal(Math.round((await toolbar.boundingBox()).y), Math.round(beforeTop), name + ' bookshelf toolbar moved with content');
+            assert.equal(await toolbar.evaluate(element => parseFloat(getComputedStyle(element).marginBottom)), 6, name + ' toolbar gap matches home');
             assert.equal(await page.locator('#main-content').evaluate(element => element.scrollTop), 0);
           }
           await page.locator('.reader-display-trigger').click();

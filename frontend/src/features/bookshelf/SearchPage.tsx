@@ -5,7 +5,6 @@ import type { Book, Library, Series } from '../../core/types';
 import { apiErrorMessage } from '../../core/api/errors';
 import BookCard from '../../shared/cards/BookCard';
 import { Search as SearchIcon, Loader2, BookX, ChevronLeft, ChevronRight, SlidersHorizontal, ChevronUp, ChevronDown } from 'lucide-react';
-import { usePlayerStore } from '../../core/stores/playerStore';
 import BackButton from '../../shared/widgets/BackButton';
 import { useTranslation } from 'react-i18next';
 
@@ -151,7 +150,6 @@ const SearchPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const currentChapter = usePlayerStore((state) => state.currentChapter);
   
   // Cover shape and icon size settings from bookshelf
   const { coverShape, iconSize } = useBookshelfDisplaySettings();
@@ -277,10 +275,10 @@ const SearchPage: React.FC = () => {
   const hasSearch = Boolean(debouncedQuery.trim()) || Boolean(hasActiveFilters);
 
   return (
-    <div className="reader-page reader-search-page flex-1 space-y-6">
-      {/* Sticky top: while the results scroll, the back button, the title and
-          the search field stay pinned instead of sliding under the header. */}
-      <div className="reader-search-sticky">
+    <div className="reader-page reader-search-page reader-locked-page flex flex-1 flex-col">
+      {/* Same page chrome as home and the bookshelf: the back button, the title
+          and the search field are fixed page chrome, only the results scroll. */}
+      <div className="reader-search-toolbar reader-page-toolbar">
         <BackButton fallback="/bookshelf" />
 
         <div className="reader-search-header space-y-4">
@@ -336,6 +334,7 @@ const SearchPage: React.FC = () => {
         </div>
       </div>
 
+      <div className="reader-page-scroll space-y-6">
       {/* Advanced Filters Panel */}
       {showFilters && (
         <div id="search-filters" className="reader-filter-panel">
@@ -435,12 +434,7 @@ const SearchPage: React.FC = () => {
           <p>{t('searchPage.emptyHint')}</p>
         </div>
       )}
-
-      {/* Dynamic Safe Bottom Spacer */}
-      <div 
-        className="shrink-0 transition-all duration-300" 
-        style={{ height: currentChapter ? 'var(--safe-bottom-with-player)' : 'var(--safe-bottom-base)' }} 
-      />
+      </div>
     </div>
   );
 };
