@@ -44,10 +44,12 @@ pub async fn list_series(
             .percentages(&user.id)
             .await?;
     for series in series_list {
-        if let Some(query) = search.as_ref() {
-            if !series_matches(&series, query) {
-                continue;
-            }
+        let matches_query = match search.as_ref() {
+            Some(query) => series_matches(&series, query),
+            None => true,
+        };
+        if !matches_query {
+            continue;
         }
 
         let mut s_res = SeriesResponse::from(series.clone());
