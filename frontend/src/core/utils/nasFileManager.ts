@@ -1,26 +1,30 @@
 // Opens the fnOS file manager on the NAS folder that holds a book, following
 // OrangeMusic's 「查看与下载」 step for step:
 //
-//   app.js:      navigation().then(n => n.warmFileManager())   // on startup
+//   app.js:      navigation().then(n => n.warmFileManager())   // after /api/state
 //   reveal(job): bridge.openSavedFileFolder(job.nas_path)
 //   openMusicFolder(path): ready() (20s) → native.openFileManager(path) (10s)
 //
-// What the SDK actually does inside `openFileManager`, and why the earlier
-// builds missed:
+// Two things the SDK does behind that call, both learned the hard way:
 //
-//   await initPromise;
+//   await initPromise;                          // may never settle, see below
 //   if (isWeb) return (webMethods.openFileManager || webMethods.openFileManagerApp)(path);
 //   assertMobileAppApi("openFileManager");      // throws "requires appApi >= v1.0"
-//   return callAppMethod("openFileManager", path);
+//   return callAppMethod("openFileManager", path);   // → flutter_inappwebview.callHandler(name, path)
 //
-// The host only reports `appApi` through `getAppMessage`, and on this phone app
-// that reply comes back empty, so the version gate throws even though the
-// `openFileManager` handler really exists — OrangeMusic opens the manager on the
-// same device. So: try the SDK path first, and when only the version gate
-// objects, send the same message down the SDK's own channel (`callAppMethod`,
-// i.e. `flutter_inappwebview.callHandler(name, …)` with the SDK's argument
-// shape). The previous build called `callHandler` raw and treated any non-error
-// string as success, which is why the button looked dead instead of failing.
+// The mobile branch only takes the bridge immediately when the UA is iOS/Mac,
+// when `flutterInAppWebViewPlatformReady` fired inside this module's lifetime,
+// or when the host pre-set `window.flutter_inappwebview._platformReady`. A
+// Windows client does none of those, so the SDK parks on an event listener that
+// never fires: `initPromise` stays pending forever and `ready()` times out —
+// which is exactly the「尚未连接到飞牛文件管理」message. The two fallbacks below
+// were never reached either, because the old code awaited `ready()` outside the
+// try block.
+//
+// So the host bridge is probed directly first (the same `callHandler` message
+// the SDK would send), and the SDK path stays as the second attempt for hosts
+// that do initialise. Every branch keeps a short note so a failing device
+// reports which one it took.
 import type { Book } from '../types';
 
 interface FlutterBridge {
@@ -29,6 +33,7 @@ interface FlutterBridge {
 
 interface TrimAppInstance {
   isStandaloneWeb?: boolean;
+  appApiVersion?: string;
   flutterInAppWebView?: FlutterBridge | null;
   ready: () => Promise<unknown>;
   openFileManager?: (path: string) => Promise<unknown>;
@@ -37,10 +42,14 @@ interface TrimAppInstance {
 
 export type RevealResult =
   | { mode: 'opened' }
-  | { mode: 'unsupported' }
+  | { mode: 'unsupported'; detail?: string }
   | { mode: 'desktopOnly' };
 
 let hostPromise: Promise<TrimAppInstance> | null = null;
+
+const FILE_MANAGER_METHODS = ['openFileManager', 'openFileManagerApp'] as const;
+
+const sleep = (ms: number) => new Promise<void>(resolve => window.setTimeout(resolve, ms));
 
 const withTimeout = async <T,>(promise: Promise<T>, ms: number, message: string): Promise<T> => {
   let timer: number | undefined;
@@ -73,6 +82,10 @@ export const warmFileManager = (): Promise<TrimAppInstance> => {
   return hostPromise;
 };
 
+const resetFileManagerHost = () => {
+  hostPromise = null;
+};
+
 export const nasFolderOf = (path?: string): string | null => {
   if (!path || !path.startsWith('/') || path.includes('\0') || path.split('/').includes('..')) return null;
   const cut = path.lastIndexOf('/');
@@ -82,32 +95,75 @@ export const nasFolderOf = (path?: string): string | null => {
 export const canRevealNasFolder = (book?: Pick<Book, 'path' | 'library_type'> | null): boolean =>
   !!book && book.library_type !== 'webdav' && !!nasFolderOf(book.path);
 
-// The SDK's `callAppMethod` returns null when the host answered nothing — which
-// is also what happens when the handler does not exist. Null means "not opened".
-const sendThroughHostBridge = async (path: string, bridge?: FlutterBridge | null): Promise<boolean> => {
-  if (!bridge?.callHandler) return false;
+const globalBridge = (): FlutterBridge | null => {
+  const candidate = (window as unknown as { flutter_inappwebview?: FlutterBridge }).flutter_inappwebview;
+  return typeof candidate?.callHandler === 'function' ? candidate : null;
+};
+
+// The host may inject the bridge a moment after the page paints, so keep
+// looking for a few seconds instead of deciding on the first frame.
+const waitForBridge = async (ms: number): Promise<FlutterBridge | null> => {
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) {
+    const bridge = globalBridge();
+    if (bridge) return bridge;
+    await sleep(150);
+  }
+  return globalBridge();
+};
+
+interface HostReply {
+  opened: boolean;
+  detail: string;
+}
+
+// The host answers with { result: "<json>" }; the SDK parses both layers. A
+// missing handler answers null, which is the only reliable "not supported"
+// signal — an empty or error payload is kept as the detail.
+const readHostReply = (raw: unknown): HostReply => {
+  if (raw === null || raw === undefined || raw === '' || raw === false) {
+    return { opened: false, detail: 'empty' };
+  }
+  let payload: unknown = raw;
+  if (typeof raw === 'string') {
+    try {
+      const envelope = JSON.parse(raw) as { result?: unknown };
+      if (envelope && typeof envelope === 'object' && 'result' in envelope) {
+        const inner = envelope.result;
+        if (typeof inner === 'string' && inner.trim()) {
+          try {
+            payload = JSON.parse(inner);
+          } catch {
+            payload = inner;
+          }
+        } else {
+          payload = inner;
+        }
+      } else {
+        payload = envelope;
+      }
+    } catch {
+      payload = raw;
+    }
+  }
+  const text = typeof payload === 'string' ? payload : JSON.stringify(payload ?? '');
+  if (text && /error|fail|not.?support|unavailable|denied|not allowed/i.test(text)) {
+    return { opened: false, detail: text.slice(0, 120) };
+  }
+  return { opened: true, detail: '' };
+};
+
+const callHost = async (bridge: FlutterBridge, name: string, path: string): Promise<HostReply> => {
   try {
     const raw = await withTimeout(
-      bridge.callHandler('openFileManager', path),
+      (bridge.callHandler as (n: string, ...a: unknown[]) => Promise<unknown>)(name, path),
       10000,
-      '飞牛文件管理没有响应，请稍后再试',
+      'timeout',
     );
-    if (raw === null || raw === undefined || raw === '' || raw === false) return false;
-    if (typeof raw === 'string') {
-      if (/error|fail|not.?support|unavailable/i.test(raw)) return false;
-      // The SDK unwraps { result: "<json>" } from the host reply.
-      try {
-        const envelope = JSON.parse(raw) as { result?: unknown };
-        if (envelope && typeof envelope.result === 'string' && /error|fail|not.?support|unavailable/i.test(envelope.result)) {
-          return false;
-        }
-      } catch {
-        // A plain string answer is still an answer from the host.
-      }
-    }
-    return true;
-  } catch {
-    return false;
+    return readHostReply(raw);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error ?? '');
+    return { opened: false, detail: message.includes('timeout') ? 'timeout' : message.slice(0, 60) };
   }
 };
 
@@ -115,45 +171,94 @@ export async function revealNasFolder(path: string): Promise<RevealResult> {
   const folder = nasFolderOf(path);
   if (!folder) throw new Error('这个作品还没有可用的 NAS 位置');
 
-  const native = await warmFileManager();
-  // OrangeMusic refuses here too: an ordinary browser tab has no host to talk to.
-  if (native.isStandaloneWeb) return { mode: 'desktopOnly' };
+  const notes: string[] = [];
 
-  await withTimeout(native.ready(), 20000, '尚未连接到飞牛文件管理，请关闭应用后从应用中心重新打开再试');
-
-  // 1) The SDK's public call: works on the desktop extension window, and on the
-  //    phone whenever the host reports an appApi version.
-  try {
-    if (typeof native.openFileManager === 'function') {
-      const opened = await withTimeout(native.openFileManager(folder), 10000, '飞牛文件管理没有响应，请稍后再试');
-      if (opened !== null && opened !== undefined) return { mode: 'opened' };
+  // 1) The message the SDK would send, straight to the host bridge. This works
+  //    even when the SDK's own initialisation is still parked on an event this
+  //    host never fires.
+  const bridge = await waitForBridge(6000);
+  if (bridge) {
+    for (const method of FILE_MANAGER_METHODS) {
+      const reply = await callHost(bridge, method, folder);
+      if (reply.opened) return { mode: 'opened' };
+      notes.push(method + '=' + reply.detail);
     }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error ?? '');
-    // Only the version gate is forgiven here: a timeout, or a host that says it
-    // has no file manager at all, is a real limitation.
-    if (!/requires appApi/i.test(message)) {
-      if (/NotSupportedInExtensionHost/i.test(message)) return { mode: 'unsupported' };
-      throw error instanceof Error ? error : new Error(message);
-    }
+  } else {
+    notes.push('bridge=absent');
   }
 
-  // 2) Same message down the SDK's own channel: skips the version gate, keeps
-  //    the argument shape and envelope parsing the host expects.
-  if (typeof native.callAppMethod === 'function') {
-    const sent = await native.callAppMethod('openFileManager', folder).then(
-      value => value !== null && value !== undefined,
-      () => false,
-    );
-    if (sent) return { mode: 'opened' };
+  // 2) The SDK's own call, for hosts that do initialise. `ready()` is capped
+  //    instead of fatal: the desktop extension window and mobile builds answer
+  //    here, and a timeout no longer ends the attempt.
+  let native = await warmFileManager().catch(() => null);
+  if (native?.isStandaloneWeb) return { mode: 'desktopOnly' };
+
+  const settleSdk = async (instance: TrimAppInstance | null, ms: number): Promise<boolean> => {
+    if (!instance) return false;
+    try {
+      await withTimeout(instance.ready(), ms, 'sdk-init-timeout');
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  let ready = await settleSdk(native, 8000);
+  if (!ready) {
+    notes.push('sdk=init-timeout');
+    // A fresh instance re-runs the platform probe; if the bridge appeared in
+    // the meantime it settles immediately.
+    resetFileManagerHost();
+    native = await warmFileManager().catch(() => null);
+    ready = await settleSdk(native, 5000);
   }
 
-  // 3) Last resort: the bridge the SDK itself holds, then the global one.
-  if (await sendThroughHostBridge(folder, native.flutterInAppWebView)) return { mode: 'opened' };
-  const globalBridge = (window as unknown as { flutter_inappwebview?: FlutterBridge }).flutter_inappwebview;
-  if (await sendThroughHostBridge(folder, globalBridge)) return { mode: 'opened' };
+  if (native && ready) {
+    for (const method of FILE_MANAGER_METHODS) {
+      const direct = (native as unknown as Record<string, unknown>)[method];
+      if (typeof direct !== 'function') {
+        notes.push(method + '=missing');
+        continue;
+      }
+      try {
+        const reply = await withTimeout(
+          (direct as (p: string) => Promise<unknown>).call(native, folder),
+          10000,
+          'timeout',
+        );
+        const verdict = readHostReply(reply);
+        if (verdict.opened) return { mode: 'opened' };
+        notes.push(method + '=' + verdict.detail);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error ?? '');
+        notes.push(method + '=' + message.slice(0, 80));
+        if (/NotSupportedInExtensionHost/i.test(message)) {
+          return { mode: 'unsupported', detail: 'host-bridge-missing' };
+        }
+      }
+    }
+    // Last SDK channel: skips the appApi version gate, same message, same host.
+    const appCall = typeof native.callAppMethod === 'function'
+      ? (native.callAppMethod as (n: string, ...a: unknown[]) => Promise<unknown>)
+      : null;
+    if (appCall) {
+      for (const method of FILE_MANAGER_METHODS) {
+        try {
+          const raw = await withTimeout(appCall.call(native, method, folder), 10000, 'timeout');
+          const verdict = readHostReply(raw);
+          if (verdict.opened) return { mode: 'opened' };
+          notes.push('sdk:' + method + '=' + verdict.detail);
+        } catch (error) {
+          notes.push('sdk:' + method + '=' + (error instanceof Error ? error.message : String(error)).slice(0, 80));
+        }
+      }
+    }
+    if (!native.appApiVersion) notes.push('appApi=absent');
+  }
 
-  return { mode: 'unsupported' };
+  const detail = notes.filter(Boolean).slice(0, 4).join(' | ');
+  if (typeof console !== 'undefined') console.warn('[nas-reveal]', folder, detail);
+  return { mode: 'unsupported', detail };
 }
 
 export async function revealBookOnNas(book: Pick<Book, 'path' | 'library_type'>): Promise<RevealResult> {

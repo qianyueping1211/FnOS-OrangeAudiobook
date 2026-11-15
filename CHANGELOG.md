@@ -1,3 +1,13 @@
+## [2.2.31] - 2026-11-15
+### 「本地查看」：不再等宿主初始化完成，直接对桥发起调用
+- PC 上那句「尚未连接到飞牛文件管理」来自 SDK 自己的初始化：Windows 客户端不派发 `flutterInAppWebViewPlatformReady`，SDK 一直挂在监听上，`initPromise` 永远不结束，20 秒的 `ready()` 于是超时。上一版把这个等待写在 `try` 外面，一超时就把后面两条通道全部作废。
+- 现在先直连宿主桥发送 `callHandler('openFileManager', 文件夹)`（与橙子音乐最后生效的是同一条消息），6 秒内轮询等待桥注入；`ready()` 降成 8 秒封顶的布尔结果，超时不再致命，并重建一次实例再等 5 秒。
+- `openFileManager` 与 `openFileManagerApp` 两个方法名都试；返回按 `{result:…}` 双层信封解析，空应答、错误应答都判为未打开，只有宿主真的应答才算打开。失败时在提示后附一小段括号诊断（哪条通道、什么答复），界面上仍然不出现 NAS 路径。
+
+### FPK 声明：补齐微应用标记与文件访问范围
+- 对照橙子音乐：应用中心数据库里 `tgws-music` 的 `micro_app` 为 `t`，听书为 `f`；橙子音乐的 `config/resource` 也没有 `api-scope` 白名单。宿主按微应用身份注入移动端桥，听书不是微应用，手机端因此拿不到 `openFileManager`。
+- `manifest` 增补 `micro_app = true`；`config/resource` 去掉只列了 `trim.system.getPlatformConfig` 的 `api-scope`，与橙子音乐保持一致（`data-share` 与 `authorization-path` 不变）。
+
 ## [2.2.30] - 2026-11-15
 ### 书单详情：锁定区只留一个搜索框，滚动区一直通到底部导航
 - 默认态曾在两处各画一次「搜索书单内作品」：一处钉在锁定区，一处躺在滚动区顶部，滚动区那份还被裁掉一半压在网格上。现在只在锁定区保留一个，往下滚只有作品网格。

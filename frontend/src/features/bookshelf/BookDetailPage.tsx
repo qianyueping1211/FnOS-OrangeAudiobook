@@ -81,7 +81,13 @@ const BookDetailPage: React.FC = () => {
       .then(result => {
         // The interface never shows the server path: either the host opened the
         // file manager, or we say why it could not.
-        if (result.mode === 'unsupported') setLocalViewNote(t('bookshelf.viewLocalUnsupported'));
+        // The trailing bracket is a short host note (which channel failed), so a
+        // device that still refuses can be diagnosed without a debugger attached.
+        if (result.mode === 'unsupported') {
+          setLocalViewNote(result.detail
+            ? `${t('bookshelf.viewLocalUnsupported')}（${result.detail}）`
+            : t('bookshelf.viewLocalUnsupported'));
+        }
         if (result.mode === 'desktopOnly') setLocalViewNote(t('bookshelf.viewLocalDesktopOnly'));
       })
       .catch((error: unknown) => {
