@@ -448,6 +448,12 @@ async fn update_book_metadata_series(state: &AppState, book_id: &str) -> Result<
 fn series_matches(series: &crate::db::models::Series, query: &str) -> bool {
     let contains = |value: &str| value.to_lowercase().contains(query);
     contains(&series.title)
-        || series.author.as_deref().is_some_and(|value| contains(value))
-        || series.narrator.as_deref().is_some_and(|value| contains(value))
+        || series
+            .author
+            .as_deref()
+            .is_some_and(|value| contains(value))
+        || series
+            .narrator
+            .as_deref()
+            .is_some_and(|value| contains(value))
 }
