@@ -272,14 +272,17 @@ interface EmptyPlaylistStateProps {
   icon: React.ReactNode;
   title: string;
   description: string;
+  // Managing content keeps a taller chrome above the grid, so the card trims
+  // down instead of being cut by the locked pane's bottom edge.
+  compact?: boolean;
 }
 
-export const EmptyPlaylistState: React.FC<EmptyPlaylistStateProps> = ({ icon, title, description }) => (
-  <div className="py-20 text-center bg-white dark:bg-slate-900 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 shadow-sm">
-    <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-primary-50 dark:bg-primary-900/20 text-primary-600 mb-6">
+export const EmptyPlaylistState: React.FC<EmptyPlaylistStateProps> = ({ icon, title, description, compact = false }) => (
+  <div className={`${compact ? 'py-10' : 'py-20'} text-center bg-white dark:bg-slate-900 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 shadow-sm`}>
+    <div className={`inline-flex items-center justify-center ${compact ? 'w-16 h-16 mb-4' : 'w-20 h-20 mb-6'} rounded-2xl bg-primary-50 dark:bg-primary-900/20 text-primary-600`}>
       {icon}
     </div>
     <h3 className="text-xl font-bold dark:text-white">{title}</h3>
-    <p className="text-sm text-slate-500 mt-2 mb-8">{description}</p>
+    <p className={`text-sm text-slate-500 mt-2 ${compact ? '' : 'mb-8'}`}>{description}</p>
   </div>
 );

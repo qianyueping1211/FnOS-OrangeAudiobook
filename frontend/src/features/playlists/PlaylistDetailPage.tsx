@@ -502,6 +502,7 @@ const PlaylistDetailPage: React.FC = () => {
                   icon={<Search size={40} />}
                   title={t('playlists.typeToSearch')}
                   description={t('playlists.typeToSearchHint')}
+                  compact
                 />
               ) : books.length > 0 ? (
                 <div className={`grid ${getBookshelfGridClass(iconSize)}`}>
@@ -530,28 +531,13 @@ const PlaylistDetailPage: React.FC = () => {
                   icon={<ListMusic size={40} />}
                   title={t('playlists.noMatchedBooks')}
                   description={t('playlists.tryAnotherKeyword')}
+                  compact
                 />
               )}
             </>
           )
         ) : (
           <>
-            {playlistItems.length > 0 && (
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="relative flex-1 min-w-0">
-                  <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    value={query}
-                    onChange={event => setQuery(event.target.value)}
-                    placeholder={t('playlists.searchInPlaylistPlaceholder')}
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary-500 dark:text-white"
-                  />
-                </div>
-                <span className="text-sm font-bold text-slate-500 px-2 whitespace-nowrap">
-                  {t('playlists.itemProgress', { shown: filteredPlaylistItems.length, total: playlistItems.length })}
-                </span>
-              </div>
-            )}
             {playlistItems.length === 0 ? (
               <EmptyPlaylistState
                 icon={<ListMusic size={40} />}
@@ -633,7 +619,7 @@ const PlaylistDetailPage: React.FC = () => {
       )}
 
       <div
-        className="shrink-0 transition-all duration-300"
+        className="reader-page-clearance shrink-0 transition-all duration-300"
         style={{ height: currentChapter ? 'var(--safe-bottom-with-player)' : 'var(--safe-bottom-base)' }}
       />
     </div>

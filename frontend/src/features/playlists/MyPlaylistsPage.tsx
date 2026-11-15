@@ -332,7 +332,7 @@ const MyPlaylistsPage: React.FC = () => {
       )}
 
       <div
-        className="shrink-0 transition-all duration-300"
+        className="reader-page-clearance shrink-0 transition-all duration-300"
         style={{ height: currentChapter ? 'var(--safe-bottom-with-player)' : 'var(--safe-bottom-base)' }}
       />
     </div>

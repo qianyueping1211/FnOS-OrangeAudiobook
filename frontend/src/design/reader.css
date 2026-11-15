@@ -403,6 +403,11 @@ html.reader-ios { touch-action:pan-x pan-y }
      shell clearance would only lift that pane and leave a dead band above the
      floating player. Let the page spacer do the work instead. */
   .reader-content:has(> .reader-locked-page) { padding-bottom:0 }
+  /* A locked page clears the floating player from inside its own scroll pane
+     (::after below). A page-level clearance underneath it would only shrink
+     the pane and leave a dead band between the last row and the bottom nav -
+     the shelf has no such spacer, and its pane runs all the way down. */
+  .reader-locked-page > .reader-page-clearance { display:none }
   .reader-locked-page .reader-page-scroll::after {
     content:"";
     display:block;
