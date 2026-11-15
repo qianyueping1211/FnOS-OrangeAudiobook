@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2, Pencil, Save, Trash2, Upload, Wand2, X } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Trash2, Upload, Wand2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Book } from '../../../core/types';
 import type { RegexGenerationResult } from '../../../core/api/books';
@@ -86,8 +86,18 @@ const EditBookModal: React.FC<Props> = ({
       <div className={`relative flex h-[92vh] w-full ${activeTab === 'chapters' ? 'max-w-5xl' : 'max-w-2xl'} flex-col overflow-hidden rounded-2xl bg-white shadow-2xl animate-in zoom-in-95 duration-200 dark:bg-slate-950`}>
         <div className="shrink-0 border-b border-slate-100 px-4 pb-3 pt-4 dark:border-slate-800 sm:px-6">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="flex items-center gap-2 text-lg font-bold text-slate-950 dark:text-white sm:text-xl">
-              <Pencil size={20} className="text-primary-600" />
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              aria-label={t('common.back')}
+              title={t('common.back')}
+              className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              <ArrowLeft size={18} />
+              {t('common.back')}
+            </button>
+            <h2 className="min-w-0 flex-1 truncate text-lg font-bold text-slate-950 dark:text-white sm:text-xl">
               {t('bookshelf.editBookMetadata')}
             </h2>
             <button

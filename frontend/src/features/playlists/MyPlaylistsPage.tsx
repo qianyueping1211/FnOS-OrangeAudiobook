@@ -14,6 +14,12 @@ import { PlaylistCoverStack } from './PlaylistPieces';
 type PlaylistSortBy = 'updatedAt' | 'title' | 'count';
 type PlaylistIconSize = 'small' | 'medium' | 'large';
 
+// The create sheet opens as an overlay; on a touch device an auto-focused
+// input makes the OS raise the keyboard and push the page around, so only a
+// fine pointer (mouse/trackpad) gets the automatic focus.
+const AUTO_FOCUS_CREATE_TITLE =
+  typeof window !== 'undefined' && Boolean(window.matchMedia?.('(pointer: fine)').matches);
+
 const MyPlaylistsPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -48,6 +54,21 @@ const MyPlaylistsPage: React.FC = () => {
     const timer = window.setTimeout(() => void fetchPlaylists(), 0);
     return () => window.clearTimeout(timer);
   }, []);
+
+  // Opening the create sheet must only paint an overlay: the page behind it
+  // keeps its scroll position instead of shifting by one line.
+  useEffect(() => {
+    if (!showCreateModal) return;
+    const scroller = document.getElementById('main-content');
+    const previousBody = document.body.style.overflow;
+    const previousScroller = scroller ? scroller.style.overflow : '';
+    document.body.style.overflow = 'hidden';
+    if (scroller) scroller.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousBody;
+      if (scroller) scroller.style.overflow = previousScroller;
+    };
+  }, [showCreateModal]);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -225,12 +246,13 @@ const MyPlaylistsPage: React.FC = () => {
       </div>
 
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800">
+        <div className="fixed inset-0 z-[200] flex items-end justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 sm:items-center sm:p-4">
+          <div className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-t-3xl border border-slate-100 bg-white p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] shadow-2xl animate-in slide-in-from-bottom-4 duration-200 dark:border-slate-800 dark:bg-slate-900 sm:rounded-3xl sm:pb-6">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-xl font-bold dark:text-white">{t('playlists.newPlaylist')}</h2>
               <button
                 onClick={() => setShowCreateModal(false)}
+                aria-label={t('common.close')}
                 className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
               >
                 <X size={20} />
@@ -245,7 +267,7 @@ const MyPlaylistsPage: React.FC = () => {
                   onChange={event => setTitle(event.target.value)}
                   placeholder={t('playlists.namePlaceholder')}
                   className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary-500 dark:text-white"
-                  autoFocus
+                  autoFocus={AUTO_FOCUS_CREATE_TITLE}
                 />
               </div>
 

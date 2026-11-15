@@ -15,6 +15,7 @@ use axum::{
     response::IntoResponse,
 };
 use uuid::Uuid;
+use std::collections::HashMap;
 
 pub async fn list_playlists(
     State(state): State<AppState>,
@@ -24,8 +25,26 @@ pub async fn list_playlists(
     let playlists = state.playlist_repo.find_by_user(&user.id).await?;
     let mut response = Vec::new();
 
+    // One progress pass shared by every playlist instead of one query per row.
+    let percentages = if playlists.is_empty() {
+        HashMap::new()
+    } else {
+        crate::db::repository::reading::ReadingRepository::new(state.book_repo.db().clone())
+            .percentages(&user.id)
+            .await?
+    };
+
     for playlist in playlists {
-        response.push(build_playlist_response(&state, playlist, &user.id, is_admin).await?);
+        response.push(
+            build_playlist_response(
+                &state,
+                playlist,
+                &user.id,
+                is_admin,
+                Some(percentages.clone()),
+            )
+            .await?,
+        );
     }
 
     Ok(Json(response))
@@ -49,7 +68,7 @@ pub async fn get_playlist(
         })?;
 
     let response =
-        build_playlist_response(&state, playlist, &user.id, user.role == "admin").await?;
+        build_playlist_response(&state, playlist, &user.id, user.role == "admin", None).await?;
     Ok(Json(response))
 }
 
@@ -85,7 +104,7 @@ pub async fn create_playlist(
         .await?;
 
     let response =
-        build_playlist_response(&state, playlist, &user.id, user.role == "admin").await?;
+        build_playlist_response(&state, playlist, &user.id, user.role == "admin", None).await?;
     Ok((StatusCode::CREATED, Json(response)))
 }
 
@@ -150,7 +169,7 @@ pub async fn update_playlist(
         .await?
         .unwrap_or(updated);
     let response =
-        build_playlist_response(&state, refreshed, &user.id, user.role == "admin").await?;
+        build_playlist_response(&state, refreshed, &user.id, user.role == "admin", None).await?;
     Ok(Json(response))
 }
 
@@ -219,16 +238,27 @@ async fn build_playlist_response(
     playlist: Playlist,
     user_id: &str,
     is_admin: bool,
+    percentages: Option<HashMap<String, f64>>,
 ) -> Result<PlaylistResponse> {
-    let percentages =
-        crate::db::repository::reading::ReadingRepository::new(state.book_repo.db().clone())
-            .percentages(user_id)
-            .await?;
     let mut response = PlaylistResponse::from(playlist.clone());
     let items = state
         .playlist_repo
         .find_items_by_playlist(&playlist.id)
         .await?;
+
+    // An empty playlist has nothing to annotate, so skip the progress pass.
+    if items.is_empty() {
+        return Ok(response);
+    }
+
+    let percentages = match percentages {
+        Some(values) => values,
+        None => {
+            crate::db::repository::reading::ReadingRepository::new(state.book_repo.db().clone())
+                .percentages(user_id)
+                .await?
+        }
+    };
 
     for item in items {
         match item.item_type.as_str() {

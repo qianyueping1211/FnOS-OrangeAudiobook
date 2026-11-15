@@ -1,5 +1,5 @@
 import { apiErrorMessage } from '../../core/api/errors';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import apiClient from '../../core/api/client';
@@ -7,7 +7,7 @@ import type { Book, Playlist, PlaylistItem, Series } from '../../core/types';
 import BookCard from '../../shared/cards/BookCard';
 import BackButton from '../../shared/widgets/BackButton';
 import { usePlayerStore } from '../../core/stores/playerStore';
-import { Check, Edit3, Layers, ListMusic, Plus, Save, Search, Trash2, X } from 'lucide-react';
+import { Check, Edit3, Layers, ListMusic, Loader2, Plus, Save, Search, Trash2, X } from 'lucide-react';
 import { getBookshelfGridClass, useBookshelfDisplaySettings } from '../../core/hooks/useBookshelfCoverShape';
 import { getPlaylistBookCount } from '../../core/utils/playlist';
 import LoadingSpinner from '../../shared/ui/LoadingSpinner';
@@ -51,16 +51,17 @@ const PlaylistDetailPage: React.FC = () => {
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [saving, setSaving] = useState(false);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const catalogLoaded = useRef(false);
 
   const fetchData = async () => {
     if (!id) return;
     setLoading(true);
     try {
-      const [playlistRes, booksRes, seriesRes] = await Promise.all([
-        apiClient.get(`/api/playlists/${id}`),
-        apiClient.get('/api/books'),
-        apiClient.get('/api/v1/series'),
-      ]);
+      // The detail view only needs the playlist itself. The full book and
+      // series catalogs are heavy on large libraries, so they load on demand
+      // when the reader actually opens "manage content".
+      const playlistRes = await apiClient.get(`/api/playlists/${id}`);
       setPlaylist(playlistRes.data);
       setSelectedItems(getPlaylistItems(playlistRes.data).map(item => ({
         item_type: item.item_type,
@@ -68,8 +69,6 @@ const PlaylistDetailPage: React.FC = () => {
       })));
       setEditTitle(playlistRes.data.title || '');
       setEditDescription(playlistRes.data.description || '');
-      setBooks(booksRes.data || []);
-      setSeries(seriesRes.data || []);
     } catch (err) {
       console.error('Failed to load playlist', err);
     } finally {
@@ -77,11 +76,46 @@ const PlaylistDetailPage: React.FC = () => {
     }
   };
 
+  const ensureCatalog = async () => {
+    if (catalogLoaded.current || catalogLoading) return;
+    catalogLoaded.current = true;
+    setCatalogLoading(true);
+    try {
+      const [booksRes, seriesRes] = await Promise.all([
+        apiClient.get('/api/books'),
+        apiClient.get('/api/v1/series'),
+      ]);
+      setBooks(booksRes.data || []);
+      setSeries(seriesRes.data || []);
+    } catch (err) {
+      catalogLoaded.current = false;
+      console.error('Failed to load playlist catalog', err);
+    } finally {
+      setCatalogLoading(false);
+    }
+  };
+
   useEffect(() => {
+    catalogLoaded.current = false;
     const timer = window.setTimeout(() => void fetchData(), 0);
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+
+  // The edit sheet is an overlay only: the playlist page keeps its position.
+  useEffect(() => {
+    if (!showEditModal) return;
+    const scroller = document.getElementById('main-content');
+    const previousBody = document.body.style.overflow;
+    const previousScroller = scroller ? scroller.style.overflow : '';
+    document.body.style.overflow = 'hidden';
+    if (scroller) scroller.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousBody;
+      if (scroller) scroller.style.overflow = previousScroller;
+    };
+  }, [showEditModal]);
 
   const filteredBooks = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -333,6 +367,7 @@ const PlaylistDetailPage: React.FC = () => {
                     setIsManaging(true);
                     setQuery('');
                     setManageView('books');
+                    void ensureCatalog();
                   }}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary-600 text-white text-sm font-bold shadow-lg shadow-primary-500/25"
                 >
@@ -422,6 +457,11 @@ const PlaylistDetailPage: React.FC = () => {
               description={query ? t('playlists.tryAnotherKeyword') : t('playlists.addContentHint')}
             />
           )
+        ) : catalogLoading ? (
+          <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-400">
+            <Loader2 size={20} className="animate-spin" />
+            {t('common.loading')}
+          </div>
         ) : manageView === 'series' ? (
           filteredSeries.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -474,12 +514,13 @@ const PlaylistDetailPage: React.FC = () => {
       </div>
 
       {showEditModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800">
+        <div className="fixed inset-0 z-[200] flex items-end justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 sm:items-center sm:p-4">
+          <div className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-t-3xl border border-slate-100 bg-white p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] shadow-2xl animate-in slide-in-from-bottom-4 duration-200 dark:border-slate-800 dark:bg-slate-900 sm:rounded-3xl sm:pb-6">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-xl font-bold dark:text-white">{t('playlists.editPlaylist')}</h2>
               <button
                 onClick={() => setShowEditModal(false)}
+                aria-label={t('common.close')}
                 className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
               >
                 <X size={20} />
