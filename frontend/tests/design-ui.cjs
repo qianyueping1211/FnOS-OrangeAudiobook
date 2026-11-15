@@ -222,9 +222,11 @@ async function fixture(context, gated = false) {
             await page.locator('.reader-tabs .reader-tab', { hasText: '书架' }).first().dispatchEvent('pointerdown');
             await page.locator('.reader-bookshelf-page').waitFor();
             assert.equal(new URL(page.url()).pathname, '/bookshelf', name + ' bottom tab opens on press alone');
+            assert.equal(await page.locator('.reader-tabs .reader-tab', { hasText: '书架' }).first().getAttribute('aria-current'), 'page', name + ' bottom tab highlights the page it opened');
             await page.locator('.reader-tabs .reader-tab', { hasText: '首页' }).first().tap();
             await page.locator('.reader-home').waitFor();
             assert.equal(new URL(page.url()).pathname, '/', name + ' bottom tab returns home');
+            assert.equal(await page.locator('.reader-tabs .reader-tab', { hasText: '首页' }).first().getAttribute('aria-current'), 'page', name + ' bottom tab highlight follows back home');
           }
         }
         if (slug === 'search') {
