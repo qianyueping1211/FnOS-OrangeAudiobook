@@ -58,9 +58,11 @@ jobs:
           TING_TEST_JS_PLUGIN_DIR: ${{ runner.temp }}/ting-reader-js-plugins
           # The suite runs hundreds of tests in parallel; the default 2 MiB test
           # thread stack is tight enough that a deep recursion surfaces as a bare
-          # SIGSEGV instead of a readable assertion failure.
+          # SIGSEGV instead of a readable assertion failure. Serialising the run
+          # also keeps the embedded V8 platform and the network fixtures from
+          # competing, and makes any residual crash name the test that caused it.
           RUST_MIN_STACK: 8388608
-        run: cargo test --locked
+        run: cargo test --locked -- --test-threads=1
       # The same gateway smoke test runs on the final native binary before release.
       - name: Report tests requiring external artifacts
         working-directory: backend
