@@ -44,7 +44,7 @@ import {
 export const CoverFrame: React.FC<CoverFrameProps> = ({ value, alt, book, className = '' }) => {
   const [failedSrc, setFailedSrc] = useState('');
   const rawValue = typeof value === 'string' ? value.trim() : '';
-  const src = rawValue ? getCoverUrl(rawValue, book?.library_id, book?.id) : '';
+  const src = rawValue ? getCoverUrl(rawValue, book?.library_id, book?.id, 320) : '';
   const failed = src === failedSrc;
 
   return (

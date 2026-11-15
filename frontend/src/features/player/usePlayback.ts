@@ -795,7 +795,7 @@ export const usePlayback = () => {
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
     const cover = currentBook?.cover_url
-      ? getCoverUrl(currentBook.cover_url, currentBook.library_id, currentBook.id)
+      ? getCoverUrl(currentBook.cover_url, currentBook.library_id, currentBook.id, 512)
       : null;
     const artist = [
       currentBook?.author?.trim(),

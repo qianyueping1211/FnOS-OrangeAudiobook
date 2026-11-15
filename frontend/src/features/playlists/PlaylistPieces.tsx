@@ -33,12 +33,12 @@ export const PlaylistCoverStack = ({
       <div className="absolute inset-x-[12%] top-[6%] bottom-[18%]">
         {covers.length > 0 && (
           <div className="absolute inset-0 -translate-x-[7%] translate-y-[5%] -rotate-8 rounded-xl bg-primary-100 dark:bg-slate-700 shadow-sm overflow-hidden">
-            {covers[2] && <img src={getCoverUrl(covers[2].cover_url, covers[2].library_id, covers[2].book_id)} alt="" loading="lazy" referrerPolicy="no-referrer" className="w-full h-full object-cover opacity-65" onError={event => { event.currentTarget.style.visibility = 'hidden'; }} />}
+            {covers[2] && <img src={getCoverUrl(covers[2].cover_url, covers[2].library_id, covers[2].book_id, 320)} alt="" loading="lazy" referrerPolicy="no-referrer" className="w-full h-full object-cover opacity-65" onError={event => { event.currentTarget.style.visibility = 'hidden'; }} />}
           </div>
         )}
         {covers[1] && (
           <div className="absolute inset-0 translate-x-[9%] translate-y-[8%] rotate-8 rounded-xl overflow-hidden bg-slate-200 dark:bg-slate-700 shadow-md">
-            <img src={getCoverUrl(covers[1].cover_url, covers[1].library_id, covers[1].book_id)} alt="" loading="lazy" referrerPolicy="no-referrer" className="w-full h-full object-cover opacity-80" onError={event => { event.currentTarget.style.visibility = 'hidden'; }} />
+            <img src={getCoverUrl(covers[1].cover_url, covers[1].library_id, covers[1].book_id, 320)} alt="" loading="lazy" referrerPolicy="no-referrer" className="w-full h-full object-cover opacity-80" onError={event => { event.currentTarget.style.visibility = 'hidden'; }} />
             <div className="absolute inset-0 bg-slate-950/10" />
           </div>
         )}
@@ -46,7 +46,7 @@ export const PlaylistCoverStack = ({
           <div className="absolute inset-0 flex items-center justify-center text-primary-400">
             <ListMusic className="w-1/3 h-1/3" />
           </div>
-          {covers[0] && <img src={getCoverUrl(covers[0].cover_url, covers[0].library_id, covers[0].book_id)} alt="" loading="lazy" referrerPolicy="no-referrer" className="relative w-full h-full object-cover" onError={event => { event.currentTarget.style.visibility = 'hidden'; }} />}
+          {covers[0] && <img src={getCoverUrl(covers[0].cover_url, covers[0].library_id, covers[0].book_id, 320)} alt="" loading="lazy" referrerPolicy="no-referrer" className="relative w-full h-full object-cover" onError={event => { event.currentTarget.style.visibility = 'hidden'; }} />}
         </div>
       </div>
     </div>
@@ -68,7 +68,7 @@ export const BookCover: React.FC<BookCoverProps> = ({ book, coverShape }) => {
   <div className="group flex flex-col relative">
     <div className={`relative ${getCoverAspectClass(coverShape)} overflow-hidden rounded-md shadow-md bg-white dark:bg-slate-800`}>
       <img
-        src={getCoverUrl(book.cover_url, book.library_id, book.id)}
+        src={getCoverUrl(book.cover_url, book.library_id, book.id, 320)}
         alt={book.title}
         loading="lazy"
         referrerPolicy="no-referrer"
@@ -125,7 +125,7 @@ export const SeriesSelectCard: React.FC<SeriesSelectCardProps> = ({ series, sele
       <div className={`w-20 ${getCoverAspectClass(coverShape)} rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 shadow-sm`}>
         {coverUrl ? (
           <img
-            src={getCoverUrl(coverUrl, libraryId, coverBookId)}
+            src={getCoverUrl(coverUrl, libraryId, coverBookId, 480)}
             alt={series.title}
             referrerPolicy="no-referrer"
             className="w-full h-full object-cover"
@@ -211,7 +211,7 @@ export const SelectedOrderPanel: React.FC<SelectedOrderPanelProps> = ({ items, c
             <div className={`w-10 ${getCoverAspectClass(coverShape)} rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 shadow-sm`}>
               {coverUrl ? (
                 <img
-                  src={getCoverUrl(coverUrl, libraryId, bookId)}
+                  src={getCoverUrl(coverUrl, libraryId, bookId, 320)}
                   alt={title}
                   referrerPolicy="no-referrer"
                   className="w-full h-full object-cover"

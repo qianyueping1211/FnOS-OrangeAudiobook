@@ -83,7 +83,7 @@ const BookSelector: React.FC<Props> = ({ onSelect, onClose, excludeIds }) => {
                   <div className={`w-12 sm:w-10 ${getCoverAspectClass(coverShape)} bg-slate-200 dark:bg-slate-700 rounded-md overflow-hidden shrink-0 relative shadow-sm`}>
                     {book.cover_url ? (
                       <img 
-                        src={getCoverUrl(book.cover_url, book.library_id, book.id)}
+                        src={getCoverUrl(book.cover_url, book.library_id, book.id, 320)}
                         referrerPolicy="no-referrer"
                         className="w-full h-full object-cover" 
                         alt="" 

@@ -146,7 +146,7 @@ const BookHeaderSection: React.FC<Props> = ({
           className={`relative block w-full ${coverShape === "square" ? "aspect-square" : "aspect-[3/4]"} rounded-3xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800 transition-transform active:scale-[0.98]`}
         >
           <img
-            src={getCoverUrl(displayCoverUrl, displayLibraryId, book.id)}
+            src={getCoverUrl(displayCoverUrl, displayLibraryId, book.id, 480)}
             alt={book.title}
             className="w-full h-full object-cover rounded-lg shadow-xl"
             referrerPolicy="no-referrer"

@@ -432,7 +432,7 @@ const SeriesDetailPage: React.FC = () => {
           <div className="space-y-6">
             <div className={`${getCoverAspectClass(coverShape)} rounded-2xl overflow-hidden shadow-lg`}>
               <img 
-                src={getCoverUrl(coverUrl, series.library_id)}
+                src={getCoverUrl(coverUrl, series.library_id, undefined, 480)}
                 className="w-full h-full object-cover"
                 alt={series.title}
               />
@@ -521,7 +521,7 @@ const SeriesDetailPage: React.FC = () => {
                   </div>
                   
                   <div className={`w-12 ${getCoverAspectClass(coverShape)} rounded overflow-hidden flex-shrink-0`}>
-                    <img src={getCoverUrl(book.cover_url, book.library_id, book.id)} className="w-full h-full object-cover" alt="" />
+                    <img src={getCoverUrl(book.cover_url, book.library_id, book.id, 320)} className="w-full h-full object-cover" alt="" loading="lazy" decoding="async" />
                   </div>
                   
                   <div className="flex-1 min-w-0">

@@ -232,7 +232,7 @@ const WidgetPage: React.FC = () => {
                 className="flex items-center gap-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-xl cursor-pointer transition-colors"
               >
                 <img 
-                  src={getCoverUrl(book.cover_url || book.cover_url, book.library_id || book.library_id, book.id)}
+                  src={getCoverUrl(book.cover_url || book.cover_url, book.library_id || book.library_id, book.id, 320)}
                   className={`w-10 ${getCoverAspectClass(coverShape)} rounded-lg object-cover shrink-0`} 
                   alt={book.title}
                 />

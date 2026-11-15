@@ -41,6 +41,7 @@ use tokio::signal;
 use tower::{ServiceBuilder, ServiceExt};
 use tower_http::{
     classify::ServerErrorsFailureClass,
+    compression::CompressionLayer,
     cors::CorsLayer,
     services::{ServeDir, ServeFile},
     trace::TraceLayer,
@@ -270,6 +271,28 @@ async fn health_check() -> Json<Value> {
         "version": env!("CARGO_PKG_VERSION"),
         "timestamp": chrono::Utc::now().timestamp(),
     }))
+}
+
+/// `ServeDir` sends no cache metadata, so every visit re-downloaded the whole
+/// bundle. Hashed assets can be cached for a year; the shell has to revalidate.
+async fn static_cache_headers(request: Request, next: Next) -> Response {
+    let path = request.uri().path().to_string();
+    let mut response = next.run(request).await;
+    if response.status() == StatusCode::OK {
+        let value = if path.contains("/assets/") {
+            "public, max-age=31536000, immutable"
+        } else if path.ends_with("index.html")
+            || !path.rsplit('/').next().unwrap_or("").contains('.')
+        {
+            "no-cache"
+        } else {
+            "public, max-age=604800"
+        };
+        response
+            .headers_mut()
+            .insert(header::CACHE_CONTROL, HeaderValue::from_static(value));
+    }
+    response
 }
 
 /// Wait for shutdown signal (Ctrl+C or SIGTERM)

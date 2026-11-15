@@ -186,11 +186,11 @@ const LoginPage: React.FC = () => {
 
       const settingsPatch = { ...changedLoginPreferences.current };
       if (Object.keys(settingsPatch).length > 0) {
-        try {
-          await apiClient.post('/api/settings', settingsPatch);
-        } catch (syncError) {
+        // The shelf can open while the preference sync lands; a failed sync
+        // only costs the saved preferences, not the login.
+        void apiClient.post('/api/settings', settingsPatch).catch((syncError: unknown) => {
           console.error('Failed to sync login preferences', syncError);
-        }
+        });
       }
 
       navigate('/');

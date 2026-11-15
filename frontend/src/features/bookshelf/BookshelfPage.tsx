@@ -277,44 +277,40 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
     dataRequest.current = request;
     setLoading(loadedLibrary.current !== selectedLibraryId);
     try {
-      // 1. Fetch Libraries first
-      const libsRes = await apiClient.get('/api/libraries', { signal: request.signal });
-      if (request.signal.aborted) return;
-      const libs = libsRes.data;
-      setLibraries(libs);
-
-      // 2. Determine effective library ID
-      let effectiveLibraryId = selectedLibraryId;
-      
-      // If we have a selected ID but it's not in the fetched libraries, reset it
-      if (selectedLibraryId) {
-        const exists = libs.find((l: Library) => l.id === selectedLibraryId);
-        if (!exists) {
-          console.warn(`Selected library ${selectedLibraryId} was not found. Resetting to default.`);
-          effectiveLibraryId = '';
-          setSelectedLibraryId('');
-          // Update settings to clear the invalid ID
-          apiClient.post('/api/settings', { bookshelf_library_id: '' });
-        }
-      }
-
-      // 3. Fetch the first page of books plus the series list
+      // The library list only feeds the switcher, so it is fetched alongside
+      // the first screen of books instead of in front of it.
       const pageSize = pageSizeRef.current;
-      const [booksRes, seriesRes] = await Promise.all([
+      const [libsRes, booksRes, seriesRes] = await Promise.all([
+        apiClient.get('/api/libraries', { signal: request.signal }),
         apiClient.get('/api/books/page', {
           signal: request.signal,
           params: {
-            library_id: effectiveLibraryId || undefined,
+            library_id: selectedLibraryId || undefined,
             page: 1,
             page_size: pageSize,
             sort: sortForApi(sortBy),
           },
         }),
-        apiClient.get('/api/v1/series', { signal: request.signal, params: { library_id: effectiveLibraryId || undefined } })
+        apiClient.get('/api/v1/series', {
+          signal: request.signal,
+          params: { library_id: selectedLibraryId || undefined },
+        }),
       ]);
       if (request.signal.aborted) return;
+      const libs = libsRes.data as Library[];
+      setLibraries(libs);
+
+      // A saved library id that no longer exists is dropped, which re-runs
+      // this effect without a filter.
+      if (selectedLibraryId && !libs.some((library) => library.id === selectedLibraryId)) {
+        console.warn(`Selected library ${selectedLibraryId} was not found. Resetting to default.`);
+        setSelectedLibraryId('');
+        apiClient.post('/api/settings', { bookshelf_library_id: '' });
+        return;
+      }
+
       const pageData = booksRes.data as { items: Book[]; total: number };
-      loadedLibrary.current = effectiveLibraryId;
+      loadedLibrary.current = selectedLibraryId;
       setBooks(pageData.items || []);
       setTotalBooks(typeof pageData.total === 'number' ? pageData.total : (pageData.items?.length ?? 0));
       setSeries(seriesRes.data);

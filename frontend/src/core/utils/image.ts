@@ -15,7 +15,7 @@ export const invalidateBookCover = (bookId: string) => {
   }
 };
 
-export const getCoverUrl = (url?: string, libraryId?: string, bookId?: string) => {
+export const getCoverUrl = (url?: string, libraryId?: string, bookId?: string, width?: number) => {
   // Prioritize the store's activeUrl, which is dynamically updated and authoritative
   let baseUrl = useAuthStore.getState().activeUrl;
 
@@ -58,6 +58,12 @@ export const getCoverUrl = (url?: string, libraryId?: string, bookId?: string) =
   // If we have a libraryId, use the proxy endpoint
   if (libraryId) {
     let coverUrl = `${getRuntimeUrl('/api/proxy/cover', baseUrl)}?path=${encodeURIComponent(url)}&library_id=${libraryId}`;
+
+    // Ask for a shelf-sized thumbnail: full artwork is several times heavier
+    // than what a card or a mini player can show.
+    if (width && width > 0) {
+      coverUrl += `&w=${Math.round(width)}`;
+    }
     
     if (bookId) {
       coverUrl += `&book_id=${encodeURIComponent(bookId)}`;

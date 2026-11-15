@@ -26,7 +26,7 @@ const SeriesCard: React.FC<SeriesCardProps> = ({ series, onClick, coverShape = '
         {/* Main cover */}
         <div className="relative h-full w-full rounded-md overflow-hidden shadow-md bg-white dark:bg-slate-800">
             <img 
-              src={getCoverUrl(series.cover_url, series.library_id)}
+              src={getCoverUrl(series.cover_url, series.library_id, undefined, 320)}
               alt={series.title}
               loading="lazy"
               referrerPolicy="no-referrer"

@@ -7,7 +7,7 @@ import { getCoverUrl } from '../../core/utils/image';
 
 const PlayerCover: React.FC<{ book: Book | null | undefined }> = ({ book }) => {
   const [failedUrl, setFailedUrl] = React.useState<string>();
-  const url = getCoverUrl(book?.cover_url, book?.library_id, book?.id);
+  const url = getCoverUrl(book?.cover_url, book?.library_id, book?.id, 640);
   return failedUrl === url ? (
     <div role="img" aria-label={book?.title} className="w-full h-full bg-slate-200 dark:bg-slate-800" />
   ) : (

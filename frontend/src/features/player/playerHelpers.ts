@@ -42,7 +42,7 @@ export const useThemeColorSync = (currentBook: Book | null | undefined) => {
     }
     if (!currentBook.cover_url) return;
 
-    const coverUrl = getCoverUrl(currentBook.cover_url, currentBook.library_id, currentBook.id);
+    const coverUrl = getCoverUrl(currentBook.cover_url, currentBook.library_id, currentBook.id, 640);
     const fac = new FastAverageColor();
     let cancelled = false;
     fac

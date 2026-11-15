@@ -33,7 +33,7 @@ export default function BookshelfListItem({ item, kind, coverShape, iconSize, se
     <>
       <div className={`${coverWidth} ${coverShape === 'square' ? 'aspect-square' : 'aspect-[3/4]'} shrink-0 overflow-hidden rounded-lg bg-slate-100 shadow-sm dark:bg-slate-800`}>
         <img
-          src={getCoverUrl(item.cover_url, item.library_id, isSeries ? undefined : item.id)}
+          src={getCoverUrl(item.cover_url, item.library_id, isSeries ? undefined : item.id, 320)}
           alt=""
           loading="lazy"
           referrerPolicy="no-referrer"

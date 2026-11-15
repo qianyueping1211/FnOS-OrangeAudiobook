@@ -384,17 +384,22 @@ impl ApiServer {
         // Combine public and protected routes
         let api_router = Router::new().merge(public_router).merge(protected_router);
 
-        // Static file serving for SPA
+        // Static file serving for SPA. Hashed bundles are safe to cache for a
+        // year; the shell page must stay revalidated so new builds are picked
+        // up on the next visit.
         let static_dir = std::env::var("STATIC_DIR").unwrap_or_else(|_| "static".to_string());
         let index_path = std::path::PathBuf::from(&static_dir).join("index.html");
         let manifest_path = std::path::PathBuf::from(&static_dir).join("manifest.webmanifest");
         let serve_manifest = ServeFile::new(manifest_path);
         let serve_dir = ServeDir::new(&static_dir).fallback(ServeFile::new(index_path));
+        let static_router = Router::new()
+            .route_service("/manifest.webmanifest", serve_manifest)
+            .fallback_service(serve_dir)
+            .layer(middleware::from_fn(static_cache_headers))
+            .layer(CompressionLayer::new());
 
         // Apply global middleware layers
-        let router = api_router
-            .route_service("/manifest.webmanifest", serve_manifest)
-            .fallback_service(serve_dir);
+        let router = api_router.merge(static_router);
         let router = router.layer(middleware::from_fn(ensure_manifest_link));
         let router = router.layer(
             ServiceBuilder::new()

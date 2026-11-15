@@ -30,7 +30,7 @@ const ActivityBookCard = ({ book, coverShape, countLabel, preview, meta, percent
       {selection}
       <button onClick={onExpand} aria-expanded={expanded} className="group flex min-w-0 flex-1 items-center gap-3 text-left md:gap-4">
         <div className={`w-16 shrink-0 overflow-hidden rounded-xl shadow-sm md:w-20 ${getCoverAspectClass(coverShape)}`}>
-          <img src={getCoverUrl(book.cover_url, book.library_id, book.book_id)} alt={book.book_title || ''} referrerPolicy="no-referrer" loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+          <img src={getCoverUrl(book.cover_url, book.library_id, book.book_id, 320)} alt={book.book_title || ''} referrerPolicy="no-referrer" loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">

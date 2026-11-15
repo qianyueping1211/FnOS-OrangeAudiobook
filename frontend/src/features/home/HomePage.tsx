@@ -40,6 +40,7 @@ export default function HomePage() {
   useEffect(() => {
     let current = initial || emptyHome();
     let booksReady = !!initial;
+    let heroBook: Book | undefined;
     let request: AbortController | undefined;
     const refresh = () => {
       request?.abort();
@@ -65,9 +66,35 @@ export default function HomePage() {
       };
       const options = { signal: controller.signal };
       // Each section commits independently: a slow collection never blocks the hero or latest books.
-      void apiClient.get<Book[]>('/api/books', options).then(({data}) => update({ books: data || [], bookCount: data?.length || 0 }, true))
+      // Only the first screen of books is requested - a large library no longer
+      // ships every row before the page can paint.
+      void apiClient.get<{ items: Book[]; total: number }>('/api/books/page', {
+        ...options,
+        params: { page_size: 24, sort: 'created' },
+      }).then(({ data }) => update({
+        books: [...(data.items || []), ...(heroBook && !(data.items || []).some(book => book.id === heroBook!.id) ? [heroBook] : [])],
+        bookCount: typeof data.total === 'number' ? data.total : (data.items?.length || 0),
+      }, true))
         .catch(() => { if (active()) { booksReady = true; setData({ ...current, identity, loading: false }); } });
-      void apiClient.get<Progress[]>('/api/progress/recent', options).then(({data}) => update({ recent: data || [] })).catch(() => {});
+      void apiClient.get<Progress[]>('/api/progress/recent', options).then(({ data }) => {
+        const recentRows = data || [];
+        update({ recent: recentRows });
+        // Resuming has to survive paging: when the last book played is older
+        // than the newest page, fetch it on its own.
+        const lastId = [...recentRows]
+          .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))[0]?.book_id;
+        if (lastId && !current.books.some(book => book.id === lastId)) {
+          void apiClient.get<Book>(`/api/books/${encodeURIComponent(lastId)}`, options)
+            .then(({ data: lastBook }) => {
+              if (!lastBook?.id) return;
+              heroBook = lastBook;
+              if (!current.books.some(book => book.id === lastBook.id)) {
+                update({ books: [...current.books, lastBook] });
+              }
+            })
+            .catch(() => {});
+        }
+      }).catch(() => {});
       void apiClient.get<Book[]>('/api/favorites', options).then(({data}) => update({ favorites: data || [] })).catch(() => {});
       void apiClient.get<Playlist[]>('/api/playlists', options).then(({data}) => update({ playlists: data || [] })).catch(() => {});
       void apiClient.get<Series[]>('/api/v1/series', options).then(({data}) => update({ series: data || [] })).catch(() => {});
@@ -115,7 +142,7 @@ export default function HomePage() {
         </Link>
       </div>
       {hero ? <Link to={bookUrl} className="reader-hero-cover-link" aria-label={t('home.viewDetails') + ' ' + hero.title}>
-        <CoverArt title={hero.title} url={hero.cover_url} libraryId={hero.library_id} bookId={hero.id} className="reader-hero-cover" />
+        <CoverArt title={hero.title} url={hero.cover_url} libraryId={hero.library_id} bookId={hero.id} width={480} className="reader-hero-cover" />
       </Link> : <CoverArt title={t('common.appName')} className="reader-hero-cover" />}
     </section>}
     {layout.showStats && <nav className="reader-shortcuts" aria-label={t('reader.quickAccess')}>
