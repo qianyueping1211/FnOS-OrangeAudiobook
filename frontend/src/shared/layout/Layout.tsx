@@ -82,20 +82,43 @@ const Layout: React.FC = () => {
       requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number;
       cancelIdleCallback?: (handle: number) => void;
     };
-    const warm = () => {
-      void import('../../features/bookshelf/BookshelfPage');
-      void import('../../features/playlists/MyPlaylistsPage');
-      void import('../../features/mine/MyPage');
+    // 页面 chunk 逐个取回，而不是一次并发四个：同时下载并解析四个 chunk 会把
+    // 主线程占住一小段，恰好落在用户刚点开菜单、刚输入完的那一刻，就会觉得
+    // "点了没反应"。串行 + 间隔后，预热对交互几乎无感。
+    const warmers: Array<() => Promise<unknown>> = [
+      () => import('../../features/bookshelf/BookshelfPage'),
+      () => import('../../features/playlists/MyPlaylistsPage'),
+      () => import('../../features/mine/MyPage'),
       // 播放页同样先取回来：只加载代码，不挂载、不取音频，所以不会出声；
       // 点「播放」时页面立刻能画出来，剩下的只是恢复已有进度。
-      void import('../../features/player/PlayerPage');
+      () => import('../../features/player/PlayerPage'),
+    ];
+    let cancelled = false;
+    let timer: number | undefined;
+    let index = 0;
+    const next = () => {
+      if (cancelled || index >= warmers.length) return;
+      // 用户切走或页面不可见时先不做，别在后台抢主线程。
+      if (document.visibilityState !== 'visible') {
+        timer = window.setTimeout(next, 800);
+        return;
+      }
+      void warmers[index++]().catch(() => undefined);
+      timer = window.setTimeout(next, 320);
     };
     if (typeof idleWindow.requestIdleCallback === 'function') {
-      const handle = idleWindow.requestIdleCallback(warm, { timeout: 3000 });
-      return () => idleWindow.cancelIdleCallback?.(handle);
+      const handle = idleWindow.requestIdleCallback(next, { timeout: 3000 });
+      return () => {
+        cancelled = true;
+        if (timer !== undefined) window.clearTimeout(timer);
+        idleWindow.cancelIdleCallback?.(handle);
+      };
     }
-    const timer = window.setTimeout(warm, 1500);
-    return () => window.clearTimeout(timer);
+    timer = window.setTimeout(next, 1500);
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
   }, []);
 
   // 历史栈被压平后由我们自己记路径，站内返回按钮从这里取上一页。
