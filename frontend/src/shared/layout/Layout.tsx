@@ -109,8 +109,15 @@ const Layout: React.FC = () => {
       // primePlaybackFromWarm 直接把内容交给播放器，所以是显示而不是等待。
       () => warmRecentPlayback().then(warmed => {
         // 数据到手就在后台把播放器挂到树上：不可见、不出声，只等被叫到。
-        // 点「播放」tab 或点迷你卡展开时解掉这层隐藏，画面已经是画好的。
-        if (warmed && primePlaybackFromWarm()) usePlayerStore.getState().setIsBackstage(true);
+        // 只有「此前播放器完全是空的」且「用户此刻不在播放页」时才进后台态，
+        // 否则会把已经看得见的迷你卡又藏回去。
+        if (warmed) {
+          const before = usePlayerStore.getState().currentChapter;
+          const primed = primePlaybackFromWarm();
+          if (primed && !before && window.location.pathname !== '/player') {
+            usePlayerStore.getState().setIsBackstage(true);
+          }
+        }
         return warmed;
       }),
     ];
@@ -143,8 +150,11 @@ const Layout: React.FC = () => {
   }, []);
 
   // 历史栈由我们自己记路径，站内返回按钮从这里取上一页。
+  // 进过播放页就算"用户已经召见过播放器"：后台态到此结束，之后收起、
+  // 返回首页都要照常显示迷你卡，不能又缩回看不见的状态。
   React.useEffect(() => {
     rememberPath(`${location.pathname}${location.search}`);
+    if (location.pathname === '/player') usePlayerStore.getState().setIsBackstage(false);
   }, [location.pathname, location.search]);
 
   // 左边缘右滑是 WebView 的"返回"。站内跳转保持真实历史后，宿主手势自己就会
