@@ -324,8 +324,10 @@ async function fixture(context, gated = false) {
       // 落到上一个分区，底部导航的选中项也跟着换过去。
       if (mobile) {
         assert.equal(await page.locator('.reader-tab.is-active').getAttribute('href'), '/mine');
-        await page.evaluate(() => window.history.back());
+        const historyDepth = await page.evaluate(() => history.length);
+        await page.locator('.reader-tab[href="/bookshelf"]').click();
         await page.waitForFunction(() => location.pathname === '/bookshelf');
+        assert.equal(await page.evaluate(() => history.length), historyDepth + 1, name + ' one tap must add exactly one history entry');
         assert.equal(await page.locator('.reader-tab.is-active').getAttribute('href'), '/bookshelf');
       }
       await page.locator(nav + ' a[href="/bookshelf"]').click();
