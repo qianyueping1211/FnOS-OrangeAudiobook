@@ -10,6 +10,7 @@ import {
   Info,
   Edit,
   RefreshCw,
+  FolderOpen,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Book } from "../../../core/types";
@@ -47,6 +48,10 @@ interface Props {
   onOpenEditModal: () => void;
   onSetIsTagsExpanded: (expanded: boolean) => void;
   onSetIsDescriptionExpanded: (expanded: boolean) => void;
+  canViewLocal?: boolean;
+  onViewLocal?: () => void;
+  viewingLocal?: boolean;
+  localViewError?: string;
 }
 
 const BookHeaderSection: React.FC<Props> = ({
@@ -78,6 +83,10 @@ const BookHeaderSection: React.FC<Props> = ({
   onOpenEditModal,
   onSetIsTagsExpanded,
   onSetIsDescriptionExpanded,
+  canViewLocal,
+  onViewLocal,
+  viewingLocal,
+  localViewError,
 }) => {
   const { t } = useTranslation();
   const playLabel =
@@ -353,12 +362,27 @@ const BookHeaderSection: React.FC<Props> = ({
               : {}
           }
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold text-sm uppercase tracking-wider opacity-60">
               <Info size={16} />
               {t("bookshelf.descriptionTitle")}
             </div>
+            {canViewLocal && onViewLocal && (
+              <button
+                type="button"
+                onClick={onViewLocal}
+                disabled={viewingLocal}
+                title={t("bookshelf.viewLocalHint")}
+                className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200/70 bg-white/70 px-2 py-1 text-[11px] font-bold text-slate-500 transition-colors hover:text-primary-600 disabled:opacity-50 dark:border-slate-700/70 dark:bg-slate-800/70 dark:text-slate-300"
+              >
+                {viewingLocal ? <RefreshCw size={13} className="animate-spin" /> : <FolderOpen size={13} />}
+                {t("bookshelf.viewLocal")}
+              </button>
+            )}
           </div>
+          {localViewError && (
+            <p className="text-xs font-bold text-red-500 dark:text-red-400">{localViewError}</p>
+          )}
           <div className="relative">
             <p
               ref={descriptionRef}

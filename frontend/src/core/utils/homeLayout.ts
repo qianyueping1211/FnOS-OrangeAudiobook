@@ -1,3 +1,5 @@
+import { safeStorage } from './storage';
+
 export type HomeLayoutSettings = {
   showHero: boolean;
   showStats: boolean;
@@ -39,3 +41,25 @@ export const serializeHomeLayout = (value: HomeLayoutSettings) => ({
   show_recently_added: value.showRecentlyAdded,
   show_collections: value.showCollections,
 });
+
+// The first frame cannot wait for /api/settings, so the last layout this device
+// settled on is remembered locally. Without it the home page painted every section
+// at the defaults and then yanked the ones the reader had switched off - a
+// flash of "recently added" that vanished a moment later.
+const HOME_LAYOUT_CACHE_KEY = 'home_layout_cache';
+
+export const readCachedHomeLayout = (): HomeLayoutSettings | null => {
+  const raw = safeStorage.getItem(HOME_LAYOUT_CACHE_KEY);
+  if (!raw) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') return normalizeHomeLayout(parsed);
+  } catch {
+    // A corrupted cache must never keep the page from painting.
+  }
+  return null;
+};
+
+export const cacheHomeLayout = (value: HomeLayoutSettings) => {
+  safeStorage.setItem(HOME_LAYOUT_CACHE_KEY, JSON.stringify(serializeHomeLayout(value)));
+};

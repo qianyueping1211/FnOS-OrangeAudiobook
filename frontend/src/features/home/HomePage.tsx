@@ -5,6 +5,7 @@ import { ChevronRight, Headphones, Heart, History, Library, ListMusic, Search } 
 import apiClient from '../../core/api/client';
 import type { Book, Playlist, Progress, Series } from '../../core/types';
 import { DEFAULT_HOME_LAYOUT, normalizeHomeLayout, type HomeLayoutSettings } from '../../core/utils/homeLayout';
+import { cacheHomeLayout, readCachedHomeLayout } from '../../core/utils/homeLayout';
 import { useBookshelfCoverShape } from '../../core/hooks/useBookshelfCoverShape';
 import { usePlayerStore } from '../../core/stores/playerStore';
 import BookCard from '../../shared/cards/BookCard';
@@ -17,9 +18,16 @@ import { loadClientSettings } from '../../core/api/clientSettings';
 type HomeSnapshot = {
   books: Book[]; bookCount: number; recent: Progress[]; favorites: Book[];
   playlists: Playlist[]; series: Series[]; layout: HomeLayoutSettings;
+  // Whether the resume history has answered for this snapshot. Until it has, the
+  // hero must not fall back to the newest book, otherwise the "recently added"
+  // frame shows for a moment and is replaced by "continue listening".
+  recentLoaded?: boolean;
 };
 const emptyHome = (): HomeSnapshot => ({
-  books: [], bookCount: 0, recent: [], favorites: [], playlists: [], series: [], layout: DEFAULT_HOME_LAYOUT,
+  // Start from the layout this device used last, not the defaults: otherwise the
+  // sections the reader switched off paint for one frame and then disappear.
+  books: [], bookCount: 0, recent: [], favorites: [], playlists: [], series: [],
+  layout: readCachedHomeLayout() ?? DEFAULT_HOME_LAYOUT, recentLoaded: false,
 });
 const homeIdentity = () => {
   const state = useAuthStore.getState();
@@ -35,13 +43,12 @@ export default function HomePage() {
   const initial = useMemo(() => libraryViewCache.get<HomeSnapshot>(identity, 'home'), [identity]);
   const [data, setData] = useState(() => ({ ...(initial || emptyHome()), identity, loading: !initial }));
   const visible = data.identity === identity ? data : { ...(initial || emptyHome()), identity, loading: !initial };
-  const { books, bookCount, recent, favorites, playlists, series, layout, loading } = visible;
+  const { books, bookCount, recent, favorites, playlists, series, layout, loading, recentLoaded } = visible;
 
   useEffect(() => {
     let current = initial || emptyHome();
     let booksReady = !!initial;
-    let heroBook: Book | undefined;
-    let request: AbortController | undefined;
+    let heroBook: Book | undefined;    let request: AbortController | undefined;
     const refresh = () => {
       request?.abort();
       const controller = new AbortController();
@@ -59,6 +66,7 @@ export default function HomePage() {
           if (lastBook && !latest.some(book => book.id === lastId)) latest.push(lastBook);
           libraryViewCache.set(identity, 'home', {
             ...current, books: latest, recent: current.recent.slice(0,20), favorites: current.favorites.slice(0,12),
+            recentLoaded: !!current.recentLoaded || current.recent.length > 0,
             playlists: current.playlists.slice(0,4).map(item => ({ ...item, book_ids: item.book_ids || item.books?.map(book => book.id), books: [] })),
             series: current.series.slice(0,2).map(item => ({ ...item, books: undefined })),
           } satisfies HomeSnapshot);
@@ -78,7 +86,7 @@ export default function HomePage() {
         .catch(() => { if (active()) { booksReady = true; setData({ ...current, identity, loading: false }); } });
       void apiClient.get<Progress[]>('/api/progress/recent', options).then(({ data }) => {
         const recentRows = data || [];
-        update({ recent: recentRows });
+        update({ recent: recentRows, recentLoaded: true });
         // Resuming has to survive paging: when the last book played is older
         // than the newest page, fetch it on its own.
         const lastId = [...recentRows]
@@ -94,11 +102,15 @@ export default function HomePage() {
             })
             .catch(() => {});
         }
-      }).catch(() => {});
+      }).catch(() => update({ recentLoaded: true }));
       void apiClient.get<Book[]>('/api/favorites', options).then(({data}) => update({ favorites: data || [] })).catch(() => {});
       void apiClient.get<Playlist[]>('/api/playlists', options).then(({data}) => update({ playlists: data || [] })).catch(() => {});
       void apiClient.get<Series[]>('/api/v1/series', options).then(({data}) => update({ series: data || [] })).catch(() => {});
-      void loadClientSettings().then(settings => update({ layout: normalizeHomeLayout(settings.settings_json?.home_layout ?? settings.home_layout) })).catch(() => {});
+      void loadClientSettings().then(settings => {
+        const layout = normalizeHomeLayout(settings.settings_json?.home_layout ?? settings.home_layout);
+        cacheHomeLayout(layout);
+        update({ layout });
+      }).catch(() => {});
     };
     refresh();
     window.addEventListener('focus', refresh);
@@ -117,7 +129,14 @@ export default function HomePage() {
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
     .slice(0, 12);
   const last = recentBooks[0];
-  const hero = currentBook || books.find(book => book.id === last?.book_id) || latest[0] || favorites[0];
+  // The hero waits for the resume history before it considers the newest book:
+  // /api/books/page usually answers before /api/progress/recent, so falling back
+  // early paints "recently added" for a frame and then swaps to "continue
+  // listening". Only the player's current book may show immediately.
+  const heroReview = currentBook
+    || (recentLoaded ? (books.find(book => book.id === last?.book_id) || latest[0] || favorites[0]) : undefined);
+  const heroPending = !heroReview && (loading || !recentLoaded);
+  const hero = heroReview;
   const hasResume = !!hero && ((currentBook?.id === hero.id && !!currentChapter) || last?.book_id === hero.id);
   const resumeChapterId = currentBook?.id === hero?.id ? currentChapter?.id : last?.book_id === hero?.id ? last.chapter_id : undefined;
   const playerQuery = new URLSearchParams();
@@ -131,10 +150,10 @@ export default function HomePage() {
       <Link to="/search" className="reader-search-link"><Search size={19} /><span>{t('reader.searchPlaceholder')}</span></Link>
     </header>
     <div className="reader-page-scroll">
-    {layout.showHero && <section className="reader-hero" aria-busy={loading && !hero}>
+    {layout.showHero && <section className="reader-hero" aria-busy={heroPending}>
       <div className="reader-hero-copy">
         {hasResume && <div className="reader-eyebrow"><Headphones size={15} />{t('home.continueListening')}</div>}
-        <h2>{hero?.title || t(loading ? 'common.loading' : 'reader.emptyTitle')}</h2>
+        <h2>{hero?.title || t(heroPending ? 'common.loading' : 'reader.emptyTitle')}</h2>
         <p>{hero?.narrator || hero?.author || t('reader.emptySubtitle')}</p>
         {hero?.description && <p className="reader-hero-description">{hero.description}</p>}
         <Link className="reader-button primary" to={hasResume ? '/player?' + playerQuery.toString() : bookUrl}>

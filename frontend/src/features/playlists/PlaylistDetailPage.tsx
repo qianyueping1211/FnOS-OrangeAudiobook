@@ -7,7 +7,7 @@ import type { Book, Playlist, PlaylistItem, Series } from '../../core/types';
 import BookCard from '../../shared/cards/BookCard';
 import BackButton from '../../shared/widgets/BackButton';
 import { usePlayerStore } from '../../core/stores/playerStore';
-import { Check, Edit3, Layers, ListMusic, Loader2, Plus, Save, Search, Trash2, X } from 'lucide-react';
+import { Check, Edit3, ListMusic, Loader2, Plus, Save, Search, Trash2, X } from 'lucide-react';
 import { getBookshelfGridClass, useBookshelfDisplaySettings } from '../../core/hooks/useBookshelfCoverShape';
 import { getPlaylistBookCount } from '../../core/utils/playlist';
 import { readPlaylistSnapshot, cachePlaylistSnapshot } from '../../core/utils/playlistSnapshot';
@@ -17,7 +17,6 @@ import {
   EmptyPlaylistState,
   PlaylistSeriesCard,
   SelectedOrderPanel,
-  SeriesSelectCard,
   samePlaylistItem,
   type EditablePlaylistItem,
 } from './PlaylistPieces';
@@ -41,14 +40,12 @@ const PlaylistDetailPage: React.FC = () => {
   const { coverShape, iconSize } = useBookshelfDisplaySettings();
   const [playlist, setPlaylist] = useState<Playlist | null>(() => readPlaylistSnapshot(id));
   const [books, setBooks] = useState<Book[]>([]);
-  const [series, setSeries] = useState<Series[]>([]);
   const [knownBooks, setKnownBooks] = useState<Map<string, Book>>(() => new Map());
-  const [knownSeries, setKnownSeries] = useState<Map<string, Series>>(() => new Map());
   const [loading, setLoading] = useState(() => !readPlaylistSnapshot(id));
   const [isManaging, setIsManaging] = useState(false);
   const [selectedItems, setSelectedItems] = useState<EditablePlaylistItem[]>([]);
   const [query, setQuery] = useState('');
-  const [manageView, setManageView] = useState<'books' | 'series'>('books');
+  const [manageTab, setManageTab] = useState<'search' | 'selected'>('search');
   const [showEditModal, setShowEditModal] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -103,23 +100,13 @@ const PlaylistDetailPage: React.FC = () => {
     });
   };
 
-  const mergeKnownSeries = (incoming: Series[]) => {
-    if (incoming.length === 0) return;
-    setKnownSeries(previous => {
-      const next = new Map(previous);
-      incoming.forEach(item => next.set(item.id, item));
-      return next;
-    });
-  };
-
   // Manage content searches on demand instead of pulling the whole library:
   // nothing is requested until the reader types, then only the matching rows
   // come back.
-  const searchCatalog = async (value: string, view: 'books' | 'series') => {
+  const searchCatalog = async (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) {
       setBooks([]);
-      setSeries([]);
       setSearching(false);
       return;
     }
@@ -127,19 +114,11 @@ const PlaylistDetailPage: React.FC = () => {
     searchSeq.current = seq;
     setSearching(true);
     try {
-      if (view === 'series') {
-        const res = await apiClient.get('/api/v1/series', { params: { search: trimmed } });
-        if (searchSeq.current !== seq) return;
-        const list: Series[] = res.data || [];
-        setSeries(list);
-        mergeKnownSeries(list);
-      } else {
-        const res = await apiClient.get('/api/books/page', { params: { search: trimmed, page_size: 30 } });
-        if (searchSeq.current !== seq) return;
-        const list: Book[] = res.data?.items || [];
-        setBooks(list);
-        mergeKnownBooks(list);
-      }
+      const res = await apiClient.get('/api/books/page', { params: { search: trimmed, page_size: 30 } });
+      if (searchSeq.current !== seq) return;
+      const list: Book[] = res.data?.items || [];
+      setBooks(list);
+      mergeKnownBooks(list);
     } catch (err) {
       console.error('Failed to search playlist catalog', err);
     } finally {
@@ -152,18 +131,19 @@ const PlaylistDetailPage: React.FC = () => {
     if (searchTimer.current) window.clearTimeout(searchTimer.current);
     if (!value.trim()) {
       setBooks([]);
-      setSeries([]);
       setSearching(false);
       return;
     }
     searchTimer.current = window.setTimeout(() => {
-      void searchCatalog(value, manageView);
+      void searchCatalog(value);
     }, 320);
   };
 
-  const switchManageView = (next: 'books' | 'series') => {
-    setManageView(next);
-    if (query.trim()) void searchCatalog(query, next);
+  const switchManageTab = (next: 'search' | 'selected') => {
+    setManageTab(next);
+    // Returning to the search tab keeps whatever was typed, so the results are
+    // fetched again instead of leaving an empty grid behind.
+    if (next === 'search' && query.trim()) void searchCatalog(query);
   };
 
   useEffect(() => {
@@ -198,12 +178,14 @@ const PlaylistDetailPage: React.FC = () => {
   }, [knownBooks, playlist?.books]);
 
   const seriesMap = useMemo(() => {
-    const map = new Map<string, Series>(knownSeries);
+    // Series rows only ever come from the playlist itself now that the manage
+    // sheet searches books, so the map is built from the loaded items.
+    const map = new Map<string, Series>();
     getPlaylistItems(playlist).forEach(item => {
       if (item.series) map.set(item.series.id, item.series);
     });
     return map;
-  }, [knownSeries, playlist]);
+  }, [playlist]);
 
   const selectedDisplayItems = useMemo(() => (
     selectedItems
@@ -228,14 +210,6 @@ const PlaylistDetailPage: React.FC = () => {
       prev.some(item => samePlaylistItem(item, 'book', bookId))
         ? prev.filter(item => !samePlaylistItem(item, 'book', bookId))
         : [...prev, { item_type: 'book', item_id: bookId }]
-    ));
-  };
-
-  const toggleSeries = (item: Series) => {
-    setSelectedItems(prev => (
-      prev.some(selected => samePlaylistItem(selected, 'series', item.id))
-        ? prev.filter(selected => !samePlaylistItem(selected, 'series', item.id))
-        : [...prev, { item_type: 'series', item_id: item.id }]
     ));
   };
 
@@ -270,7 +244,7 @@ const PlaylistDetailPage: React.FC = () => {
       })));
       setIsManaging(false);
       setQuery('');
-      setManageView('books');
+      setManageTab('search');
     } catch (err) {
       console.error('Failed to save playlist items', err);
       alert(apiErrorMessage(err, t('common.saveFailed')));
@@ -387,9 +361,8 @@ const PlaylistDetailPage: React.FC = () => {
                     })));
                     setQuery('');
                     setBooks([]);
-                    setSeries([]);
                     setSearching(false);
-                    setManageView('books');
+                    setManageTab('search');
                   }}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-sm font-bold"
                 >
@@ -419,9 +392,8 @@ const PlaylistDetailPage: React.FC = () => {
                     setIsManaging(true);
                     setQuery('');
                     setBooks([]);
-                    setSeries([]);
                     setSearching(false);
-                    setManageView('books');
+                    setManageTab('search');
                   }}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary-600 text-white text-sm font-bold shadow-lg shadow-primary-500/25"
                 >
@@ -441,135 +413,143 @@ const PlaylistDetailPage: React.FC = () => {
           </div>
         </div>
 
-        {(isManaging || playlistItems.length > 0) && (
-          <div className="flex flex-wrap items-center gap-3">
-            {isManaging && (
-              <div className="flex w-full sm:w-auto bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
-                <button
-                  onClick={() => switchManageView('books')}
-                  className={`flex items-center gap-2 px-3 py-2 text-sm font-bold rounded-lg transition-all ${
-                    manageView === 'books'
-                      ? 'bg-white dark:bg-slate-700 shadow-sm text-primary-600'
-                      : 'text-slate-500'
-                  }`}
-                >
-                  <ListMusic size={16} />
-                  {t('playlists.books')}
-                </button>
-                <button
-                  onClick={() => switchManageView('series')}
-                  className={`flex items-center gap-2 px-3 py-2 text-sm font-bold rounded-lg transition-all ${
-                    manageView === 'series'
-                      ? 'bg-white dark:bg-slate-700 shadow-sm text-primary-600'
-                      : 'text-slate-500'
-                  }`}
-                >
-                  <Layers size={16} />
-                  {t('playlists.series')}
-                </button>
+        {isManaging && (
+          <div className="mx-auto grid w-full max-w-md grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+            <button
+              type="button"
+              aria-pressed={manageTab === 'search'}
+              onClick={() => switchManageTab('search')}
+              className={`rounded-lg px-3 py-2 text-sm font-bold transition-all ${
+                manageTab === 'search'
+                  ? 'bg-white text-primary-600 shadow-sm dark:bg-slate-700'
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              {t('playlists.searchTab')}
+            </button>
+            <button
+              type="button"
+              aria-pressed={manageTab === 'selected'}
+              onClick={() => switchManageTab('selected')}
+              className={`rounded-lg px-3 py-2 text-sm font-bold transition-all ${
+                manageTab === 'selected'
+                  ? 'bg-white text-primary-600 shadow-sm dark:bg-slate-700'
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              {t('playlists.selectedTab')}
+            </button>
+          </div>
+        )}
+
+        {isManaging ? (
+          manageTab === 'selected' ? (
+            <SelectedOrderPanel
+              items={selectedDisplayItems}
+              coverShape={coverShape}
+              onMove={moveSelectedItem}
+              onRemove={removeSelectedItem}
+            />
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative flex-1 min-w-0">
+                  <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={query}
+                    onChange={event => handleQueryChange(event.target.value)}
+                    placeholder={t('playlists.searchBooksPlaceholder')}
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary-500 dark:text-white"
+                  />
+                </div>
+                <span className="text-sm font-bold text-slate-500 px-2 whitespace-nowrap">
+                  {t('playlists.selectedItems', { count: selectedItems.length })}
+                </span>
+              </div>
+              {searching ? (
+                <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-400">
+                  <Loader2 size={20} className="animate-spin" />
+                  {t('common.loading')}
+                </div>
+              ) : !query.trim() ? (
+                <EmptyPlaylistState
+                  icon={<Search size={40} />}
+                  title={t('playlists.typeToSearch')}
+                  description={t('playlists.typeToSearchHint')}
+                />
+              ) : books.length > 0 ? (
+                <div className={`grid ${getBookshelfGridClass(iconSize)}`}>
+                  {books.map(book => (
+                    <div key={book.id} className="relative">
+                      <button
+                        onClick={() => toggleBook(book.id)}
+                        className="block w-full text-left"
+                      >
+                        <div className={`absolute top-2 right-2 z-30 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all pointer-events-none ${
+                          selectedItems.some(item => samePlaylistItem(item, 'book', book.id))
+                            ? 'bg-primary-600 border-primary-600 text-white'
+                            : 'bg-white/90 dark:bg-slate-900/90 border-slate-300 dark:border-slate-600'
+                        }`}>
+                          {selectedItems.some(item => samePlaylistItem(item, 'book', book.id)) && <Check size={15} />}
+                        </div>
+                        <div className={`transition-opacity ${selectedItems.some(item => samePlaylistItem(item, 'book', book.id)) ? 'opacity-100' : 'opacity-60 grayscale-[0.4]'}`}>
+                          <BookCover book={book} coverShape={coverShape} />
+                        </div>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyPlaylistState
+                  icon={<ListMusic size={40} />}
+                  title={t('playlists.noMatchedBooks')}
+                  description={t('playlists.tryAnotherKeyword')}
+                />
+              )}
+            </>
+          )
+        ) : (
+          <>
+            {playlistItems.length > 0 && (
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative flex-1 min-w-0">
+                  <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={query}
+                    onChange={event => setQuery(event.target.value)}
+                    placeholder={t('playlists.searchInPlaylistPlaceholder')}
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary-500 dark:text-white"
+                  />
+                </div>
+                <span className="text-sm font-bold text-slate-500 px-2 whitespace-nowrap">
+                  {t('playlists.itemProgress', { shown: filteredPlaylistItems.length, total: playlistItems.length })}
+                </span>
               </div>
             )}
-            <div className="relative flex-1 min-w-0">
-              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                value={query}
-                onChange={event => (isManaging ? handleQueryChange(event.target.value) : setQuery(event.target.value))}
-                placeholder={isManaging ? (manageView === 'series' ? t('playlists.searchSeriesPlaceholder') : t('playlists.searchBooksPlaceholder')) : t('playlists.searchInPlaylistPlaceholder')}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary-500 dark:text-white"
+            {playlistItems.length === 0 ? (
+              <EmptyPlaylistState
+                icon={<ListMusic size={40} />}
+                title={t('playlists.emptyPlaylistBooks')}
+                description={t('playlists.addContentHint')}
               />
-            </div>
-            <span className="text-sm font-bold text-slate-500 px-2 whitespace-nowrap">
-              {isManaging ? t('playlists.selectedItems', { count: selectedItems.length }) : t('playlists.itemProgress', { shown: filteredPlaylistItems.length, total: playlistItems.length })}
-            </span>
-          </div>
-        )}
-
-        {isManaging && (
-          <SelectedOrderPanel
-            items={selectedDisplayItems}
-            coverShape={coverShape}
-            onMove={moveSelectedItem}
-            onRemove={removeSelectedItem}
-          />
-        )}
-
-        {!isManaging ? (
-          filteredPlaylistItems.length > 0 ? (
-            <div className={`grid ${getBookshelfGridClass(iconSize)}`}>
-              {filteredPlaylistItems.map(item => (
-                item.item_type === 'series' && item.series ? (
-                  <PlaylistSeriesCard key={`series-${item.item_id}`} series={item.series} coverShape={coverShape} />
-                ) : item.book ? (
-                  <BookCard key={`book-${item.item_id}`} book={item.book} coverShape={coverShape} />
-                ) : null
-              ))}
-            </div>
-          ) : (
-            <EmptyPlaylistState
-              icon={<ListMusic size={40} />}
-              title={query ? t('playlists.noMatchedWorks') : t('playlists.emptyPlaylistBooks')}
-              description={query ? t('playlists.tryAnotherKeyword') : t('playlists.addContentHint')}
-            />
-          )
-        ) : searching ? (
-          <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-400">
-            <Loader2 size={20} className="animate-spin" />
-            {t('common.loading')}
-          </div>
-        ) : !query.trim() ? (
-          <EmptyPlaylistState
-            icon={<Search size={40} />}
-            title={t('playlists.typeToSearch')}
-            description={t('playlists.typeToSearchHint')}
-          />
-        ) : manageView === 'series' ? (
-          series.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {series.map(item => (
-                <SeriesSelectCard
-                  key={item.id}
-                  series={item}
-                  selectedItems={selectedItems}
-                  coverShape={coverShape}
-                  onToggle={() => toggleSeries(item)}
-                />
-              ))}
-            </div>
-          ) : (
-            <EmptyPlaylistState
-              icon={<Layers size={40} />}
-              title={t('playlists.noMatchedSeries')}
-              description={t('playlists.tryAnotherKeyword')}
-            />
-          )
-        ) : books.length > 0 ? (
-          <div className={`grid ${getBookshelfGridClass(iconSize)}`}>
-            {books.map(book => (
-              <div key={book.id} className="relative">
-                <button
-                  onClick={() => toggleBook(book.id)}
-                  className="block w-full text-left"
-                >
-                  <div className={`absolute top-2 right-2 z-30 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all pointer-events-none ${
-                    selectedItems.some(item => samePlaylistItem(item, 'book', book.id))
-                      ? 'bg-primary-600 border-primary-600 text-white'
-                      : 'bg-white/90 dark:bg-slate-900/90 border-slate-300 dark:border-slate-600'
-                  }`}>
-                    {selectedItems.some(item => samePlaylistItem(item, 'book', book.id)) && <Check size={15} />}
-                  </div>
-                  <div className={`transition-opacity ${selectedItems.some(item => samePlaylistItem(item, 'book', book.id)) ? 'opacity-100' : 'opacity-60 grayscale-[0.4]'}`}>
-                    <BookCover book={book} coverShape={coverShape} />
-                  </div>
-                </button>
+            ) : filteredPlaylistItems.length > 0 ? (
+              <div className={`grid ${getBookshelfGridClass(iconSize)}`}>
+                {filteredPlaylistItems.map(item => (
+                  item.item_type === 'series' && item.series ? (
+                    <PlaylistSeriesCard key={`series-${item.item_id}`} series={item.series} coverShape={coverShape} />
+                  ) : item.book ? (
+                    <BookCard key={`book-${item.item_id}`} book={item.book} coverShape={coverShape} />
+                  ) : null
+                ))}
               </div>
-            ))}
-          </div>
-        ) : (
-          <EmptyPlaylistState
-            icon={<ListMusic size={40} />}
-            title={t('playlists.noMatchedBooks')}
-            description={t('playlists.tryAnotherKeyword')}
-          />
+            ) : (
+              <EmptyPlaylistState
+                icon={<ListMusic size={40} />}
+                title={t('playlists.noMatchedWorks')}
+                description={t('playlists.tryAnotherKeyword')}
+              />
+            )}
+          </>
         )}
       </div>
 

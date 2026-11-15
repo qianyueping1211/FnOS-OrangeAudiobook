@@ -108,6 +108,10 @@ input::placeholder,textarea::placeholder {color:var(--reader-muted);opacity:.8}
 .reader-shortcut strong {display:block;font-size:14px;font-weight:600}
 .reader-shortcut small {display:block;color:var(--reader-muted);font-size:12px;margin-top:3px}
 .reader-grid {display:grid;grid-template-columns:repeat(auto-fill,minmax(134px,1fr));gap:22px 18px}
+/* The shelf reuses the home grid rhythm, so a row of covers looks identical on
+   the shelf and under "recently added". */
+.reader-shelf-grid {gap:22px 18px}
+@media(max-width:959px) {.reader-shelf-grid {gap:20px 13px}}
 .reader-book-card {min-width:0;text-decoration:none}
 .reader-book-card .reader-book-title {font-size:14px;line-height:1.5;font-weight:600}
 .reader-book-card .reader-book-credit {font-size:12px;color:var(--reader-muted);margin-top:4px;line-height:1.5}

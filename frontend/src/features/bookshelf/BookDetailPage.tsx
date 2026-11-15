@@ -8,19 +8,19 @@ import { useTranslation } from 'react-i18next';
 import ChapterManagerModal from '../../shared/modals/ChapterManagerModal';
 import ScrapeDiffModal from '../../shared/modals/ScrapeDiffModal';
 import {
-  ChevronLeft,
   Loader2,
 } from 'lucide-react';
 import { useAuthStore } from '../../core/stores/authStore';
 import { setAlpha, isTooLight } from '../../core/utils/color';
 import LoadingSpinner from '../../shared/ui/LoadingSpinner';
+import BackButton from '../../shared/widgets/BackButton';
+import { canRevealNasFolder, revealBookOnNas } from '../../core/utils/nasFileManager';
 import EditBookModal, { type EditBookTab } from './bookDetail/EditBookModal';
 import DeleteLibraryItemModal from './bookDetail/DeleteLibraryItemModal';
 import BookHeaderSection from './bookDetail/BookHeaderSection';
 import ChapterListSection from './bookDetail/ChapterListSection';
 import ChapterPickerDrawer from './bookDetail/ChapterPickerDrawer';
 import { useBookDetails } from '../../core/hooks/useBooks';
-import { backTarget } from '../../core/utils/appHistory';
 import type { ChapterGroupOrder, RegexGenerationResult } from '../../core/api/books';
 
 const BookDetailPage: React.FC = () => {
@@ -69,6 +69,18 @@ const BookDetailPage: React.FC = () => {
   const [editLockTouched, setEditLockTouched] = useState(false);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
+  const [viewingLocal, setViewingLocal] = useState(false);
+  const [localViewError, setLocalViewError] = useState('');
+  const handleViewLocal = () => {
+    if (!book) return;
+    setLocalViewError('');
+    setViewingLocal(true);
+    void revealBookOnNas(book)
+      .catch((error: unknown) => {
+        setLocalViewError(error instanceof Error ? error.message : t('bookshelf.viewLocalFailed'));
+      })
+      .finally(() => setViewingLocal(false));
+  };
   const [editChapterGroupOrder, setEditChapterGroupOrder] = useState<ChapterGroupOrder>('asc');
   const [themeColor, setThemeColor] = useState<string | null>(book?.theme_color ?? null);
   const [isTagsExpanded, setIsTagsExpanded] = useState(false);
@@ -623,14 +635,7 @@ const BookDetailPage: React.FC = () => {
     >
       <div className="flex-1 max-w-6xl mx-auto space-y-8 w-full">
         {/* Header */}
-        <button 
-          type="button"
-          onClick={() => navigate(backTarget('/bookshelf'), { replace: true })}
-          className="flex items-center gap-2 text-slate-500 hover:text-primary-600 transition-colors"
-        >
-          <ChevronLeft size={20} />
-          <span>{t('common.back')}</span>
-        </button>
+        <BackButton fallback="/bookshelf" />
 
         {/* Book Info Section */}
         <BookHeaderSection
@@ -678,6 +683,10 @@ const BookDetailPage: React.FC = () => {
           }}
           onSetIsTagsExpanded={setIsTagsExpanded}
           onSetIsDescriptionExpanded={setIsDescriptionExpanded}
+          canViewLocal={canRevealNasFolder(book)}
+          onViewLocal={handleViewLocal}
+          viewingLocal={viewingLocal}
+          localViewError={localViewError}
         />
 
         {/* A one-chapter book has no list to show; wider layouts keep the list
