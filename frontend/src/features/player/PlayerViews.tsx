@@ -46,19 +46,16 @@ export const CollapsedPlayerView: React.FC<CollapsedPlayerViewProps> = ({
 );
 
 // ─── ExpandedPlayerHeader ──────────────────────────────────────────────────
-// 展开视图顶部条：左侧收起按钮、中间书名 + 作者/演播、右侧设置按钮。
+// 展开视图顶部条：左边收起，右边设置与关闭。书名和演播者已经由封面和
+// 书封下的章节标题表达，顶栏不再重复一遍。
 
 interface ExpandedPlayerHeaderProps {
-  bookTitle?: string;
-  authorText?: string;
   onExit: () => void;
   onOpenSettings: () => void;
   onClosePlayer?: () => void;
 }
 
 export const ExpandedPlayerHeader: React.FC<ExpandedPlayerHeaderProps> = ({
-  bookTitle,
-  authorText,
   onExit,
   onOpenSettings,
   onClosePlayer,
@@ -75,10 +72,6 @@ export const ExpandedPlayerHeader: React.FC<ExpandedPlayerHeaderProps> = ({
       >
         <ChevronUp size={24} className="rotate-180" />
       </button>
-      <div className="flex-1 text-center px-3 min-w-0">
-        <h2 className="text-sm sm:text-base font-bold dark:text-white text-[#4A3728] truncate">{bookTitle}</h2>
-        <p className="text-[10px] sm:text-xs text-slate-500 truncate">{authorText}</p>
-      </div>
       <div className="flex items-center -mr-2">
         {onClosePlayer && (
           <button

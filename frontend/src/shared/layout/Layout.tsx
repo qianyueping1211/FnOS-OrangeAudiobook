@@ -30,7 +30,7 @@ import { loadClientSettings } from '../../core/api/clientSettings';
 import { setApplicationTimeZone } from '../../core/utils/timeZone';
 import { useClientExtensions } from '../../core/hooks/useClientExtensions';
 import { useUiPreferencesStore } from '../../core/stores/uiPreferencesStore';
-import { consumeInternalBack, exitApp } from '../../core/utils/appExit';
+import { consumeInternalBack } from '../../core/utils/appExit';
 import { rememberPath } from '../../core/utils/appHistory';
 import { warmFileManager } from '../../core/utils/nasFileManager';
 import { primePlaybackFromWarm, warmRecentPlayback } from '../../features/player/playbackWarmup';
@@ -95,6 +95,10 @@ const Layout: React.FC = () => {
     // 主线程占住一小段，恰好落在用户刚点开菜单、刚输入完的那一刻，就会觉得
     // "点了没反应"。串行 + 间隔后，预热对交互几乎无感。
     const warmers: Array<() => Promise<unknown>> = [
+      // 播放器组件本身最先取回来：它的 chunk（还有播放控制、设置面板那一串
+      // 依赖）是点「播放」时最贵的一次加载。只取代码，不挂载、不取音频，
+      // 所以后台静默完成，点下去就只剩挂载，不再现场下载。
+      () => import('../../features/player/Player'),
       () => import('../../features/bookshelf/BookshelfPage'),
       () => import('../../features/playlists/MyPlaylistsPage'),
       () => import('../../features/mine/MyPage'),
@@ -103,7 +107,12 @@ const Layout: React.FC = () => {
       () => import('../../features/player/PlayerPage'),
       // 再把"上次听到哪"这份数据也悄悄取回来，只放在内存里。点「播放」时
       // primePlaybackFromWarm 直接把内容交给播放器，所以是显示而不是等待。
-      () => warmRecentPlayback(),
+      () => warmRecentPlayback().then(warmed => {
+        // 数据到手就在后台把播放器挂到树上：不可见、不出声，只等被叫到。
+        // 点「播放」tab 或点迷你卡展开时解掉这层隐藏，画面已经是画好的。
+        if (warmed && primePlaybackFromWarm()) usePlayerStore.getState().setIsBackstage(true);
+        return warmed;
+      }),
     ];
     let cancelled = false;
     let timer: number | undefined;
@@ -133,26 +142,16 @@ const Layout: React.FC = () => {
     };
   }, []);
 
-  // 历史栈被压平后由我们自己记路径，站内返回按钮从这里取上一页。
+  // 历史栈由我们自己记路径，站内返回按钮从这里取上一页。
   React.useEffect(() => {
     rememberPath(`${location.pathname}${location.search}`);
   }, [location.pathname, location.search]);
 
-  // 在飞牛宿主（或触屏设备）里，从左边缘向右滑就是 WebView 的"返回"手势。
-  // 站内跳转已经压成 replace（见 appHistory），历史里只剩一条，
-  // 手势没有可退的页面时宿主会直接关掉窗口，和橙子音乐一致。
+  // 左边缘右滑是 WebView 的"返回"。站内跳转保持真实历史后，宿主手势自己就会
+  // 退一页，这里只把应用内主动返回的 popstate 标记消化掉，绝不替宿主关窗，
+  // 否则右滑又会变成退出微应用。
   React.useEffect(() => {
-    const host = (window as unknown as { flutter_inappwebview?: unknown }).flutter_inappwebview;
-    const touchFirst = window.matchMedia('(pointer: coarse)').matches;
-    if (!host && !touchFirst) return;
-
-    const onPopState = () => {
-      if (consumeInternalBack()) return;
-      exitApp();
-      // 退出指令没生效时（普通标签页不允许脚本关窗）至少回到原页面，
-      // 不让手势把用户带到上一页。
-      window.history.go(1);
-    };
+    const onPopState = () => { consumeInternalBack(); };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
@@ -165,6 +164,8 @@ const Layout: React.FC = () => {
   const serverUrl = useAuthStore(state => state.serverUrl);
   const credentialReminderIdentity = `${serverUrl}:${user?.id}`;
   const hasCurrentChapter = usePlayerStore(state => !!state.currentChapter);
+  const isBackstage = usePlayerStore(state => state.isBackstage);
+  const setIsBackstage = usePlayerStore(state => state.setIsBackstage);
   const setPlaybackSpeed = usePlayerStore(state => state.setPlaybackSpeed);
   const setIsExpanded = usePlayerStore(state => state.setIsExpanded);
   const setPluginToolMenuEnabled = useUiPreferencesStore(state => state.setPluginToolMenuEnabled);
@@ -274,11 +275,16 @@ const Layout: React.FC = () => {
   // release any highlight that outlives the navigation.
   const openTab = React.useCallback((path: string) => {
     if (location.pathname === path) return;
-    // 点「播放」时先把预热好的上次播放交出去，路由一到这页就有内容。
-    if (path === '/player') primePlaybackFromWarm();
+    // 点「播放」时先把预热好的上次播放交出去，路由一到这页就有内容；
+    // 预热阶段收起的隐藏也在这一刻解除。
+    if (path === '/player') {
+      primePlaybackFromWarm();
+      setIsBackstage(false);
+    }
     setPendingMobileNav({ path, origin: location });
-    navigate(path, { replace: true });
-  }, [location, navigate]);
+    // 切换 tab 留下一条真实历史，左边缘右滑才能回到上一个页面。
+    navigate(path);
+  }, [location, navigate, setIsBackstage]);
 
   // Pre-highlight never outlives its purpose: if the navigation did not land,
   // the bar falls back to the real location instead of staying on the old page.
@@ -390,7 +396,10 @@ const Layout: React.FC = () => {
           openTab(item.path);
         }}
         onClick={(event) => {
-          if (item.path === '/player') primePlaybackFromWarm();
+          if (item.path === '/player') {
+            primePlaybackFromWarm();
+            setIsBackstage(false);
+          }
           if (!mobile) return;
           event.preventDefault();
           openTab(item.path);
@@ -434,7 +443,7 @@ const Layout: React.FC = () => {
 
       </aside>
       <div className="reader-workspace">
-        <main id="main-content" className={'reader-content flex flex-col' + (hasCurrentChapter && !isMiniPlayerHidden ? ' has-mini-player' : '')}>
+        <main id="main-content" className={'reader-content flex flex-col' + (hasCurrentChapter && !isBackstage && !isMiniPlayerHidden ? ' has-mini-player' : '')}>
           <Suspense fallback={<ReaderPageSkeleton />}><Outlet /></Suspense>
         </main>
         <nav className="reader-tabs" aria-label={t('nav.mainMenu')}>{menuItems.map(item => renderNav(item, true))}</nav>

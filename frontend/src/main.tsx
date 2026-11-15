@@ -7,13 +7,10 @@ import './design/player-layout-fixes.css'
 import i18n from './core/i18n'
 import App from './App.tsx'
 import { installIOSViewportGuards } from './core/utils/iosViewport'
-import { installFlatHistory } from './core/utils/appHistory'
-import { installSwipeExit } from './core/utils/appExit'
 
-// 必须在路由首次跳转前装上：站内跳转不压历史，宿主手势才会关窗而不是退一页。
-installFlatHistory();
+// 宿主把右滑当成 WebView 的"返回"：只要历史里真有上一页就退一页。
+// 所以这里只装 iOS 视口保护，站内跳转保持正常的 push 历史。
 installIOSViewportGuards();
-installSwipeExit();
 
 const savedTheme = localStorage.getItem('theme') || 'dark';
 document.documentElement.classList.add(savedTheme === 'system'

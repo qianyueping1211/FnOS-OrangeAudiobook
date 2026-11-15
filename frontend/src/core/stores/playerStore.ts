@@ -17,6 +17,9 @@ interface PlayerState {
   isExpanded: boolean;
   isCollapsed: boolean;
   isSeriesEditing: boolean;
+  // 启动时把播放器在后台挂好但保持不可见：书籍和章节已在内存里，音频不播，
+  // 点「播放」只是把这层隐藏去掉，所以不会再出现加载过程。
+  isBackstage: boolean;
   playbackRevision: number;
 
   // Actions
@@ -35,6 +38,7 @@ interface PlayerState {
   setIsExpanded: (isExpanded: boolean) => void;
   setIsCollapsed: (isCollapsed: boolean) => void;
   setIsSeriesEditing: (isSeriesEditing: boolean) => void;
+  setIsBackstage: (isBackstage: boolean) => void;
   closePlayer: () => void;
 }
 
@@ -57,14 +61,16 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       isExpanded: false,
       isCollapsed: false,
       isSeriesEditing: false,
+      isBackstage: false,
       playbackRevision: 0,
 
-      setIsPlaying: (isPlaying) => set({ isPlaying }),
+      setIsPlaying: (isPlaying) => set(isPlaying ? { isPlaying, isBackstage: false } : { isPlaying }),
       updateBook: (book) => set(state => state.currentBook?.id === book.id
         ? { currentBook: { ...state.currentBook, ...book } } : {}),
-      setIsExpanded: (isExpanded) => set({ isExpanded }),
+      setIsExpanded: (isExpanded) => set(isExpanded ? { isExpanded, isBackstage: false } : { isExpanded }),
       setIsCollapsed: (isCollapsed) => set({ isCollapsed }),
       setIsSeriesEditing: (isSeriesEditing) => set({ isSeriesEditing }),
+      setIsBackstage: (isBackstage) => set({ isBackstage }),
       closePlayer: () => set((state) => ({
         currentBook: null,
         currentChapter: null,
@@ -75,6 +81,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         isExpanded: false,
         isCollapsed: false,
         isSeriesEditing: false,
+        isBackstage: false,
         playbackRevision: state.playbackRevision + 1,
       })),
 
@@ -108,6 +115,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
           currentChapter: chapter,
           playbackRevision: get().playbackRevision + 1,
           isPlaying: true,
+          isBackstage: false,
           currentTime: startPos
         };
 
@@ -197,6 +205,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
           currentChapter: orderedChapter,
           playbackRevision: get().playbackRevision + 1,
           isPlaying: true,
+          isBackstage: false,
           currentTime: startPos
         };
 

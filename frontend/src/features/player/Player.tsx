@@ -62,6 +62,7 @@ const Player: React.FC = () => {
     isCollapsed,
     setIsCollapsed,
     isSeriesEditing,
+    isBackstage,
     closePlayer,
   } = usePlayerStore();
 
@@ -115,12 +116,6 @@ const Player: React.FC = () => {
   // Determine if we should use dark mode text colors (white/gray) for controls
   // In dark mode, we always want bright white/gray for contrast
   const useDarkControls = isDark;
-
-  const authorName = currentBook?.author?.trim();
-  const narratorName = currentBook?.narrator?.trim();
-  const authorText = [authorName, narratorName]
-    .filter(Boolean)
-    .join(' / ') || t('player.unknownAuthor');
 
   // Sync theme color from current book (stored value preferred, fallback to FAC extraction).
   useThemeColorSync(currentBook);
@@ -217,6 +212,10 @@ const Player: React.FC = () => {
 
   if (!currentChapter) return null;
 
+  // 启动时预热好的播放器挂在树上但不占位、不可见：用户一碰播放器（点播放、
+  // 展开、切到播放页）这个条件立刻失效，隐藏随之解除。
+  const isBackstageHidden = isBackstage && !isPlayerPage && !isExpanded && !isPlaying;
+
   const miniPlayerStyle = !isExpanded
     ? {
         bottom: isWidgetMode ? "0" : "var(--mini-player-offset)",
@@ -297,7 +296,7 @@ const Player: React.FC = () => {
             : "absolute left-0 right-0 z-[30] bg-transparent pointer-events-none"
         }
       `}
-      style={miniPlayerStyle}
+      style={isBackstageHidden ? { ...miniPlayerStyle, display: "none" } : miniPlayerStyle}
     >
       <audio key={currentChapter.id} {...audioProps} />
 
@@ -458,8 +457,6 @@ const Player: React.FC = () => {
           }}
         >
           <ExpandedPlayerHeader
-            bookTitle={currentBook?.title || currentChapter.title}
-            authorText={authorText}
             onExit={() => {
               void handleExitExpanded();
               if (isPlayerPage) navigate("/bookshelf");
