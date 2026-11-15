@@ -42,6 +42,10 @@ pub async fn list_playlists(
                 &user.id,
                 is_admin,
                 Some(percentages.clone()),
+                // The list screen draws a cover stack and a book count, nothing
+                // else, so only the first three items are resolved. Everything
+                // after that is counted instead of fetched.
+                Some(3),
             )
             .await?,
         );
@@ -68,7 +72,7 @@ pub async fn get_playlist(
         })?;
 
     let response =
-        build_playlist_response(&state, playlist, &user.id, user.role == "admin", None).await?;
+        build_playlist_response(&state, playlist, &user.id, user.role == "admin", None, None).await?;
     Ok(Json(response))
 }
 
@@ -104,7 +108,7 @@ pub async fn create_playlist(
         .await?;
 
     let response =
-        build_playlist_response(&state, playlist, &user.id, user.role == "admin", None).await?;
+        build_playlist_response(&state, playlist, &user.id, user.role == "admin", None, None).await?;
     Ok((StatusCode::CREATED, Json(response)))
 }
 
@@ -169,7 +173,7 @@ pub async fn update_playlist(
         .await?
         .unwrap_or(updated);
     let response =
-        build_playlist_response(&state, refreshed, &user.id, user.role == "admin", None).await?;
+        build_playlist_response(&state, refreshed, &user.id, user.role == "admin", None, None).await?;
     Ok(Json(response))
 }
 
@@ -239,6 +243,7 @@ async fn build_playlist_response(
     user_id: &str,
     is_admin: bool,
     percentages: Option<HashMap<String, f64>>,
+    item_limit: Option<usize>,
 ) -> Result<PlaylistResponse> {
     let mut response = PlaylistResponse::from(playlist.clone());
     let items = state
@@ -260,9 +265,19 @@ async fn build_playlist_response(
         }
     };
 
-    for item in items {
+    for (index, item) in items.into_iter().enumerate() {
+        // A caller that only needs an overview passes a limit: items past it are
+        // counted into `book_count` and left unresolved, so the list request no
+        // longer pays one lookup per book in every playlist.
+        let detailed = item_limit.map_or(true, |limit| index < limit);
+
         match item.item_type.as_str() {
             "book" => {
+                if !detailed {
+                    response.book_count += 1;
+                    continue;
+                }
+
                 if let Some(book) = state.book_repo.find_by_id(&item.item_id).await? {
                     if !state
                         .book_repo
@@ -277,6 +292,7 @@ async fn build_playlist_response(
                         percentages.get(&book_response.id).copied().unwrap_or(0.0);
                     response.book_ids.push(book_response.id.clone());
                     response.books.push(book_response.clone());
+                    response.book_count += 1;
                     response.items.push(PlaylistItemResponse {
                         item_type: "book".to_string(),
                         item_id: item.item_id,
@@ -297,11 +313,18 @@ async fn build_playlist_response(
                         continue;
                     }
 
-                    let mut series_response = SeriesResponse::from(series.clone());
                     let series_books = state
                         .series_repo
                         .find_books_by_series_with_filters(&series.id, user_id, is_admin)
                         .await?;
+
+                    if !detailed {
+                        response.book_count += series_books.len() as u32;
+                        continue;
+                    }
+
+                    let mut series_response = SeriesResponse::from(series.clone());
+                    response.book_count += series_books.len() as u32;
 
                     for (book, _) in series_books {
                         let mut book_response = BookResponse::from(book);

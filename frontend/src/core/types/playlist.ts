@@ -11,6 +11,9 @@ export interface Playlist {
   book_ids: string[];
   books: Book[];
   items?: PlaylistItem[];
+  /** Book total the server reports; the list endpoint only sends the first few
+   *  items, so counting `items` there would undercount a playlist. */
+  book_count?: number;
 }
 
 export interface PlaylistItem {

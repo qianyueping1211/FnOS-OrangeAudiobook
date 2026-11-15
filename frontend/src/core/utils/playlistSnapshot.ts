@@ -28,6 +28,12 @@ const snapshotKeys = (store: Storage): string[] => {
 export const cachePlaylistSnapshot = (playlist: Playlist): void => {
   const store = storage();
   if (!store || !playlist?.id) return;
+  // The list endpoint answers with only the first few items, so a truncated
+  // copy must not stand in for the detail page: it would paint three books and
+  // then jump to the real total.
+  if (typeof playlist.book_count === 'number' && (playlist.items?.length ?? 0) < playlist.book_count) {
+    return;
+  }
   try {
     store.setItem(KEY_PREFIX + playlist.id, JSON.stringify(playlist));
     // Only the playlists opened recently matter; drop the rest so a long

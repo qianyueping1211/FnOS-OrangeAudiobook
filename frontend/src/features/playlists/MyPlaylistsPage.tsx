@@ -10,10 +10,25 @@ import { ListMusic, Plus, Search, X } from 'lucide-react';
 import { getBookshelfGridClass, useBookshelfCoverShape, type CoverShape } from '../../core/hooks/useBookshelfCoverShape';
 import { getPlaylistBookCount } from '../../core/utils/playlist';
 import { cachePlaylistSnapshot } from '../../core/utils/playlistSnapshot';
+import { loadClientSettings } from '../../core/api/clientSettings';
+import { useAuthStore } from '../../core/stores/authStore';
 import { PlaylistCoverStack } from './PlaylistPieces';
 
 type PlaylistSortBy = 'updatedAt' | 'title' | 'count';
 type PlaylistIconSize = 'small' | 'medium' | 'large';
+
+// The list is a handful of small rows, but the request behind it resolves every
+// item of every playlist. Keeping the last answer in memory lets a tab switch
+// paint the existing rows at once while the authoritative copy refreshes behind
+// them; the key is the session, so a different account never sees this cache.
+let listCache: { key: string; data: Playlist[] } = { key: '', data: [] };
+
+const cacheKey = (): string => {
+  const state = useAuthStore.getState();
+  return `${state.activeUrl ?? ''}|${state.token ?? ''}`;
+};
+
+const seededPlaylists = (): Playlist[] => (listCache.key === cacheKey() ? listCache.data : []);
 
 // The create sheet opens as an overlay; on a touch device an auto-focused
 // input makes the OS raise the keyboard and push the page around, so only a
@@ -26,8 +41,8 @@ const MyPlaylistsPage: React.FC = () => {
   const navigate = useNavigate();
   const currentChapter = usePlayerStore((state) => state.currentChapter);
   const coverShape = useBookshelfCoverShape();
-  const [playlists, setPlaylists] = useState<Playlist[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [playlists, setPlaylists] = useState<Playlist[]>(seededPlaylists);
+  const [loading, setLoading] = useState(() => seededPlaylists().length === 0);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [query, setQuery] = useState('');
   const [title, setTitle] = useState('');
@@ -39,10 +54,14 @@ const MyPlaylistsPage: React.FC = () => {
   const [showFilterMenu, setShowFilterMenu] = useState(false);
 
   const fetchPlaylists = async () => {
-    setLoading(true);
+    // A cached list keeps the rows on screen; the refresh runs behind it and the
+    // skeleton only appears when there is genuinely nothing to show yet.
+    if (seededPlaylists().length === 0) setLoading(true);
     try {
       const res = await apiClient.get('/api/playlists');
-      setPlaylists(res.data || []);
+      const list: Playlist[] = res.data || [];
+      listCache = { key: cacheKey(), data: list };
+      setPlaylists(list);
       setPlaylistCoverSeed(Date.now());
     } catch (err) {
       console.error('Failed to load playlists', err);
@@ -80,15 +99,17 @@ const MyPlaylistsPage: React.FC = () => {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const res = await apiClient.get('/api/settings');
-        const settings = res.data.settings_json || {};
+        // The shell already asked for these settings; reuse that answer instead
+        // of paying a second request every time the tab opens.
+        const settings = (await loadClientSettings()).settings_json as
+          | Record<string, unknown>
+          | undefined;
 
-        if (settings.playlist_sort_by === 'updatedAt' || settings.playlist_sort_by === 'title' || settings.playlist_sort_by === 'count') {
-          setSortBy(settings.playlist_sort_by);
-        }
-        if (settings.playlist_icon_size === 'small' || settings.playlist_icon_size === 'medium' || settings.playlist_icon_size === 'large') {
-          setIconSize(settings.playlist_icon_size);
-        }
+        const sort = settings?.playlist_sort_by;
+        if (sort === 'updatedAt' || sort === 'title' || sort === 'count') setSortBy(sort);
+
+        const size = settings?.playlist_icon_size;
+        if (size === 'small' || size === 'medium' || size === 'large') setIconSize(size);
       } catch (err) {
         console.error('Failed to load playlist display settings', err);
       }
@@ -146,17 +167,9 @@ const MyPlaylistsPage: React.FC = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-      </div>
-    );
-  }
-
   return (
-    <div className="reader-page flex-1 min-h-full flex flex-col">
-      <div className="flex-1 space-y-6">
+    <div className="reader-page reader-locked-page flex-1 min-h-full flex flex-col">
+      <div className="reader-page-toolbar space-y-6">
         <div className="flex flex-col min-[760px]:flex-row min-[760px]:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
@@ -219,8 +232,16 @@ const MyPlaylistsPage: React.FC = () => {
             </div>
           </div>
         )}
+      </div>
 
-        {playlists.length === 0 ? (
+      <div className="reader-page-scroll mt-6 space-y-6">
+        {loading ? (
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6" aria-busy="true">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index} className="aspect-[3/4] rounded-xl bg-slate-200/60 dark:bg-slate-800/60 animate-pulse" />
+            ))}
+          </div>
+        ) : playlists.length === 0 ? (
           <div className="py-20 text-center bg-white dark:bg-slate-900 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 shadow-sm">
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-primary-50 dark:bg-primary-900/20 text-primary-600 mb-6">
               <ListMusic size={40} />

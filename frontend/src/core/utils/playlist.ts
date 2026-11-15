@@ -13,6 +13,10 @@ export interface PlaylistCoverItem {
  */
 export const getPlaylistBookCount = (playlist?: Playlist | null): number => {
   if (!playlist) return 0;
+  // The list endpoint sends only the first few items and reports the real total.
+  if (typeof playlist.book_count === 'number' && playlist.book_count > 0) {
+    return playlist.book_count;
+  }
   if (playlist.items?.length) {
     return playlist.items.reduce((total, item) => (
       total + (item.item_type === 'series' ? (item.series?.books?.length || 0) : 1)

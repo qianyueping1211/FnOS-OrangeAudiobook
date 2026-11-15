@@ -329,8 +329,8 @@ const PlaylistDetailPage: React.FC = () => {
   });
 
   return (
-    <div className={`reader-page flex-1 min-h-full flex flex-col${isManaging ? ' reader-locked-page' : ''}`}>
-      <div className={`${isManaging ? 'reader-page-toolbar ' : ''}space-y-6`}>
+    <div className="reader-page reader-locked-page flex-1 min-h-full flex flex-col">
+      <div className="reader-page-toolbar space-y-6">
         <BackButton fallback="/playlists" />
 
         <div className="rounded-3xl border border-slate-200/60 dark:border-slate-800 bg-gradient-to-br from-primary-50/70 via-white to-slate-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800/60 p-4 sm:p-6 flex flex-col xl:flex-row xl:items-center justify-between gap-5">
@@ -462,9 +462,26 @@ const PlaylistDetailPage: React.FC = () => {
             )}
           </div>
         )}
+
+        {!isManaging && playlistItems.length > 0 && (
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-0">
+              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                value={query}
+                onChange={event => setQuery(event.target.value)}
+                placeholder={t('playlists.searchInPlaylistPlaceholder')}
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary-500 dark:text-white"
+              />
+            </div>
+            <span className="text-sm font-bold text-slate-500 px-2 whitespace-nowrap">
+              {t('playlists.itemProgress', { shown: filteredPlaylistItems.length, total: playlistItems.length })}
+            </span>
+          </div>
+        )}
       </div>
 
-      <div className={`${isManaging ? 'reader-page-scroll' : 'flex-1'} mt-6 space-y-6`}>
+      <div className="reader-page-scroll mt-6 space-y-6">
         {isManaging ? (
           manageTab === 'selected' ? (
             <SelectedOrderPanel

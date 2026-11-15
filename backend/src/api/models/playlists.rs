@@ -50,6 +50,10 @@ pub struct PlaylistResponse {
     pub book_ids: Vec<String>,
     pub books: Vec<BookResponse>,
     pub items: Vec<PlaylistItemResponse>,
+    /// How many books this playlist holds once series are expanded. The list
+    /// endpoint answers with only the first few items (enough for a cover stack)
+    /// and relies on this number, so a client never has to count them itself.
+    pub book_count: u32,
 }
 
 impl From<Playlist> for PlaylistResponse {
@@ -64,6 +68,7 @@ impl From<Playlist> for PlaylistResponse {
             book_ids: Vec::new(),
             books: Vec::new(),
             items: Vec::new(),
+            book_count: 0,
         }
     }
 }

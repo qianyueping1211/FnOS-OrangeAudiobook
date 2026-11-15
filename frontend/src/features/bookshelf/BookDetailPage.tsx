@@ -79,12 +79,10 @@ const BookDetailPage: React.FC = () => {
     setViewingLocal(true);
     void revealBookOnNas(book)
       .then(result => {
-        // A phone (or a plain browser tab) has no fnOS file-manager bridge. The
-        // bridge answers with the folder instead: show the path that was copied
-        // rather than the SDK's version-gate error.
-        if (result.mode === 'copied') {
-          setLocalViewNote(t(result.copied ? 'bookshelf.viewLocalCopied' : 'bookshelf.viewLocalCopyFailed', { path: result.folder }));
-        }
+        // The interface never shows the server path: either the host opened the
+        // file manager, or we say why it could not.
+        if (result.mode === 'unsupported') setLocalViewNote(t('bookshelf.viewLocalUnsupported'));
+        if (result.mode === 'desktopOnly') setLocalViewNote(t('bookshelf.viewLocalDesktopOnly'));
       })
       .catch((error: unknown) => {
         setLocalViewError(error instanceof Error ? error.message : t('bookshelf.viewLocalFailed'));

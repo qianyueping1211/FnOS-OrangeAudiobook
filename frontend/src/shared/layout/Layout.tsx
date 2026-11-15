@@ -86,6 +86,9 @@ const Layout: React.FC = () => {
       void import('../../features/bookshelf/BookshelfPage');
       void import('../../features/playlists/MyPlaylistsPage');
       void import('../../features/mine/MyPage');
+      // 播放页同样先取回来：只加载代码，不挂载、不取音频，所以不会出声；
+      // 点「播放」时页面立刻能画出来，剩下的只是恢复已有进度。
+      void import('../../features/player/PlayerPage');
     };
     if (typeof idleWindow.requestIdleCallback === 'function') {
       const handle = idleWindow.requestIdleCallback(warm, { timeout: 3000 });
