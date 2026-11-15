@@ -116,7 +116,12 @@ export default defineConfig(({ command }) => ({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        // index.html must never be precached: the shell opens the app from the
+        // local server on every launch, and a cached shell is what kept an old
+        // bundle (and its outdated copy) alive after an update.
+        globPatterns: ['**/*.{js,css,ico,png,svg}'],
+        navigateFallback: null,
+        cleanupOutdatedCaches: true,
         // Exclude widget routes from service worker navigation fallback
         // This ensures widget requests go to the server and get fresh headers (CSP)
         navigateFallbackDenylist: [/^\/widget/],

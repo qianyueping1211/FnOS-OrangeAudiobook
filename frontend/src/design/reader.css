@@ -156,7 +156,7 @@ input::placeholder,textarea::placeholder {color:var(--reader-muted);opacity:.8}
   :root {--reader-page-pad:22px;--bottom-nav-h:82px;--player-h:68px;--player-gap:10px;
     --mini-player-offset:calc(var(--bottom-nav-h) + env(safe-area-inset-bottom,0px));
     --safe-bottom-with-player:calc(var(--mini-player-offset) + var(--player-h) + 24px);
-    --safe-bottom-base:calc(var(--bottom-nav-h) + 24px + env(safe-area-inset-bottom,0px))}
+    --safe-bottom-base:calc(var(--bottom-nav-h) + 40px + env(safe-area-inset-bottom,0px))}
   .reader-sidebar {display:none}
   .reader-tabs {position:absolute;display:flex;align-items:center;justify-content:space-around;bottom:calc(12px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);
     width:min(420px,calc(100% - 36px));height:64px;padding:5px;background:color-mix(in srgb,var(--reader-player) 91%,transparent);
@@ -288,7 +288,7 @@ html,body,#root {overflow:hidden;max-width:100%;-webkit-text-size-adjust:100%;te
   .reader-selection-actions {grid-column:auto}
   /* Desktop had no spacing after the toolbar, so the first cover row sat
      against the filter row and read as an overlap. */
-  .reader-library-header.reader-page-toolbar { margin-bottom:24px }
+  .reader-library-header.reader-page-toolbar { margin-bottom:12px }
 }
 
 /* Keep the app's clear control singular, and mobile filter choices legible. */
@@ -356,7 +356,7 @@ html.reader-ios { touch-action:pan-x pan-y }
     flex:none;
     margin-top:0;
     padding-top:0;
-    margin-bottom:6px;
+    margin-bottom:0;
     background:var(--reader-bg);
   }
   .reader-locked-page .reader-page-scroll {
@@ -386,6 +386,6 @@ html.reader-ios { touch-action:pan-x pan-y }
   }
   .reader-home .reader-page-scroll,
   .reader-bookshelf-page .reader-page-scroll {
-    padding-top:14px;
+    padding-top:0;
   }
 }

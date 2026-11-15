@@ -21,6 +21,12 @@ pub async fn list_series(
     Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Result<impl IntoResponse> {
     let library_id = params.get("library_id").cloned();
+    // A query keeps the picker cheap: only matching series come back, and only
+    // those have their books loaded instead of every series in the library.
+    let search = params
+        .get("search")
+        .map(|value| value.trim().to_lowercase())
+        .filter(|value| !value.is_empty());
     let is_admin = user.role == "admin";
 
     let series_list = state
@@ -28,12 +34,22 @@ pub async fn list_series(
         .find_with_filters(&user.id, is_admin, library_id)
         .await?;
 
+    let mut response: Vec<SeriesResponse> = Vec::new();
+    if series_list.is_empty() {
+        return Ok(Json(response));
+    }
+
     let percentages =
         crate::db::repository::reading::ReadingRepository::new(state.book_repo.db().clone())
             .percentages(&user.id)
             .await?;
-    let mut response = Vec::new();
     for series in series_list {
+        if let Some(query) = search.as_ref() {
+            if !series_matches(&series, query) {
+                continue;
+            }
+        }
+
         let mut s_res = SeriesResponse::from(series.clone());
         let books = state
             .series_repo
@@ -426,4 +442,12 @@ async fn update_book_metadata_series(state: &AppState, book_id: &str) -> Result<
             .await?;
     }
     Ok(())
+}
+
+/// Case-insensitive title/author/narrator match for the on-demand search.
+fn series_matches(series: &crate::db::models::Series, query: &str) -> bool {
+    let contains = |value: &str| value.to_lowercase().contains(query);
+    contains(&series.title)
+        || series.author.as_deref().is_some_and(|value| contains(value))
+        || series.narrator.as_deref().is_some_and(|value| contains(value))
 }

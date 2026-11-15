@@ -22,7 +22,11 @@ document.documentElement.classList.add(savedTheme === 'system'
 // Let the application and authentication requests finish before offline precaching.
 const registerUpdates = () => {
   const updateSW = registerSW({
-    onNeedRefresh() { if (confirm(i18n.t('pwa.refreshPrompt'))) updateSW(true); },
+    // The fnOS shell swallows window.confirm, so asking the reader left the old
+    // service worker in charge forever. Take the update silently; skipWaiting is
+    // applied now and the next cold start serves the fresh bundle, without
+    // interrupting a running listen.
+    onNeedRefresh() { void updateSW(false); },
     onOfflineReady() { console.log(i18n.t('pwa.offlineReady')); },
   });
 };

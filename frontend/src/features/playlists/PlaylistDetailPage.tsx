@@ -42,6 +42,8 @@ const PlaylistDetailPage: React.FC = () => {
   const [playlist, setPlaylist] = useState<Playlist | null>(() => readPlaylistSnapshot(id));
   const [books, setBooks] = useState<Book[]>([]);
   const [series, setSeries] = useState<Series[]>([]);
+  const [knownBooks, setKnownBooks] = useState<Map<string, Book>>(() => new Map());
+  const [knownSeries, setKnownSeries] = useState<Map<string, Series>>(() => new Map());
   const [loading, setLoading] = useState(() => !readPlaylistSnapshot(id));
   const [isManaging, setIsManaging] = useState(false);
   const [selectedItems, setSelectedItems] = useState<EditablePlaylistItem[]>([]);
@@ -51,8 +53,9 @@ const PlaylistDetailPage: React.FC = () => {
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [saving, setSaving] = useState(false);
-  const [catalogLoading, setCatalogLoading] = useState(false);
-  const catalogLoaded = useRef(false);
+  const [searching, setSearching] = useState(false);
+  const searchTimer = useRef<number | null>(null);
+  const searchSeq = useRef(0);
 
   const fetchData = async () => {
     if (!id) return;
@@ -91,31 +94,87 @@ const PlaylistDetailPage: React.FC = () => {
     }
   };
 
-  const ensureCatalog = async () => {
-    if (catalogLoaded.current || catalogLoading) return;
-    catalogLoaded.current = true;
-    setCatalogLoading(true);
+  const mergeKnownBooks = (incoming: Book[]) => {
+    if (incoming.length === 0) return;
+    setKnownBooks(previous => {
+      const next = new Map(previous);
+      incoming.forEach(book => next.set(book.id, book));
+      return next;
+    });
+  };
+
+  const mergeKnownSeries = (incoming: Series[]) => {
+    if (incoming.length === 0) return;
+    setKnownSeries(previous => {
+      const next = new Map(previous);
+      incoming.forEach(item => next.set(item.id, item));
+      return next;
+    });
+  };
+
+  // Manage content searches on demand instead of pulling the whole library:
+  // nothing is requested until the reader types, then only the matching rows
+  // come back.
+  const searchCatalog = async (value: string, view: 'books' | 'series') => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      setBooks([]);
+      setSeries([]);
+      setSearching(false);
+      return;
+    }
+    const seq = searchSeq.current + 1;
+    searchSeq.current = seq;
+    setSearching(true);
     try {
-      const [booksRes, seriesRes] = await Promise.all([
-        apiClient.get('/api/books'),
-        apiClient.get('/api/v1/series'),
-      ]);
-      setBooks(booksRes.data || []);
-      setSeries(seriesRes.data || []);
+      if (view === 'series') {
+        const res = await apiClient.get('/api/v1/series', { params: { search: trimmed } });
+        if (searchSeq.current !== seq) return;
+        const list: Series[] = res.data || [];
+        setSeries(list);
+        mergeKnownSeries(list);
+      } else {
+        const res = await apiClient.get('/api/books/page', { params: { search: trimmed, page_size: 30 } });
+        if (searchSeq.current !== seq) return;
+        const list: Book[] = res.data?.items || [];
+        setBooks(list);
+        mergeKnownBooks(list);
+      }
     } catch (err) {
-      catalogLoaded.current = false;
-      console.error('Failed to load playlist catalog', err);
+      console.error('Failed to search playlist catalog', err);
     } finally {
-      setCatalogLoading(false);
+      if (searchSeq.current === seq) setSearching(false);
     }
   };
 
+  const handleQueryChange = (value: string) => {
+    setQuery(value);
+    if (searchTimer.current) window.clearTimeout(searchTimer.current);
+    if (!value.trim()) {
+      setBooks([]);
+      setSeries([]);
+      setSearching(false);
+      return;
+    }
+    searchTimer.current = window.setTimeout(() => {
+      void searchCatalog(value, manageView);
+    }, 320);
+  };
+
+  const switchManageView = (next: 'books' | 'series') => {
+    setManageView(next);
+    if (query.trim()) void searchCatalog(query, next);
+  };
+
   useEffect(() => {
-    catalogLoaded.current = false;
     const timer = window.setTimeout(() => void fetchData(), 0);
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  useEffect(() => () => {
+    if (searchTimer.current) window.clearTimeout(searchTimer.current);
+  }, []);
 
 
   // The edit sheet is an overlay only: the playlist page keeps its position.
@@ -132,56 +191,19 @@ const PlaylistDetailPage: React.FC = () => {
     };
   }, [showEditModal]);
 
-  const filteredBooks = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) return books;
-    return books.filter(book =>
-      book.title.toLowerCase().includes(normalizedQuery) ||
-      book.author?.toLowerCase().includes(normalizedQuery) ||
-      book.narrator?.toLowerCase().includes(normalizedQuery)
-    );
-  }, [books, query]);
-
-  const filteredPlaylistBooks = useMemo(() => {
-    const playlistBooks = playlist?.books || [];
-    const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) return playlistBooks;
-    return playlistBooks.filter(book =>
-      book.title.toLowerCase().includes(normalizedQuery) ||
-      book.author?.toLowerCase().includes(normalizedQuery) ||
-      book.narrator?.toLowerCase().includes(normalizedQuery)
-    );
-  }, [playlist?.books, query]);
-
-  const filteredSeries = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) return series;
-    return series.filter(item =>
-      item.title.toLowerCase().includes(normalizedQuery) ||
-      item.author?.toLowerCase().includes(normalizedQuery) ||
-      item.narrator?.toLowerCase().includes(normalizedQuery) ||
-      item.books?.some(book =>
-        book.title.toLowerCase().includes(normalizedQuery) ||
-        book.author?.toLowerCase().includes(normalizedQuery)
-      )
-    );
-  }, [series, query]);
-
   const bookMap = useMemo(() => {
-    const map = new Map<string, Book>();
-    books.forEach(book => map.set(book.id, book));
+    const map = new Map<string, Book>(knownBooks);
     playlist?.books.forEach(book => map.set(book.id, book));
     return map;
-  }, [books, playlist?.books]);
+  }, [knownBooks, playlist?.books]);
 
   const seriesMap = useMemo(() => {
-    const map = new Map<string, Series>();
-    series.forEach(item => map.set(item.id, item));
+    const map = new Map<string, Series>(knownSeries);
     getPlaylistItems(playlist).forEach(item => {
       if (item.series) map.set(item.series.id, item.series);
     });
     return map;
-  }, [playlist, series]);
+  }, [knownSeries, playlist]);
 
   const selectedDisplayItems = useMemo(() => (
     selectedItems
@@ -331,7 +353,6 @@ const PlaylistDetailPage: React.FC = () => {
       narrator?.toLowerCase().includes(normalizedQuery)
     );
   });
-  const displayBooks = isManaging ? filteredBooks : filteredPlaylistBooks;
 
   return (
     <div className="reader-page flex-1 min-h-full flex flex-col">
@@ -365,6 +386,9 @@ const PlaylistDetailPage: React.FC = () => {
                       item_id: item.item_id,
                     })));
                     setQuery('');
+                    setBooks([]);
+                    setSeries([]);
+                    setSearching(false);
                     setManageView('books');
                   }}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-sm font-bold"
@@ -394,8 +418,10 @@ const PlaylistDetailPage: React.FC = () => {
                   onClick={() => {
                     setIsManaging(true);
                     setQuery('');
+                    setBooks([]);
+                    setSeries([]);
+                    setSearching(false);
                     setManageView('books');
-                    void ensureCatalog();
                   }}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary-600 text-white text-sm font-bold shadow-lg shadow-primary-500/25"
                 >
@@ -420,7 +446,7 @@ const PlaylistDetailPage: React.FC = () => {
             {isManaging && (
               <div className="flex w-full sm:w-auto bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
                 <button
-                  onClick={() => setManageView('books')}
+                  onClick={() => switchManageView('books')}
                   className={`flex items-center gap-2 px-3 py-2 text-sm font-bold rounded-lg transition-all ${
                     manageView === 'books'
                       ? 'bg-white dark:bg-slate-700 shadow-sm text-primary-600'
@@ -431,7 +457,7 @@ const PlaylistDetailPage: React.FC = () => {
                   {t('playlists.books')}
                 </button>
                 <button
-                  onClick={() => setManageView('series')}
+                  onClick={() => switchManageView('series')}
                   className={`flex items-center gap-2 px-3 py-2 text-sm font-bold rounded-lg transition-all ${
                     manageView === 'series'
                       ? 'bg-white dark:bg-slate-700 shadow-sm text-primary-600'
@@ -447,7 +473,7 @@ const PlaylistDetailPage: React.FC = () => {
               <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 value={query}
-                onChange={event => setQuery(event.target.value)}
+                onChange={event => (isManaging ? handleQueryChange(event.target.value) : setQuery(event.target.value))}
                 placeholder={isManaging ? (manageView === 'series' ? t('playlists.searchSeriesPlaceholder') : t('playlists.searchBooksPlaceholder')) : t('playlists.searchInPlaylistPlaceholder')}
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-primary-500 dark:text-white"
               />
@@ -485,15 +511,21 @@ const PlaylistDetailPage: React.FC = () => {
               description={query ? t('playlists.tryAnotherKeyword') : t('playlists.addContentHint')}
             />
           )
-        ) : catalogLoading ? (
+        ) : searching ? (
           <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-400">
             <Loader2 size={20} className="animate-spin" />
             {t('common.loading')}
           </div>
+        ) : !query.trim() ? (
+          <EmptyPlaylistState
+            icon={<Search size={40} />}
+            title={t('playlists.typeToSearch')}
+            description={t('playlists.typeToSearchHint')}
+          />
         ) : manageView === 'series' ? (
-          filteredSeries.length > 0 ? (
+          series.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {filteredSeries.map(item => (
+              {series.map(item => (
                 <SeriesSelectCard
                   key={item.id}
                   series={item}
@@ -510,9 +542,9 @@ const PlaylistDetailPage: React.FC = () => {
               description={t('playlists.tryAnotherKeyword')}
             />
           )
-        ) : displayBooks.length > 0 ? (
+        ) : books.length > 0 ? (
           <div className={`grid ${getBookshelfGridClass(iconSize)}`}>
-            {displayBooks.map(book => (
+            {books.map(book => (
               <div key={book.id} className="relative">
                 <button
                   onClick={() => toggleBook(book.id)}
@@ -535,8 +567,8 @@ const PlaylistDetailPage: React.FC = () => {
         ) : (
           <EmptyPlaylistState
             icon={<ListMusic size={40} />}
-            title={isManaging ? t('playlists.noMatchedBooks') : (query ? t('playlists.noMatchedWorks') : t('playlists.emptyPlaylistBooks'))}
-            description={isManaging ? t('playlists.tryAnotherKeyword') : (query ? t('playlists.tryAnotherKeyword') : t('playlists.addContentHint'))}
+            title={t('playlists.noMatchedBooks')}
+            description={t('playlists.tryAnotherKeyword')}
           />
         )}
       </div>
