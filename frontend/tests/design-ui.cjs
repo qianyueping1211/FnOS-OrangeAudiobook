@@ -147,7 +147,8 @@ async function fixture(context, gated = false) {
       const headerMs = Date.now() - started;
       await page.locator('.reader-book-card').first().waitFor();
       assert.equal(startup.counts['/api/settings'], 1, 'Layout, home and cover settings must share one pending request');
-      assert.equal(await page.locator('audio').count(), 0, 'An idle home must not mount the player');
+      // 启动后播放器会在后台预热（数据就位、不可见也不出声），首页只要求它别被画出来。
+      assert.equal(await page.locator('.reader-player:visible').count(), 0, 'An idle home must not show the player');
       reports.push({ engine: engineName, device, headerMs, latestBooksMs: Date.now() - started, sharedSettingsRequests: startup.counts['/api/settings'], optionalRequestsStillHeld: true });
       startup.releaseSettings();
       startup.releaseOptional();
