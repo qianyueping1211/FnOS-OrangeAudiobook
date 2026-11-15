@@ -377,9 +377,6 @@ html.reader-ios { touch-action:pan-x pan-y }
     overscroll-behavior-y:none;
     -webkit-overflow-scrolling:touch;
   }
-  /* Keep the shelf strip's own gap even though the locked page zeroes the
-     generic toolbar margin. */
-  .reader-locked-page .reader-library-header {margin-bottom:12px}
   /* The locked page owns its scroll pane and its own bottom clearance, so the
      shell clearance would only lift that pane and leave a dead band above the
      floating player. Let the page spacer do the work instead. */
