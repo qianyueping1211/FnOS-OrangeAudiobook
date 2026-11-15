@@ -77,13 +77,18 @@ input::placeholder,textarea::placeholder {color:var(--reader-muted);opacity:.8}
 .reader-section-heading {display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:15px}
 .reader-section-heading h2 {font-size:18px;font-weight:650}
 .reader-section-heading a {display:flex;align-items:center;gap:4px;color:var(--reader-muted);font-size:12px}
-.reader-hero {display:grid;grid-template-columns:minmax(0,1fr) 148px;gap:24px;align-items:center;padding:26px;
+.reader-hero {display:grid;grid-template-columns:minmax(0,1fr) 148px;gap:28px;align-items:center;padding:32px 50px 32px 32px;
   border:1px solid var(--reader-line);border-radius:20px;position:relative;overflow:hidden;
   background:radial-gradient(ellipse at 95% 5%,rgba(143,111,216,.22),transparent 65%),var(--reader-card)}
-.reader-hero-copy {min-width:0}
+/* The cover breathes as much from the right edge as from the top and bottom,
+   and the blurb column stops short so the copy never crowds the artwork. */
+.reader-hero-copy {min-width:0;max-width:620px}
 .reader-hero .reader-eyebrow {display:flex;align-items:center;gap:7px}
 .reader-hero h2 {font-size:30px;font-weight:700;line-height:1.3;letter-spacing:-.025em;
   overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+/* Narrator in front of the title, as "樊登：孔子传" - smaller and muted so the
+   book title keeps the weight. */
+.reader-hero-credit {font-size:15px;font-weight:600;color:var(--reader-muted);letter-spacing:0;margin-right:2px}
 .reader-hero p {font-size:14px;color:var(--reader-muted);margin:10px 0;line-height:1.6}
 .reader-hero-description {display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .reader-cover {position:relative;background:var(--reader-raised);border-radius:12px;overflow:hidden;isolation:isolate}
@@ -176,8 +181,9 @@ input::placeholder,textarea::placeholder {color:var(--reader-muted);opacity:.8}
   .reader-shortcut {flex-direction:column;align-items:flex-start;padding:14px 10px;gap:9px}
   .reader-shortcut strong {font-size:12px}
   .reader-shortcut small {font-size:11px}
-  .reader-hero {grid-template-columns:minmax(0,1fr) 100px;gap:18px;padding:20px}
+  .reader-hero {grid-template-columns:minmax(0,1fr) 100px;gap:18px;padding:20px 38px 20px 20px}
   .reader-hero h2 {font-size:22px}
+  .reader-hero-credit {font-size:13px}
   .reader-hero p {font-size:12px}
   .reader-hero-description {display:none}
   .reader-section {margin-top:25px}
@@ -270,6 +276,9 @@ html,body,#root {overflow:hidden;max-width:100%;-webkit-text-size-adjust:100%;te
 .reader-display-options button {display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:9px;border:1px solid var(--reader-line);border-radius:11px;color:var(--reader-text);font-size:14px}
 .reader-display-options button[aria-pressed=true] {background:var(--reader-soft);border-color:var(--reader-accent);color:var(--reader-accent)}
 .reader-hero-cover-link {display:block;min-width:0}
+/* The desktop shelf toolbar sat flush against the first cover row. Give it the
+   same breathing room the subtitle has above the search field. */
+.reader-library-header.reader-page-toolbar {margin-bottom:20px}
 .reader-player-route-state {position:absolute;inset:0;bottom:calc(var(--bottom-nav-h) + env(safe-area-inset-bottom,0px));z-index:50;background:var(--reader-bg);overflow:auto}
 @media(max-width:959px) {
   :root {--reader-base-clearance:calc(var(--bottom-nav-h) + 24px + env(safe-area-inset-bottom,0px))}
@@ -290,9 +299,6 @@ html,body,#root {overflow:hidden;max-width:100%;-webkit-text-size-adjust:100%;te
   .reader-library-tools {grid-template-columns:minmax(220px,1fr) auto minmax(160px,220px) auto}
   .reader-library-search {grid-column:auto;order:0}
   .reader-selection-actions {grid-column:auto}
-  /* Desktop had no spacing after the toolbar, so the first cover row sat
-     against the filter row and read as an overlap. */
-  .reader-library-header.reader-page-toolbar { margin-bottom:12px }
 }
 
 /* Keep the app's clear control singular, and mobile filter choices legible. */
@@ -371,6 +377,9 @@ html.reader-ios { touch-action:pan-x pan-y }
     overscroll-behavior-y:none;
     -webkit-overflow-scrolling:touch;
   }
+  /* Keep the shelf strip's own gap even though the locked page zeroes the
+     generic toolbar margin. */
+  .reader-locked-page .reader-library-header {margin-bottom:12px}
   /* The locked page owns its scroll pane and its own bottom clearance, so the
      shell clearance would only lift that pane and leave a dead band above the
      floating player. Let the page spacer do the work instead. */
@@ -388,8 +397,9 @@ html.reader-ios { touch-action:pan-x pan-y }
     height:var(--reader-playing-clearance);
     min-height:var(--reader-playing-clearance);
   }
-  .reader-home .reader-page-scroll,
-  .reader-bookshelf-page .reader-page-scroll {
-    padding-top:0;
-  }
+  /* The shelf keeps its toolbar flush so the locked strip stays compact; the
+     home page needs the search box and the hero to breathe as much as the hero
+     and the shortcuts below it do. */
+  .reader-bookshelf-page .reader-page-scroll { padding-top:0 }
+  .reader-home .reader-page-scroll { padding-top:16px }
 }

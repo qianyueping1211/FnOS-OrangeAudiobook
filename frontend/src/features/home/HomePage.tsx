@@ -153,8 +153,13 @@ export default function HomePage() {
     {layout.showHero && <section className="reader-hero" aria-busy={heroPending}>
       <div className="reader-hero-copy">
         {hasResume && <div className="reader-eyebrow"><Headphones size={15} />{t('home.continueListening')}</div>}
-        <h2>{hero?.title || t(heroPending ? 'common.loading' : 'reader.emptyTitle')}</h2>
-        <p>{hero?.narrator || hero?.author || t('reader.emptySubtitle')}</p>
+        <h2>
+          {hero?.narrator && <span className="reader-hero-credit">{hero.narrator}：</span>}
+          {hero?.title || t(heroPending ? 'common.loading' : 'reader.emptyTitle')}
+        </h2>
+        {(!hero || (hero.author && hero.author !== hero.narrator)) && (
+          <p>{hero?.author || t('reader.emptySubtitle')}</p>
+        )}
         {hero?.description && <p className="reader-hero-description">{hero.description}</p>}
         <Link className="reader-button primary" to={hasResume ? '/player?' + playerQuery.toString() : bookUrl}>
           {hero ? (hasResume ? t('home.continuePlay') : t('home.viewDetails')) : t('home.goBookshelf')}<ChevronRight size={16} />
