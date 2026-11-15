@@ -14,8 +14,8 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
-use uuid::Uuid;
 use std::collections::HashMap;
+use uuid::Uuid;
 
 pub async fn list_playlists(
     State(state): State<AppState>,
