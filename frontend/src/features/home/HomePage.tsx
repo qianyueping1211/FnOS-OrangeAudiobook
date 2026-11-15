@@ -6,6 +6,7 @@ import apiClient from '../../core/api/client';
 import type { Book, Playlist, Progress, Series } from '../../core/types';
 import { DEFAULT_HOME_LAYOUT, normalizeHomeLayout, type HomeLayoutSettings } from '../../core/utils/homeLayout';
 import { cacheHomeLayout, readCachedHomeLayout } from '../../core/utils/homeLayout';
+import { readHeroCredit, rememberHeroCredit } from '../../core/utils/resumeCredit';
 import { useBookshelfCoverShape } from '../../core/hooks/useBookshelfCoverShape';
 import { usePlayerStore } from '../../core/stores/playerStore';
 import BookCard from '../../shared/cards/BookCard';
@@ -161,6 +162,10 @@ export default function HomePage() {
   const resumeStub = last && last.book_title ? {
     id: last.book_id, library_id: last.library_id || '', title: last.book_title,
     cover_url: last.cover_url, created_at: last.updated_at, path: '', hash: '',
+    // The history row has no narrator, so remember the one this device saw last:
+    // without it the headline paints the bare title and grows a "樊登：" prefix
+    // once the book row arrives.
+    narrator: readHeroCredit(last.book_id) ?? undefined,
   } as Book : undefined;
   const resumeMissing = !!last && !resumeBook;
   const resumeFailed = !!last && !resumeBook && heroFailedId === last.book_id;
@@ -174,6 +179,11 @@ export default function HomePage() {
   if (hero) playerQuery.set('book', hero.id);
   if (resumeChapterId) playerQuery.set('chapter', resumeChapterId);
   const bookUrl = hero ? '/book/' + encodeURIComponent(hero.id) + (resumeChapterId ? '?chapter_id=' + encodeURIComponent(resumeChapterId) : '') : '/bookshelf';
+  // One narrator for the whole card: the loaded row wins, the remembered name
+  // fills in while the row is still on its way, so the headline never paints
+  // the title first and then grows a prefix.
+  const heroCredit = hero?.narrator || readHeroCredit(hero?.id);
+  useEffect(() => { rememberHeroCredit(hero?.id, hero?.narrator); }, [hero?.id, hero?.narrator]);
 
   // A title wider than the column slides left and right instead of wrapping: the
   // hero keeps one line, so "继续收听" no longer grows with a long book name.
@@ -193,7 +203,7 @@ export default function HomePage() {
       line.style.setProperty('--marquee-duration', `${Math.min(26, Math.max(7, Math.round(length / 55)))}s`);
       line.classList.add('is-scrolling');
     }
-  }, [hero?.id, hero?.title, hero?.narrator]);
+  }, [hero?.id, hero?.title, heroCredit]);
 
   return <div className="reader-page reader-home reader-locked-page flex flex-1 flex-col">
     <header className="reader-heading reader-page-toolbar">
@@ -206,7 +216,7 @@ export default function HomePage() {
         {hasResume && <div className="reader-eyebrow"><Headphones size={15} />{t('home.continueListening')}</div>}
         <h2 className="reader-hero-title" ref={heroTitleRef}>
           <span className="reader-hero-line" ref={heroLineRef}>
-            {hero?.narrator && <span className="reader-hero-credit">{hero.narrator}：</span>}
+            {heroCredit && <span className="reader-hero-credit">{heroCredit}：</span>}
             {hero?.title || t(heroPending ? 'common.loading' : 'reader.emptyTitle')}
           </span>
         </h2>

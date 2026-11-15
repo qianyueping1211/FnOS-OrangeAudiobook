@@ -414,6 +414,20 @@ const PlaylistDetailPage: React.FC = () => {
         </div>
 
         {isManaging && (
+          // The tabs and the search row stay pinned while the result grid scrolls:
+          // managing content means scanning a long list of covers, so the controls
+          // must not leave the screen. The band spans the page padding so nothing
+          // shows through underneath while it is stuck to the top.
+          <div
+            className="sticky top-0 z-30 space-y-3 pb-3 pt-2"
+            style={{
+              background: 'var(--reader-bg)',
+              marginLeft: 'calc(var(--reader-page-pad) * -1)',
+              marginRight: 'calc(var(--reader-page-pad) * -1)',
+              paddingLeft: 'var(--reader-page-pad)',
+              paddingRight: 'var(--reader-page-pad)',
+            }}
+          >
           <div className="mx-auto grid w-full max-w-md grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
             <button
               type="button"
@@ -440,18 +454,7 @@ const PlaylistDetailPage: React.FC = () => {
               {t('playlists.selectedTab')}
             </button>
           </div>
-        )}
-
-        {isManaging ? (
-          manageTab === 'selected' ? (
-            <SelectedOrderPanel
-              items={selectedDisplayItems}
-              coverShape={coverShape}
-              onMove={moveSelectedItem}
-              onRemove={removeSelectedItem}
-            />
-          ) : (
-            <>
+            {manageTab === 'search' && (
               <div className="flex flex-wrap items-center gap-3">
                 <div className="relative flex-1 min-w-0">
                   <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -466,6 +469,20 @@ const PlaylistDetailPage: React.FC = () => {
                   {t('playlists.selectedItems', { count: selectedItems.length })}
                 </span>
               </div>
+            )}
+          </div>
+        )}
+
+        {isManaging ? (
+          manageTab === 'selected' ? (
+            <SelectedOrderPanel
+              items={selectedDisplayItems}
+              coverShape={coverShape}
+              onMove={moveSelectedItem}
+              onRemove={removeSelectedItem}
+            />
+          ) : (
+            <>
               {searching ? (
                 <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-400">
                   <Loader2 size={20} className="animate-spin" />
