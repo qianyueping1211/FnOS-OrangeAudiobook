@@ -508,12 +508,14 @@ impl BookRepository {
 
             // Filters
             if let Some(s) = search {
-                conditions.push("(b.title LIKE ? OR b.author LIKE ? OR b.description LIKE ? OR b.narrator LIKE ?)".to_string());
+                // A reader recognizes a result by its title, author or narrator.
+                // Matching descriptions too made short queries return whole
+                // shelves: almost every synopsis contains the character typed.
+                conditions.push("(b.title LIKE ? OR b.author LIKE ? OR b.narrator LIKE ?)".to_string());
                 let pattern = format!("%{}%", s);
                 params.push(pattern.clone());
                 params.push(pattern.clone());
-                params.push(pattern.clone());
-                params.push(pattern.clone());
+                params.push(pattern);
             }
 
             if let Some(t) = tag {
@@ -568,9 +570,11 @@ impl BookRepository {
                 let mut params: Vec<String> = Vec::new();
 
                 if let Some(s) = filter.search.as_deref() {
-                    conditions.push("(b.title LIKE ? OR b.author LIKE ? OR b.description LIKE ? OR b.narrator LIKE ?)".to_string());
+                    // Name-only matching here as well: a synopsis hit shows up as
+                    // a result whose title never mentions the query.
+                    conditions.push("(b.title LIKE ? OR b.author LIKE ? OR b.narrator LIKE ?)".to_string());
                     let pattern = format!("%{}%", s);
-                    for _ in 0..4 {
+                    for _ in 0..3 {
                         params.push(pattern.clone());
                     }
                 }

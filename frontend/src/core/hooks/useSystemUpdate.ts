@@ -42,10 +42,18 @@ export function useSystemUpdate(enabled: boolean) {
       } catch { /* Manual checks surface errors in the update panel. */ }
     };
     const changed = () => { void refresh(controller.signal).catch(() => {}); };
-    void check();
+    // The hourly re-check reaches the public release API. Launching it right at
+    // startup stole a connection (and a backend worker) from the first paint,
+    // so the first check now waits for the shell to settle.
+    const kickoff = window.setTimeout(() => { void check(); }, 8000);
     const timer = window.setInterval(check, 3600_000);
     window.addEventListener('ting-updates-changed', changed);
-    return () => { controller.abort(); window.clearInterval(timer); window.removeEventListener('ting-updates-changed', changed); };
+    return () => {
+      controller.abort();
+      window.clearTimeout(kickoff);
+      window.clearInterval(timer);
+      window.removeEventListener('ting-updates-changed', changed);
+    };
   }, [enabled, identity, refresh]);
   return { info: enabled ? info : null, refresh, setInfo };
 }

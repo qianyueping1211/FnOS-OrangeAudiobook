@@ -121,7 +121,8 @@ const Layout: React.FC = () => {
     const active = () => !controller.signal.aborted
       && useAuthStore.getState().sessionRevision === sessionRevision;
     const validateConnection = async () => {
-      setIsConnecting(true);
+      // Only a cold start without a cached session may block the screen.
+      if (!useAuthStore.getState().user) setIsConnecting(true);
       setConnectionError(null);
       try {
         if (hasSessionRestoreLogged(token)) {
@@ -143,8 +144,17 @@ const Layout: React.FC = () => {
       } catch (err: unknown) {
         if (!active()) return;
         console.error('Connection validation failed', err);
-        // Don't auto-logout immediately, give user a chance to see error or retry
-        setConnectionError('connection.failedMessage');
+        const status = (err as { response?: { status?: number } }).response?.status;
+        if (status === 401 || status === 403) {
+          // The stored token is gone server-side; the cached shell is worthless now.
+          logout();
+          navigate('/login');
+          return;
+        }
+        // A network hiccup keeps the cached page instead of trapping the reader
+        // behind a full-screen error. Only a session without a cache has nothing
+        // to paint, and only that case needs the retry screen.
+        if (!useAuthStore.getState().user) setConnectionError('connection.failedMessage');
         setIsConnecting(false);
       }
     };
@@ -159,11 +169,11 @@ const Layout: React.FC = () => {
         window.clearTimeout(timer);
       };
     }
-  }, [sessionRevision, setUser]);
+  }, [sessionRevision, setUser, logout, navigate]);
 
   // Fetch and apply user settings
   React.useEffect(() => {
-    if (user && !isConnecting && !connectionError) {
+    if (user && !connectionError) {
       setPluginToolMenuEnabled(true);
       setBookshelfProgressEnabled(true);
       let active = true;
@@ -187,10 +197,10 @@ const Layout: React.FC = () => {
       }).catch(err => { if (active) console.error('Failed to sync user settings', err); });
       return () => { active = false; };
     }
-  }, [user, setPlaybackSpeed, isConnecting, connectionError, setLanguage, setPluginToolMenuEnabled, setBookshelfProgressEnabled, applyTheme]);
+  }, [user, setPlaybackSpeed, connectionError, setLanguage, setPluginToolMenuEnabled, setBookshelfProgressEnabled, applyTheme]);
 
   React.useEffect(() => {
-    if (!user || isConnecting || connectionError) return;
+    if (!user || connectionError) return;
     apiClient.get('/api/system/time-zone')
       .then((response) => {
         if (typeof response.data?.time_zone === 'string') {
@@ -198,7 +208,7 @@ const Layout: React.FC = () => {
         }
       })
       .catch((error) => console.error('Failed to sync application time zone', error));
-  }, [user, isConnecting, connectionError]);
+  }, [user, connectionError]);
   // A phone tap can be swallowed between pointerdown and click (scroll takeover,
   // long press, rapid taps on the bottom bar). The bar highlights on pointerdown,
   // so if the click never arrives the highlight sits on a page that was never

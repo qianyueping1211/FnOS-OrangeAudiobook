@@ -119,13 +119,43 @@ export default defineConfig(({ command }) => ({
         // index.html must never be precached: the shell opens the app from the
         // local server on every launch, and a cached shell is what kept an old
         // bundle (and its outdated copy) alive after an update.
-        globPatterns: ['**/*.{js,css,ico,png,svg}'],
+        globPatterns: [
+          '**/*.{ico,png,svg,webmanifest}',
+          // Only the first screen is precached. Every lazy route chunk used to be
+          // downloaded here too — 300-odd requests and ~4 MB racing the launch,
+          // and again after each update. Lazy chunks now warm up on first use
+          // through the app-chunks rule below; the local server makes that cheap.
+          // Legacy twins are only ever requested by an old engine, which can
+          // pull them through the app-chunks rule on first use. The [!l] guards
+          // keep the "*-legacy-*" variants out of the install payload.
+          'assets/index-[!l]*.js',
+          'assets/index-[!l]*.css',
+          'assets/rolldown-runtime-[!l]*.js',
+          'assets/vendor-react-[!l]*.js',
+          'assets/authStore-[!l]*.js',
+        ],
         navigateFallback: null,
         cleanupOutdatedCaches: true,
         // Exclude widget routes from service worker navigation fallback
         // This ensures widget requests go to the server and get fresh headers (CSP)
         navigateFallbackDenylist: [/^\/widget/],
         runtimeCaching: [
+          {
+            // Chunk names carry a content hash, so a cached copy is always the
+            // right one and the launch stops re-fetching them from disk.
+            urlPattern: /\/assets\/[^/]+-[A-Za-z0-9_-]{6,}\.(?:js|css)$/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'app-chunks',
+              expiration: {
+                maxEntries: 120,
+                maxAgeSeconds: 60 * 60 * 24 * 30
+              },
+              cacheableResponse: {
+                statuses: [0, 200]
+              }
+            }
+          },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',
