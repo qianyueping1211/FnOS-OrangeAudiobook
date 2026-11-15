@@ -9,6 +9,7 @@ import DisplaySettingsMenu from '../../shared/widgets/DisplaySettingsMenu';
 import { ListMusic, Plus, Search, X } from 'lucide-react';
 import { getBookshelfGridClass, useBookshelfCoverShape, type CoverShape } from '../../core/hooks/useBookshelfCoverShape';
 import { getPlaylistBookCount } from '../../core/utils/playlist';
+import { cachePlaylistSnapshot } from '../../core/utils/playlistSnapshot';
 import { PlaylistCoverStack } from './PlaylistPieces';
 
 type PlaylistSortBy = 'updatedAt' | 'title' | 'count';
@@ -53,6 +54,12 @@ const MyPlaylistsPage: React.FC = () => {
   useEffect(() => {
     const timer = window.setTimeout(() => void fetchPlaylists(), 0);
     return () => window.clearTimeout(timer);
+  }, []);
+
+  // The detail route is its own chunk. Warm it up while the list is on screen
+  // so tapping a playlist does not wait for a download on top of the request.
+  useEffect(() => {
+    void import('./PlaylistDetailPage');
   }, []);
 
   // Opening the create sheet must only paint an overlay: the page behind it
@@ -246,8 +253,8 @@ const MyPlaylistsPage: React.FC = () => {
       </div>
 
       {showCreateModal && (
-        <div className="fixed inset-0 z-[200] flex items-end justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 sm:items-center sm:p-4">
-          <div className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-t-3xl border border-slate-100 bg-white p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] shadow-2xl animate-in slide-in-from-bottom-4 duration-200 dark:border-slate-800 dark:bg-slate-900 sm:rounded-3xl sm:pb-6">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-3xl border border-slate-100 bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-200 dark:border-slate-800 dark:bg-slate-900">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-xl font-bold dark:text-white">{t('playlists.newPlaylist')}</h2>
               <button
@@ -326,6 +333,7 @@ const PlaylistCard = ({
   return (
     <Link
       to={`/playlists/${playlist.id}`}
+      onClick={() => cachePlaylistSnapshot(playlist)}
       className="group min-w-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-4 dark:ring-offset-slate-950"
     >
       <PlaylistCoverStack playlist={playlist} coverShape={coverShape} seed={coverSeed} />

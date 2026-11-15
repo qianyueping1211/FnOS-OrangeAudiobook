@@ -10,7 +10,7 @@ import { usePlayerStore } from '../../core/stores/playerStore';
 import { Check, Edit3, Layers, ListMusic, Loader2, Plus, Save, Search, Trash2, X } from 'lucide-react';
 import { getBookshelfGridClass, useBookshelfDisplaySettings } from '../../core/hooks/useBookshelfCoverShape';
 import { getPlaylistBookCount } from '../../core/utils/playlist';
-import LoadingSpinner from '../../shared/ui/LoadingSpinner';
+import { readPlaylistSnapshot, cachePlaylistSnapshot } from '../../core/utils/playlistSnapshot';
 import {
   BookCover,
   PlaylistCoverStack,
@@ -39,10 +39,10 @@ const PlaylistDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const currentChapter = usePlayerStore((state) => state.currentChapter);
   const { coverShape, iconSize } = useBookshelfDisplaySettings();
-  const [playlist, setPlaylist] = useState<Playlist | null>(null);
+  const [playlist, setPlaylist] = useState<Playlist | null>(() => readPlaylistSnapshot(id));
   const [books, setBooks] = useState<Book[]>([]);
   const [series, setSeries] = useState<Series[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !readPlaylistSnapshot(id));
   const [isManaging, setIsManaging] = useState(false);
   const [selectedItems, setSelectedItems] = useState<EditablePlaylistItem[]>([]);
   const [query, setQuery] = useState('');
@@ -56,13 +56,28 @@ const PlaylistDetailPage: React.FC = () => {
 
   const fetchData = async () => {
     if (!id) return;
-    setLoading(true);
+    // A snapshot from the list page paints the first frame; the request below
+    // then refreshes it without flashing the spinner again.
+    const snapshot = readPlaylistSnapshot(id);
+    if (snapshot) {
+      setPlaylist(snapshot);
+      setSelectedItems(getPlaylistItems(snapshot).map(item => ({
+        item_type: item.item_type,
+        item_id: item.item_id,
+      })));
+      setEditTitle(snapshot.title || '');
+      setEditDescription(snapshot.description || '');
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     try {
       // The detail view only needs the playlist itself. The full book and
       // series catalogs are heavy on large libraries, so they load on demand
       // when the reader actually opens "manage content".
       const playlistRes = await apiClient.get(`/api/playlists/${id}`);
       setPlaylist(playlistRes.data);
+      cachePlaylistSnapshot(playlistRes.data);
       setSelectedItems(getPlaylistItems(playlistRes.data).map(item => ({
         item_type: item.item_type,
         item_id: item.item_id,
@@ -226,6 +241,7 @@ const PlaylistDetailPage: React.FC = () => {
         items: selectedItems,
       });
       setPlaylist(res.data);
+      cachePlaylistSnapshot(res.data);
       setSelectedItems(getPlaylistItems(res.data).map(item => ({
         item_type: item.item_type,
         item_id: item.item_id,
@@ -252,6 +268,7 @@ const PlaylistDetailPage: React.FC = () => {
         description: editDescription,
       });
       setPlaylist(res.data);
+      cachePlaylistSnapshot(res.data);
       setShowEditModal(false);
     } catch (err) {
       console.error('Failed to save playlist info', err);
@@ -275,8 +292,19 @@ const PlaylistDetailPage: React.FC = () => {
   };
 
   if (loading) {
+    // A skeleton keeps the page, the back button and the grid in place while the
+    // playlist loads, so opening one no longer looks like a stalled blank screen.
     return (
-      <LoadingSpinner />
+      <div className="reader-page flex-1 min-h-full flex flex-col">
+        <BackButton fallback="/playlists" />
+        <div className="mt-6 h-36 animate-pulse rounded-3xl border border-slate-200/60 bg-slate-100 dark:border-slate-800 dark:bg-slate-900/70" />
+        <div className="mt-6 h-9 w-44 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-900/70" />
+        <div className={`mt-5 grid gap-4 ${getBookshelfGridClass(iconSize)}`}>
+          {[0, 1, 2, 3, 4, 5].map(value => (
+            <div key={value} className="aspect-[3/4] animate-pulse rounded-xl bg-slate-100 dark:bg-slate-900/70" />
+          ))}
+        </div>
+      </div>
     );
   }
 
@@ -514,8 +542,8 @@ const PlaylistDetailPage: React.FC = () => {
       </div>
 
       {showEditModal && (
-        <div className="fixed inset-0 z-[200] flex items-end justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 sm:items-center sm:p-4">
-          <div className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-t-3xl border border-slate-100 bg-white p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] shadow-2xl animate-in slide-in-from-bottom-4 duration-200 dark:border-slate-800 dark:bg-slate-900 sm:rounded-3xl sm:pb-6">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-3xl border border-slate-100 bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-200 dark:border-slate-800 dark:bg-slate-900">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-xl font-bold dark:text-white">{t('playlists.editPlaylist')}</h2>
               <button
