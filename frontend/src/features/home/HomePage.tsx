@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ChevronRight, Headphones, Heart, History, Library, ListMusic, Search } from 'lucide-react';
@@ -88,16 +88,20 @@ export default function HomePage() {
         const recentRows = data || [];
         update({ recent: recentRows, recentLoaded: true });
         // Resuming has to survive paging: when the last book played is older
-        // than the newest page, fetch it on its own.
+        // than the newest page, fetch it on its own. The book the player still
+        // holds is refreshed the same way, so a metadata fix saved in the
+        // library replaces the stale snapshot the player cached locally.
         const lastId = [...recentRows]
           .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))[0]?.book_id;
-        if (lastId && !current.books.some(book => book.id === lastId)) {
-          void apiClient.get<Book>(`/api/books/${encodeURIComponent(lastId)}`, options)
-            .then(({ data: lastBook }) => {
-              if (!lastBook?.id) return;
-              heroBook = lastBook;
-              if (!current.books.some(book => book.id === lastBook.id)) {
-                update({ books: [...current.books, lastBook] });
+        const playingId = usePlayerStore.getState().currentBook?.id;
+        for (const id of [lastId, playingId]) {
+          if (!id || current.books.some(book => book.id === id)) continue;
+          void apiClient.get<Book>(`/api/books/${encodeURIComponent(id)}`, options)
+            .then(({ data: freshBook }) => {
+              if (!freshBook?.id) return;
+              heroBook = freshBook;
+              if (!current.books.some(book => book.id === freshBook.id)) {
+                update({ books: [...current.books, freshBook] });
               }
             })
             .catch(() => {});
@@ -133,7 +137,11 @@ export default function HomePage() {
   // /api/books/page usually answers before /api/progress/recent, so falling back
   // early paints "recently added" for a frame and then swaps to "continue
   // listening". Only the player's current book may show immediately.
-  const heroReview = currentBook
+  // The player keeps its own copy of the book (survives reloads), so the hero
+  // prefers the library's freshly loaded row whenever it has one: otherwise a
+  // metadata fix (author/narrator/title) stays hidden behind that cached copy.
+  const playingBook = currentBook ? books.find(book => book.id === currentBook.id) ?? currentBook : undefined;
+  const heroReview = playingBook
     || (recentLoaded ? (books.find(book => book.id === last?.book_id) || latest[0] || favorites[0]) : undefined);
   const heroPending = !heroReview && (loading || !recentLoaded);
   const hero = heroReview;
@@ -144,6 +152,26 @@ export default function HomePage() {
   if (resumeChapterId) playerQuery.set('chapter', resumeChapterId);
   const bookUrl = hero ? '/book/' + encodeURIComponent(hero.id) + (resumeChapterId ? '?chapter_id=' + encodeURIComponent(resumeChapterId) : '') : '/bookshelf';
 
+  // A title wider than the column slides left and right instead of wrapping: the
+  // hero keeps one line, so "继续收听" no longer grows with a long book name.
+  const heroTitleRef = useRef<HTMLHeadingElement | null>(null);
+  const heroLineRef = useRef<HTMLSpanElement | null>(null);
+  useEffect(() => {
+    const wrap = heroTitleRef.current;
+    const line = heroLineRef.current;
+    if (!wrap || !line) return;
+    line.classList.remove('is-scrolling');
+    line.style.removeProperty('--marquee-shift');
+    line.style.removeProperty('--marquee-duration');
+    const overflow = line.scrollWidth - wrap.clientWidth;
+    if (overflow > 8) {
+      line.style.setProperty('--marquee-shift', `-${overflow + 10}px`);
+      const length = line.scrollWidth + overflow;
+      line.style.setProperty('--marquee-duration', `${Math.min(26, Math.max(7, Math.round(length / 55)))}s`);
+      line.classList.add('is-scrolling');
+    }
+  }, [hero?.id, hero?.title, hero?.narrator]);
+
   return <div className="reader-page reader-home reader-locked-page flex flex-1 flex-col">
     <header className="reader-heading reader-page-toolbar">
       <div><div className="reader-eyebrow">{t('reader.privateLibrary')}</div><h1>{t('reader.homeTitle')}</h1><p>{t('reader.homeSubtitle')}</p></div>
@@ -153,13 +181,12 @@ export default function HomePage() {
     {layout.showHero && <section className="reader-hero" aria-busy={heroPending}>
       <div className="reader-hero-copy">
         {hasResume && <div className="reader-eyebrow"><Headphones size={15} />{t('home.continueListening')}</div>}
-        <h2>
-          {hero?.narrator && <span className="reader-hero-credit">{hero.narrator}：</span>}
-          {hero?.title || t(heroPending ? 'common.loading' : 'reader.emptyTitle')}
+        <h2 className="reader-hero-title" ref={heroTitleRef}>
+          <span className="reader-hero-line" ref={heroLineRef}>
+            {hero?.narrator && <span className="reader-hero-credit">{hero.narrator}：</span>}
+            {hero?.title || t(heroPending ? 'common.loading' : 'reader.emptyTitle')}
+          </span>
         </h2>
-        {(!hero || (hero.author && hero.author !== hero.narrator)) && (
-          <p>{hero?.author || t('reader.emptySubtitle')}</p>
-        )}
         {hero?.description && <p className="reader-hero-description">{hero.description}</p>}
         <Link className="reader-button primary" to={hasResume ? '/player?' + playerQuery.toString() : bookUrl}>
           {hero ? (hasResume ? t('home.continuePlay') : t('home.viewDetails')) : t('home.goBookshelf')}<ChevronRight size={16} />

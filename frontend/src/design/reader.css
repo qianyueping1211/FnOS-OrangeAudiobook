@@ -77,15 +77,20 @@ input::placeholder,textarea::placeholder {color:var(--reader-muted);opacity:.8}
 .reader-section-heading {display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:15px}
 .reader-section-heading h2 {font-size:18px;font-weight:650}
 .reader-section-heading a {display:flex;align-items:center;gap:4px;color:var(--reader-muted);font-size:12px}
-.reader-hero {display:grid;grid-template-columns:minmax(0,1fr) 148px;gap:28px;align-items:center;padding:32px 50px 32px 32px;
+.reader-hero {display:grid;grid-template-columns:minmax(0,1fr) 148px;gap:28px;align-items:center;padding:32px 36px 32px 32px;
   border:1px solid var(--reader-line);border-radius:20px;position:relative;overflow:hidden;
   background:radial-gradient(ellipse at 95% 5%,rgba(143,111,216,.22),transparent 65%),var(--reader-card)}
 /* The cover breathes as much from the right edge as from the top and bottom,
    and the blurb column stops short so the copy never crowds the artwork. */
 .reader-hero-copy {min-width:0;max-width:620px}
 .reader-hero .reader-eyebrow {display:flex;align-items:center;gap:7px}
-.reader-hero h2 {font-size:30px;font-weight:700;line-height:1.3;letter-spacing:-.025em;
-  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.reader-hero h2 {font-size:30px;font-weight:700;line-height:1.3;letter-spacing:-.025em;overflow:hidden}
+/* The headline holds exactly one line: a long title slides sideways instead of
+   wrapping, so the hero keeps one fixed height whatever the book is called. */
+.reader-hero-title {display:block;max-width:100%;min-width:0;white-space:nowrap;overflow:hidden}
+.reader-hero-line {display:inline-block;white-space:nowrap;padding-right:2px}
+.reader-hero-line.is-scrolling {animation:reader-hero-marquee var(--marquee-duration,10s) ease-in-out infinite alternate}
+@keyframes reader-hero-marquee {from {transform:translateX(0)} to {transform:translateX(var(--marquee-shift,0px))}}
 /* Narrator in front of the title, as "樊登：孔子传" - smaller and muted so the
    book title keeps the weight. */
 .reader-hero-credit {font-size:15px;font-weight:600;color:var(--reader-muted);letter-spacing:0;margin-right:2px}
@@ -181,7 +186,7 @@ input::placeholder,textarea::placeholder {color:var(--reader-muted);opacity:.8}
   .reader-shortcut {flex-direction:column;align-items:flex-start;padding:14px 10px;gap:9px}
   .reader-shortcut strong {font-size:12px}
   .reader-shortcut small {font-size:11px}
-  .reader-hero {grid-template-columns:minmax(0,1fr) 100px;gap:18px;padding:20px 38px 20px 20px}
+  .reader-hero {grid-template-columns:minmax(0,1fr) 100px;gap:18px;padding:20px 22px 20px 20px}
   .reader-hero h2 {font-size:22px}
   .reader-hero-credit {font-size:13px}
   .reader-hero p {font-size:12px}
