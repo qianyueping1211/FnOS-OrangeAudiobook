@@ -199,6 +199,25 @@ const Layout: React.FC = () => {
       })
       .catch((error) => console.error('Failed to sync application time zone', error));
   }, [user, isConnecting, connectionError]);
+  // A phone tap can be swallowed between pointerdown and click (scroll takeover,
+  // long press, rapid taps on the bottom bar). The bar highlights on pointerdown,
+  // so if the click never arrives the highlight sits on a page that was never
+  // opened. Navigate on the press instead, and let the fallback timer below
+  // release any highlight that outlives the navigation.
+  const openTab = React.useCallback((path: string) => {
+    if (location.pathname === path) return;
+    setPendingMobileNav({ path, origin: location });
+    navigate(path, { replace: true });
+  }, [location, navigate]);
+
+  // Pre-highlight never outlives its purpose: if the navigation did not land,
+  // the bar falls back to the real location instead of staying on the old page.
+  React.useEffect(() => {
+    if (!pendingMobileNav) return;
+    const timer = window.setTimeout(() => setPendingMobileNav(null), 1200);
+    return () => window.clearTimeout(timer);
+  }, [pendingMobileNav]);
+
 
 
   const menuItems = [
@@ -286,6 +305,7 @@ const Layout: React.FC = () => {
     ? pendingMobileNav.path
     : null;
 
+
   const renderNav = (item: NavItem, mobile = false) => {
     const activePath = mobile && pendingMobilePath ? pendingMobilePath : location.pathname;
     const active = item.path === '/'
@@ -294,8 +314,16 @@ const Layout: React.FC = () => {
     return (
       <Link key={item.path} to={item.path} title={item.label}
         aria-current={active ? 'page' : undefined}
-        onPointerDown={() => { if (mobile) setPendingMobileNav({ path: item.path, origin: location }); }}
-        onClick={() => { if (mobile) setPendingMobileNav({ path: item.path, origin: location }); }}
+        onPointerDown={(event) => {
+          if (!mobile) return;
+          event.preventDefault();
+          openTab(item.path);
+        }}
+        onClick={(event) => {
+          if (!mobile) return;
+          event.preventDefault();
+          openTab(item.path);
+        }}
         className={(mobile ? 'reader-tab' : 'reader-nav') + (active ? ' is-active' : '')}>
         {item.icon}<span>{item.label}</span>
       </Link>

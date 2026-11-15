@@ -215,6 +215,17 @@ async function fixture(context, gated = false) {
           const heroCover = await page.locator('.reader-hero-cover').boundingBox();
           assert.ok(Math.abs(heroCover.width - heroCover.height) <= 1, name + ' home hero cover must be square');
           assert.equal(await page.locator('.reader-hero-cover').evaluate(element => getComputedStyle(element).transform), 'none');
+          if (mobile) {
+            // The bar highlights on press, so the page has to follow the press:
+            // a tap whose click never arrives must still open the page instead of
+            // leaving the highlight on a page that was never shown.
+            await page.locator('.reader-tabs .reader-tab', { hasText: '书架' }).first().dispatchEvent('pointerdown');
+            await page.locator('.reader-bookshelf-page').waitFor();
+            assert.equal(new URL(page.url()).pathname, '/bookshelf', name + ' bottom tab opens on press alone');
+            await page.locator('.reader-tabs .reader-tab', { hasText: '首页' }).first().tap();
+            await page.locator('.reader-home').waitFor();
+            assert.equal(new URL(page.url()).pathname, '/', name + ' bottom tab returns home');
+          }
         }
         if (slug === 'search') {
           const input = page.locator('.reader-search-field input');
