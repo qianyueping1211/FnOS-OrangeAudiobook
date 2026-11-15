@@ -278,7 +278,10 @@ async fn build_playlist_response(
         // A caller that only needs an overview passes a limit: items past it are
         // counted into `book_count` and left unresolved, so the list request no
         // longer pays one lookup per book in every playlist.
-        let detailed = item_limit.map_or(true, |limit| index < limit);
+        let detailed = match item_limit {
+            Some(limit) => index < limit,
+            None => true,
+        };
 
         match item.item_type.as_str() {
             "book" => {
