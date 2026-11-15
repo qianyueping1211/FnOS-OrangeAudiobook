@@ -15,6 +15,18 @@ use super::super::types::{PluginLogContext, PluginLogSource, PluginLogger};
 use crate::plugin::host_api::logger::{DefaultPluginLogger, PluginLogLevel};
 use crate::plugin::{PluginHostGatewayHandle, PluginHostUser};
 
+/// Every `JsRuntime` needs the shared V8 platform, which must be set up once per
+/// process before the first runtime is created. Doing it here instead of only in
+/// `main` keeps the guarantee for the test harness too: the harness links the
+/// library directly, never runs `main`, and used to create runtimes on a bare
+/// process where the missing platform surfaced as a SIGSEGV.
+static V8_PLATFORM_ONCE: std::sync::Once = std::sync::Once::new();
+
+/// Initialises the shared V8 platform exactly once, whoever runs first.
+pub fn ensure_v8_platform() {
+    V8_PLATFORM_ONCE.call_once(|| deno_core::JsRuntime::init_platform(None));
+}
+
 // ============================================================================
 // Rust Functions Exported to JavaScript (Helper Functions)
 // ============================================================================
@@ -437,6 +449,7 @@ pub fn create_js_runtime_with_bindings(
         .map(|sandbox| sandbox.resource_limits.max_memory_bytes)
         .unwrap_or_else(|| crate::plugin::sandbox::ResourceLimits::default().max_memory_bytes);
     let budget = super::limits::JsBudget::new(memory_limit)?;
+    ensure_v8_platform();
     let mut runtime = JsRuntime::new(RuntimeOptions {
         create_params: Some(budget.create_params(memory_limit)),
         extensions: vec![ext],
