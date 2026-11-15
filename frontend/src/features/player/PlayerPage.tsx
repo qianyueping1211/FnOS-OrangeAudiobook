@@ -7,7 +7,7 @@ import type { Book, Chapter, Progress } from '../../core/types';
 import { sortChaptersForPlayback } from '../../core/utils/chapter';
 import { isTooLight } from '../../core/utils/color';
 import { usePlayerStore } from '../../core/stores/playerStore';
-import LoadingSpinner from '../../shared/ui/LoadingSpinner';
+import { takeRecentPlayback } from './playbackWarmup';
 
 // Navigation keeps the shared Player and its one audio element alive.
 export default function PlayerPage() {
@@ -33,9 +33,34 @@ function PlaybackSelection({ requestedBook, requestedChapter }: { requestedBook:
     if (matches) return;
     const controller = new AbortController();
     const startingBook = usePlayerStore.getState().currentBook?.id;
+    const commit = (book: Book, chapters: Chapter[], progress: Progress | undefined, bookId: string) => {
+      const target = requestedChapter || progress?.chapter_id;
+      const chapter = chapters.find(item => item.id === target) || chapters[0];
+      const current = usePlayerStore.getState();
+      if (!chapter || controller.signal.aborted) return;
+      if (!requestedBook && current.currentChapter) return;
+      if (requestedBook && current.currentBook?.id !== startingBook && current.currentBook?.id !== bookId) return;
+      const position = progress?.chapter_id === chapter.id ? progress.position : chapter.progress_position || 0;
+      setResolvedChapter(chapter.id);
+      usePlayerStore.setState(state => ({
+        currentBook: book, currentChapter: chapter, chapters,
+        currentTime: Math.max(0, position || 0), duration: chapter.duration || 0,
+        isPlaying: false, isExpanded: false, isCollapsed: false,
+        playbackRevision: state.playbackRevision + 1,
+        themeColor: book.theme_color && !isTooLight(book.theme_color) ? book.theme_color : '#F2EDE4',
+      }));
+    };
     const loadRecent = async () => {
       try {
         const options = { signal: controller.signal };
+        // 启动时已经取回过的最近收听先用上，点「播放」就不用再等三个请求。
+        if (!requestedBook) {
+          const warmed = takeRecentPlayback();
+          if (warmed) {
+            commit(warmed.book, warmed.chapters, warmed.progress, warmed.book.id);
+            return;
+          }
+        }
         let last: Progress | undefined;
         if (!requestedBook) {
           const recent = (await apiClient.get<Progress[]>('/api/progress/recent', options)).data;
@@ -49,23 +74,7 @@ function PlaybackSelection({ requestedBook, requestedChapter }: { requestedBook:
           apiClient.get<Chapter[]>('/api/books/' + id + '/chapters', options),
           last ? Promise.resolve(last) : apiClient.get<Progress>('/api/progress/' + id, options).then(response => response.data).catch(() => undefined),
         ]);
-        const chapters = sortChaptersForPlayback(chapterResponse.data);
-        const target = requestedChapter || progress?.chapter_id;
-        const chapter = chapters.find(item => item.id === target) || chapters[0];
-        const current = usePlayerStore.getState();
-        if (!chapter || controller.signal.aborted) return;
-        if (!requestedBook && current.currentChapter) return;
-        if (requestedBook && current.currentBook?.id !== startingBook && current.currentBook?.id !== bookId) return;
-        const book = bookResponse.data;
-        const position = progress?.chapter_id === chapter.id ? progress.position : chapter.progress_position || 0;
-        setResolvedChapter(chapter.id);
-        usePlayerStore.setState(state => ({
-          currentBook: book, currentChapter: chapter, chapters,
-          currentTime: Math.max(0, position || 0), duration: chapter.duration || 0,
-          isPlaying: false, isExpanded: false, isCollapsed: false,
-          playbackRevision: state.playbackRevision + 1,
-          themeColor: book.theme_color && !isTooLight(book.theme_color) ? book.theme_color : '#F2EDE4',
-        }));
+        commit(bookResponse.data, sortChaptersForPlayback(chapterResponse.data), progress, bookId);
       } catch {
         if (!controller.signal.aborted) setFailed(true);
       } finally {
@@ -77,7 +86,18 @@ function PlaybackSelection({ requestedBook, requestedChapter }: { requestedBook:
   }, [matches, requestedBook, requestedChapter, attempt]);
 
   if (matches) return null;
-  if (loading) return <div className="reader-player-route-state"><LoadingSpinner className="min-h-64" /></div>;
+  // 首帧就把这页画出来：标题栏立刻在，下面先摆播放页的形状（封面位、两条
+  // 文本、一颗按钮位），数据一到就换成真正的播放器。以前这里是一颗转圈，
+  // 用户看到的就是"点了没反应"。
+  if (loading) return <div className="reader-page reader-player-route-state">
+    <header className="reader-heading"><h1>{t('nav.playerPage')}</h1></header>
+    <section className="reader-player-empty" aria-busy="true">
+      <div className="reader-player-skeleton-cover animate-pulse" aria-hidden="true" />
+      <h2 className="reader-player-skeleton-line animate-pulse" aria-hidden="true" />
+      <p className="reader-player-skeleton-line is-short animate-pulse" aria-hidden="true" />
+      <span className="reader-sr-only">{t('player.restoringRecent')}</span>
+    </section>
+  </div>;
   return <div className="reader-page reader-player-route-state">
     <header className="reader-heading"><h1>{t('nav.playerPage')}</h1></header>
     <section className="reader-player-empty">

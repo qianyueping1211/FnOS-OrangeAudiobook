@@ -32,6 +32,8 @@ import { useClientExtensions } from '../../core/hooks/useClientExtensions';
 import { useUiPreferencesStore } from '../../core/stores/uiPreferencesStore';
 import { consumeInternalBack, exitApp } from '../../core/utils/appExit';
 import { rememberPath } from '../../core/utils/appHistory';
+import { warmFileManager } from '../../core/utils/nasFileManager';
+import { primePlaybackFromWarm, warmRecentPlayback } from '../../features/player/playbackWarmup';
 
 import DefaultAdminCredentialsDialog from '../../features/auth/DefaultAdminCredentialsDialog';
 import { isMiniPlayerHiddenPath } from '../../features/player/platform';
@@ -75,6 +77,13 @@ const Layout: React.FC = () => {
     document.getElementById('main-content')?.scrollTo({ top: 0, behavior: 'instant' });
   }, [location.pathname]);
 
+  // 和橙子音乐一样，启动时就预热文件管理桥（app.js 的 warmFileManager）：
+  // SDK 模块加载、TrimApp 构造、宿主的 getAppMessage 往返都在用户点按钮之前
+  // 完成，点下去才可能一次就弹出飞牛文件管理器。
+  React.useEffect(() => {
+    void warmFileManager().catch(() => undefined);
+  }, []);
+
   // 底部 tab 的目标页面是懒加载的：外壳起来后把它们的 chunk 提前取回来，
   // 第一次点 tab 时锁定区就能立刻画出来，而不是先空一会儿再整页一起出现。
   React.useEffect(() => {
@@ -92,6 +101,9 @@ const Layout: React.FC = () => {
       // 播放页同样先取回来：只加载代码，不挂载、不取音频，所以不会出声；
       // 点「播放」时页面立刻能画出来，剩下的只是恢复已有进度。
       () => import('../../features/player/PlayerPage'),
+      // 再把"上次听到哪"这份数据也悄悄取回来，只放在内存里。点「播放」时
+      // primePlaybackFromWarm 直接把内容交给播放器，所以是显示而不是等待。
+      () => warmRecentPlayback(),
     ];
     let cancelled = false;
     let timer: number | undefined;
@@ -262,6 +274,8 @@ const Layout: React.FC = () => {
   // release any highlight that outlives the navigation.
   const openTab = React.useCallback((path: string) => {
     if (location.pathname === path) return;
+    // 点「播放」时先把预热好的上次播放交出去，路由一到这页就有内容。
+    if (path === '/player') primePlaybackFromWarm();
     setPendingMobileNav({ path, origin: location });
     navigate(path, { replace: true });
   }, [location, navigate]);
@@ -376,6 +390,7 @@ const Layout: React.FC = () => {
           openTab(item.path);
         }}
         onClick={(event) => {
+          if (item.path === '/player') primePlaybackFromWarm();
           if (!mobile) return;
           event.preventDefault();
           openTab(item.path);

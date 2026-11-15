@@ -241,6 +241,7 @@ const zhCN = {
     
     closePlayer: "关闭播放器",
 resumeFailed: "暂时无法载入继续播放的内容",
+    restoringRecent: "正在恢复上次播放…",
     emptyTitle: "还没有正在播放的书籍",
     emptyDescription: "从书架选择一本书，即可在这里继续收听。",
     collapse: "收起播放器",

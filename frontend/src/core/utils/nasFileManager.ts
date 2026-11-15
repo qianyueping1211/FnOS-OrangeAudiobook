@@ -1,20 +1,27 @@
-// Opens the fnOS file manager on the NAS folder that holds a book, the same way
-// OrangeMusic's download list does it (`openSavedFileFolder` → SDK
-// `openFileManager(path)`), with one extra step for the phone.
+// Opens the fnOS file manager on the NAS folder that holds a book, following
+// OrangeMusic's 「查看与下载」 exactly:
 //
-// Why the extra step: the SDK gates `openFileManager` behind
-// `assertMobileAppApi("openFileManager")`, and the version it compares comes from
-// the host's `getAppMessage` reply. In the fnOS phone app that reply carries no
-// `appApi`, so the gate always throws "openFileManager requires appApi >= v1.0"
-// even though the host does expose a file-manager handler. Calling the handler
-// directly skips only the version gate, not the host: if the app has the handler
-// the folder really opens, and if it does not we say so instead of leaking a
-// server path into the interface.
+//   app.js:      navigation().then(n => n.warmFileManager())   // on startup
+//   reveal(job): bridge.openSavedFileFolder(job.nas_path)
+//   openMusicFolder(path): ready() (20s) → native.openFileManager(path) (10s)
+//
+// The two details that matter and that we got wrong before:
+//
+// 1. warmFileManager() runs when the app boots, so the SDK module is imported
+//    and TrimApp is constructed long before the button is tapped. The host's
+//    `getAppMessage` round-trip fills `appApiVersion` during that warm-up;
+//    doing it on the tap was too late and made the SDK's
+//    `assertMobileAppApi("openFileManager")` fail with "requires appApi >= v1.0".
+// 2. The call must go through the SDK, not through a guessed
+//    `callHandler('openFileManager')`. The SDK awaits `initPromise` first and
+//    serialises the argument the way the host expects. A raw callHandler on a
+//    handler the host never registered resolves quietly, which is why the last
+//    build looked like it did nothing at all.
 import type { Book } from '../types';
 
 interface TrimAppInstance {
   isStandaloneWeb?: boolean;
-  ready: () => Promise<void>;
+  ready: () => Promise<unknown>;
   openFileManager?: (path: string) => Promise<unknown>;
 }
 
@@ -39,7 +46,9 @@ const withTimeout = async <T,>(promise: Promise<T>, ms: number, message: string)
   }
 };
 
-const host = (): Promise<TrimAppInstance> => {
+// Same shape as OrangeMusic's warmFileManager(): one shared promise, cleared on
+// failure so the next tap can retry.
+export const warmFileManager = (): Promise<TrimAppInstance> => {
   if (!hostPromise) {
     hostPromise = import('../../vendor/fnos-sdk.js')
       .then(module => {
@@ -63,52 +72,22 @@ export const nasFolderOf = (path?: string): string | null => {
 export const canRevealNasFolder = (book?: Pick<Book, 'path' | 'library_type'> | null): boolean =>
   !!book && book.library_type !== 'webdav' && !!nasFolderOf(book.path);
 
-const hostBridge = () =>
-  (window as unknown as {
-    flutter_inappwebview?: { callHandler?: (name: string, ...args: unknown[]) => Promise<unknown> };
-  }).flutter_inappwebview;
-
-// The fnOS app webview injects flutter_inappwebview and a phone user agent.
-const isPhoneHost = (): boolean => {
-  if (typeof hostBridge() !== 'undefined') return true;
-  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
-  return /iPhone|iPad|iPod|Android/i.test(ua);
-};
-
-const callHost = async (handler: string, arg: string): Promise<boolean> => {
-  const bridge = hostBridge();
-  if (!bridge?.callHandler) return false;
-  try {
-    const result = await withTimeout(bridge.callHandler(handler, arg), 8000, 'timeout');
-    // A handler that reports back an error string has not opened anything.
-    if (result === false || result === 'false') return false;
-    if (typeof result === 'string' && /error|fail|not support|unavailable/i.test(result)) return false;
-    return true;
-  } catch {
-    return false;
-  }
-};
-
 export async function revealNasFolder(path: string): Promise<RevealResult> {
   const folder = nasFolderOf(path);
   if (!folder) throw new Error('这个作品还没有可用的 NAS 位置');
 
-  if (isPhoneHost()) {
-    // Ask the host itself: `openFileManager` is the handler the SDK would have
-    // called, `openFileManagerApp` is the variant some builds register instead.
-    if (await callHost('openFileManager', folder)) return { mode: 'opened' };
-    if (await callHost('openFileManagerApp', folder)) return { mode: 'opened' };
-    return { mode: 'unsupported' };
-  }
+  const native = await warmFileManager();
+  // OrangeMusic refuses here too: an ordinary browser tab has no host to talk to.
+  if (native.isStandaloneWeb) return { mode: 'desktopOnly' };
 
-  const app = await host();
-  if (app.isStandaloneWeb) return { mode: 'desktopOnly' };
-  await withTimeout(app.ready(), 20000, '尚未连接到飞牛文件管理，请关闭应用后重新打开再试');
-  if (typeof app.openFileManager !== 'function') return { mode: 'unsupported' };
   try {
-    await withTimeout(app.openFileManager(folder), 10000, '飞牛文件管理没有响应，请稍后再试');
+    await withTimeout(native.ready(), 20000, '尚未连接到飞牛文件管理，请关闭应用后从应用中心重新打开再试');
+    if (typeof native.openFileManager !== 'function') return { mode: 'unsupported' };
+    await withTimeout(native.openFileManager(folder), 10000, '飞牛文件管理没有响应，请稍后再试');
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error ?? '');
+    // The host says it has no file manager to hand us: that is a limitation of
+    // the window, not a crash, so the interface just says so.
     if (message.includes('NotSupportedInExtensionHost') || message.includes('requires appApi')) {
       return { mode: 'unsupported' };
     }

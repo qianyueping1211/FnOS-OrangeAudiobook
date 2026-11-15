@@ -255,6 +255,7 @@ const enUS = {
     
     closePlayer: "Close player",
 resumeFailed: "Unable to load your recent book",
+    restoringRecent: "Restoring your last book…",
     emptyTitle: "No book selected",
     emptyDescription: "Choose a book from your bookshelf to start listening here.",
     collapse: "Collapse player",

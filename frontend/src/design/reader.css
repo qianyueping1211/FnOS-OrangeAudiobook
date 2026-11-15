@@ -240,6 +240,11 @@ input::placeholder,textarea::placeholder {color:var(--reader-muted);opacity:.8}
 .reader-player-empty h2 {font-size:20px;font-weight:650}
 .reader-player-empty p {color:var(--reader-muted);max-width:28em;line-height:1.7}
 .reader-player-empty a {background:var(--reader-soft);color:var(--reader-accent);padding:12px 28px;border:1px solid var(--reader-line);border-radius:12px}
+/* 播放页首帧骨架：先摆出这页的形状，数据到了再换成播放器，避免一颗转圈。 */
+.reader-player-skeleton-cover {width:min(56vw,240px);aspect-ratio:1;border-radius:18px;background:var(--reader-soft);border:1px solid var(--reader-line)}
+.reader-player-skeleton-line {height:22px;width:min(60vw,220px);border-radius:8px;background:var(--reader-soft);border:1px solid var(--reader-line)}
+.reader-player-skeleton-line.is-short {height:16px;width:min(44vw,160px)}
+.reader-sr-only {position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 
 /* One viewport shell: legacy page spacers are zeroed by Layout. */
 html,body,#root {overflow:hidden;max-width:100%;-webkit-text-size-adjust:100%;text-size-adjust:100%}
