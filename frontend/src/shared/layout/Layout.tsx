@@ -67,6 +67,10 @@ const Layout: React.FC = () => {
   const [isConnecting, setIsConnecting] = useState(true);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [pendingMobileNav, setPendingMobileNav] = useState<PendingMobileNav | null>(null);
+  // 手机上点 tab 会在 pointerdown 和 click 各到一次；两次都导航就会把同一个
+  // 页面压进两条历史，右滑一次等于没动。这里记住 pointerdown 已经处理过哪个
+  // tab，紧跟着的 click 只负责把标记清掉。
+  const tabPressRef = React.useRef<string | null>(null);
   const [dismissedDefaultCredentials, setDismissedDefaultCredentials] = useState<string | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
@@ -403,6 +407,7 @@ const Layout: React.FC = () => {
         onPointerDown={(event) => {
           if (!mobile) return;
           event.preventDefault();
+          tabPressRef.current = item.path;
           openTab(item.path);
         }}
         onClick={(event) => {
@@ -412,6 +417,11 @@ const Layout: React.FC = () => {
           }
           if (!mobile) return;
           event.preventDefault();
+          // pointerdown 已经导航过：这一次只是同一次点按的后半截。
+          if (tabPressRef.current === item.path) {
+            tabPressRef.current = null;
+            return;
+          }
           openTab(item.path);
         }}
         className={(mobile ? 'reader-tab' : 'reader-nav') + (active ? ' is-active' : '')}>

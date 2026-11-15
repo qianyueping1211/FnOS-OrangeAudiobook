@@ -320,6 +320,14 @@ async function fixture(context, gated = false) {
       await page.locator('.reader-mini-info').waitFor();
       assert.equal(await page.locator('.reader-player.is-mini').evaluate(element => getComputedStyle(element).position), 'fixed');
       if (mobile) assert.equal(await page.locator('.reader-tabs').evaluate(element => getComputedStyle(element).position), 'fixed');
+      // 一次点按只压一条历史：宿主把右滑交给 WebView 的 back 之后，退一次就该
+      // 落到上一个分区，底部导航的选中项也跟着换过去。
+      if (mobile) {
+        assert.equal(await page.locator('.reader-tab.is-active').getAttribute('href'), '/mine');
+        await page.evaluate(() => window.history.back());
+        await page.waitForFunction(() => location.pathname === '/bookshelf');
+        assert.equal(await page.locator('.reader-tab.is-active').getAttribute('href'), '/bookshelf');
+      }
       await page.locator(nav + ' a[href="/bookshelf"]').click();
       await page.locator('.reader-library-search').click();
       await page.locator('.reader-player.is-mini').evaluate(async element => {
