@@ -81,7 +81,7 @@ const EditBookModal: React.FC<Props> = ({
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={saving ? undefined : onClose}></div>
-      <div className={`relative flex w-full ${activeTab === 'chapters' ? 'max-w-5xl' : 'max-w-2xl'} max-h-[90vh] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-200 dark:bg-slate-900`}>
+      <div className={`relative flex w-full ${activeTab === 'chapters' ? 'h-[90vh] max-w-5xl' : 'max-h-[90vh] max-w-2xl'} flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-200 dark:bg-slate-900`}>
         {!showRegexGenerator && (
           <div className="shrink-0 border-b border-slate-100 px-4 pb-3 pt-4 dark:border-slate-800 sm:px-6">
             <div className="mx-auto grid max-w-md grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
@@ -114,7 +114,7 @@ const EditBookModal: React.FC<Props> = ({
         )}
 
         {activeTab === 'chapters' ? (
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="chapter-tab-panel flex min-h-0 flex-1 flex-col overflow-hidden">
             {chaptersPanel}
           </div>
         ) : (

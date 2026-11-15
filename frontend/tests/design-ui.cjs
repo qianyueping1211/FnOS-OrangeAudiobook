@@ -350,6 +350,17 @@ async function fixture(context, gated = false) {
       assert.equal(await lock.isChecked(), true);
       assert.equal(await page.getByRole('button', { name: '写入文件', exact: true }).count(), 0);
       await page.screenshot({ path: path.join(root, 'ui-artifacts', name + '-book-edit.png'), fullPage: false });
+      // The 章节 tab keeps the chapter manager inside the dialog. Its list is
+      // virtualized, so a container without a resolved height paints zero rows.
+      await page.getByRole('button', { name: '章节', exact: true }).click();
+      const chapterRows = page.locator('.chapter-tab-panel button', { hasText: '改名后的章节' });
+      await chapterRows.first().waitFor();
+      assert.ok(await chapterRows.count() >= 1, name + ' edit 章节 tab renders chapters');
+      assert.ok((await page.locator('.chapter-tab-panel').boundingBox()).height > 0, name + ' edit 章节 tab keeps a measurable height');
+      await page.screenshot({ path: path.join(root, 'ui-artifacts', name + '-book-edit-chapters.png'), fullPage: false });
+      await page.getByRole('button', { name: '元数据', exact: true }).click();
+      await lock.waitFor();
+      assert.equal(await lock.isChecked(), true);
       await page.getByRole('button', { name: '保存', exact: true }).click();
       // The button changes its label to Saving before the async writes finish.
       await lock.waitFor({ state: 'hidden' });

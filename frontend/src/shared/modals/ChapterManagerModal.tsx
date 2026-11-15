@@ -294,7 +294,7 @@ const ChapterManagerModal: React.FC<Props> = ({ book, bookId, initialChapters, o
           onMove={() => setShowBookSelector(true)}
         />
 
-        <div className="min-h-0 flex-1 bg-slate-50/50 py-2 dark:bg-slate-950/20">
+        <div className="flex min-h-[200px] flex-1 bg-slate-50/50 py-2 dark:bg-slate-950/20">
           <ChapterManagerList
             book={book}
             chapters={visibleChapters}
