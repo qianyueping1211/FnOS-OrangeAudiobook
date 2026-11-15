@@ -72,7 +72,8 @@ pub async fn get_playlist(
         })?;
 
     let response =
-        build_playlist_response(&state, playlist, &user.id, user.role == "admin", None, None).await?;
+        build_playlist_response(&state, playlist, &user.id, user.role == "admin", None, None)
+            .await?;
     Ok(Json(response))
 }
 
@@ -108,7 +109,8 @@ pub async fn create_playlist(
         .await?;
 
     let response =
-        build_playlist_response(&state, playlist, &user.id, user.role == "admin", None, None).await?;
+        build_playlist_response(&state, playlist, &user.id, user.role == "admin", None, None)
+            .await?;
     Ok((StatusCode::CREATED, Json(response)))
 }
 
@@ -172,8 +174,15 @@ pub async fn update_playlist(
         .find_by_user_and_id(&id, &user.id)
         .await?
         .unwrap_or(updated);
-    let response =
-        build_playlist_response(&state, refreshed, &user.id, user.role == "admin", None, None).await?;
+    let response = build_playlist_response(
+        &state,
+        refreshed,
+        &user.id,
+        user.role == "admin",
+        None,
+        None,
+    )
+    .await?;
     Ok(Json(response))
 }
 
