@@ -5,6 +5,7 @@ import { useAuthStore } from '../../core/stores/authStore';
 import { useWebSocket } from '../../core/hooks/useWebSocket';
 import apiClient from '../../core/api/client';
 import { ChapterCatalogue } from '../../core/api/books';
+import { loadClientSettings } from '../../core/api/clientSettings';
 import { BOOKMARK_SEEK_REQUESTED } from '../../core/api/reading';
 import type { Chapter } from '../../core/types';
 import { sortChaptersForPlayback } from '../../core/utils/chapter';
@@ -55,6 +56,15 @@ export const usePlayback = () => {
   useEffect(() => {
     const bookId = currentBook?.id;
     if (!bookId) return;
+    // Entering from the home hero or a book page already handed us the chapter
+    // list; refetching the whole catalogue here was a second full-size request
+    // on every first open.
+    const storeChapters = usePlayerStore.getState().chapters;
+    if (storeChapters.length && storeChapters[0]?.book_id === bookId) {
+      const sorted = sortChaptersForPlayback(storeChapters);
+      const timer = window.setTimeout(() => setChapters(sorted), 0);
+      return () => window.clearTimeout(timer);
+    }
     const catalogue = new ChapterCatalogue(async (params, signal) =>
       (await apiClient.get(`/api/books/${bookId}/chapters`, { params, signal })).data);
     void catalogue.all().then((items) => {
@@ -186,15 +196,16 @@ export const usePlayback = () => {
       setAutoPreload(settings.auto_preload);
     };
     window.addEventListener(PLAYBACK_PREFERENCES_UPDATED, updatePreloadSettings);
-    apiClient
-      .get("/api/settings", { signal: controller.signal })
-      .then((res) => {
+    // The shell already reads settings during a navigation; going through the
+    // shared loader reuses that answer instead of opening a second request.
+    loadClientSettings()
+      .then((settings) => {
         if (controller.signal.aborted) return;
-        setAutoPreload(!!res.data.auto_preload);
+        setAutoPreload(!!settings.auto_preload);
 
         // Apply user's default playback speed
-        if (res.data.playback_speed) {
-          setPlaybackSpeed(res.data.playback_speed);
+        if (settings.playback_speed) {
+          setPlaybackSpeed(settings.playback_speed);
         }
 
       })

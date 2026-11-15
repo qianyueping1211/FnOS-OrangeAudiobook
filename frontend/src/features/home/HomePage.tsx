@@ -42,6 +42,10 @@ export default function HomePage() {
   const identity = useAuthStore(state => libraryCacheIdentity(state.serverUrl || state.activeUrl, state.user?.id));
   const initial = useMemo(() => libraryViewCache.get<HomeSnapshot>(identity, 'home'), [identity]);
   const [data, setData] = useState(() => ({ ...(initial || emptyHome()), identity, loading: !initial }));
+  // Which resume book could not be loaded: only then may the hero fall back to
+  // the newest book, so a slow/failed fetch never gets replaced by a different
+  // book that the reader then sees disappear again.
+  const [heroFailedId, setHeroFailedId] = useState<string | null>(null);
   const visible = data.identity === identity ? data : { ...(initial || emptyHome()), identity, loading: !initial };
   const { books, bookCount, recent, favorites, playlists, series, layout, loading, recentLoaded } = visible;
 
@@ -64,9 +68,13 @@ export default function HomePage() {
           const lastId = [...current.recent].sort((a,b) => Date.parse(b.updated_at)-Date.parse(a.updated_at))[0]?.book_id;
           const lastBook = current.books.find(book => book.id === lastId);
           if (lastBook && !latest.some(book => book.id === lastId)) latest.push(lastBook);
+          // The cached snapshot is only trustworthy for the hero when the book it
+          // resumes is inside it: otherwise the next page load would paint the
+          // newest book for a frame before /api/books catches up with that one.
+          const resumeCached = lastId ? current.books.some(book => book.id === lastId) : true;
           libraryViewCache.set(identity, 'home', {
             ...current, books: latest, recent: current.recent.slice(0,20), favorites: current.favorites.slice(0,12),
-            recentLoaded: !!current.recentLoaded || current.recent.length > 0,
+            recentLoaded: (!!current.recentLoaded || current.recent.length > 0) && resumeCached,
             playlists: current.playlists.slice(0,4).map(item => ({ ...item, book_ids: item.book_ids || item.books?.map(book => book.id), books: [] })),
             series: current.series.slice(0,2).map(item => ({ ...item, books: undefined })),
           } satisfies HomeSnapshot);
@@ -104,7 +112,7 @@ export default function HomePage() {
                 update({ books: [...current.books, freshBook] });
               }
             })
-            .catch(() => {});
+            .catch(() => { if (id === lastId) setHeroFailedId(id); });
         }
       }).catch(() => update({ recentLoaded: true }));
       void apiClient.get<Book[]>('/api/favorites', options).then(({data}) => update({ favorites: data || [] })).catch(() => {});
@@ -141,9 +149,24 @@ export default function HomePage() {
   // prefers the library's freshly loaded row whenever it has one: otherwise a
   // metadata fix (author/narrator/title) stays hidden behind that cached copy.
   const playingBook = currentBook ? books.find(book => book.id === currentBook.id) ?? currentBook : undefined;
-  const heroReview = playingBook
-    || (recentLoaded ? (books.find(book => book.id === last?.book_id) || latest[0] || favorites[0]) : undefined);
-  const heroPending = !heroReview && (loading || !recentLoaded);
+  // Once the resume history has an entry, the hero waits for that exact book
+  // instead of falling back to the newest one: the newest book is what used to
+  // flash for a second and then turn into "继续收听". Only when the history is
+  // genuinely empty (or its book could not be fetched) may the newest/first
+  // favourite take the slot.
+  const resumeBook = last ? books.find(book => book.id === last.book_id) : undefined;
+  // The history row already carries the title and cover, so the card can paint
+  // "继续播放" straight away instead of flashing a loading placeholder; the full
+  // record (narrator, description) fills in as soon as the book arrives.
+  const resumeStub = last && last.book_title ? {
+    id: last.book_id, library_id: last.library_id || '', title: last.book_title,
+    cover_url: last.cover_url, created_at: last.updated_at, path: '', hash: '',
+  } as Book : undefined;
+  const resumeMissing = !!last && !resumeBook;
+  const resumeFailed = !!last && !resumeBook && heroFailedId === last.book_id;
+  const fallbackBook = !last && recentLoaded ? (latest[0] || favorites[0]) : undefined;
+  const heroReview = playingBook || resumeBook || resumeStub || fallbackBook || (resumeFailed ? (latest[0] || favorites[0]) : undefined);
+  const heroPending = !heroReview && (loading || !recentLoaded || (resumeMissing && !resumeFailed));
   const hero = heroReview;
   const hasResume = !!hero && ((currentBook?.id === hero.id && !!currentChapter) || last?.book_id === hero.id);
   const resumeChapterId = currentBook?.id === hero?.id ? currentChapter?.id : last?.book_id === hero?.id ? last.chapter_id : undefined;

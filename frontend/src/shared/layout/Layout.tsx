@@ -377,6 +377,9 @@ const Layout: React.FC = () => {
           <Suspense fallback={<LoadingSpinner className="min-h-48" />}><Outlet /></Suspense>
         </main>
         <nav className="reader-tabs" aria-label={t('nav.mainMenu')}>{menuItems.map(item => renderNav(item, true))}</nav>
+        {/* The floating bar leaves a strip of raw page background under it; a soft
+            fade keeps scrolling covers from looking cut off at the screen edge. */}
+        <div className="reader-tabs-fade" aria-hidden="true" />
         {hasCurrentChapter && <Suspense fallback={null}><Player /></Suspense>}
         {pluginExtensionRegistry.extensions.length > 0 && !location.pathname.startsWith('/plugin-pages') && <Suspense fallback={null}><PluginExtensionHost /></Suspense>}
         {user?.role === 'admin' && user.uses_default_admin_credentials &&
