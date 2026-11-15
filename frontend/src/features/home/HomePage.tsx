@@ -133,7 +133,7 @@ export default function HomePage() {
     <div className="reader-page-scroll">
     {layout.showHero && <section className="reader-hero" aria-busy={loading && !hero}>
       <div className="reader-hero-copy">
-        <div className="reader-eyebrow"><Headphones size={15} />{hasResume ? t('home.continueListening') : t('home.todayRecommendation')}</div>
+        {hasResume && <div className="reader-eyebrow"><Headphones size={15} />{t('home.continueListening')}</div>}
         <h2>{hero?.title || t(loading ? 'common.loading' : 'reader.emptyTitle')}</h2>
         <p>{hero?.narrator || hero?.author || t('reader.emptySubtitle')}</p>
         {hero?.description && <p className="reader-hero-description">{hero.description}</p>}

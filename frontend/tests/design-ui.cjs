@@ -152,6 +152,7 @@ async function fixture(context, gated = false) {
       startup.releaseSettings();
       startup.releaseOptional();
       await page.locator('.reader-hero a.reader-button').filter({ hasText: '继续播放' }).waitFor();
+      assert.equal(await page.getByText('今日推荐', { exact: true }).count(), 0, name + ' home must not label the hero as a daily recommendation');
       assert.match(await page.locator('.reader-hero a.reader-button').getAttribute('href'), /^\/player\?book=book-0&chapter=chapter-book-0$/);
       assert.match(await page.locator('.reader-hero-cover-link').getAttribute('href'), /^\/book\/book-0\?chapter_id=chapter-book-0$/);
       await page.locator('.reader-hero a.reader-button').click();
@@ -436,6 +437,15 @@ async function fixture(context, gated = false) {
         assert.ok(updateMessage.indexOf('本机加速') < updateMessage.indexOf('正在读取并校验私有版本'));
         assert.equal(await page.locator('.reader-update-summary').boundingBox().then(b => b.y), updateHeadingBefore.y);
         assert.equal(installCalls, 1, 'This install call is intercepted by the synthetic fixture');
+        // A finished install replaced the bundle: reload must land on home,
+        // not on the update page it was started from.
+        installerOverride = { state: 'completed', progress: 100, message: '安装完成' };
+        await page.reload();
+        await page.getByRole('button', { name: '重新载入', exact: true }).waitFor();
+        await page.getByRole('button', { name: '重新载入', exact: true }).click();
+        await page.waitForURL(url => new URL(url).pathname === '/', { timeout: 15000 });
+        await page.locator('.reader-home').waitFor();
+        assert.equal(new URL(page.url()).pathname, '/', name + ' reload after an install lands on home');
         installerOverride = null;
       }
       assert.deepEqual(errors, [], name + ' runtime errors');

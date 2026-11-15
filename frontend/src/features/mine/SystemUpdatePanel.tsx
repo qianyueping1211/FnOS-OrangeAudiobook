@@ -5,6 +5,7 @@ import apiClient from '../../core/api/client';
 import { apiErrorMessage } from '../../core/api/errors';
 import { notifyUpdateChanged, useSystemUpdate, type UpdateInfo } from '../../core/hooks/useSystemUpdate';
 import { CLIENT_VERSION } from '../../core/version';
+import { getRuntimePath } from '../../core/utils/runtimeUrl';
 
 export default function SystemUpdatePanel() {
   const { t } = useTranslation();
@@ -67,7 +68,9 @@ export default function SystemUpdatePanel() {
         {info?.has_token && !tokenEdited ? t('reader.deleteToken') : t('reader.saveToken')}
       </button>
       <button type="button" className="reader-button primary" disabled={busy || active} onClick={() => {
-        if (reloadNeeded) window.location.reload();
+        // A finished install replaced the bundle on disk: a plain reload would
+        // keep the SPA route the update was started from, so restart at home.
+        if (reloadNeeded) window.location.replace(getRuntimePath('/'));
         else if (info?.update_available) setConfirm(true);
         else void check();
       }}>
