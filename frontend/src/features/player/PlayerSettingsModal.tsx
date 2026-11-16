@@ -1,10 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, Disc3, SkipBack, SkipForward, Square, X } from 'lucide-react';
-import type { Book } from '../../core/types';
-import { getCoverUrl } from '../../core/utils/image';
-import { VinylPlayerCover } from './VinylPlayerCover';
-import { PLAYER_VISUAL_OPTIONS, type PlayerVisual } from './playerVisual';
+import { Check, SkipBack, SkipForward, X } from 'lucide-react';
 
 interface Props {
   editSkipIntro: number;
@@ -13,64 +9,12 @@ interface Props {
   onChangeSkipOutro: (value: number) => void;
   volume: number;
   onChangeVolume: (value: number) => void;
-  visual: PlayerVisual;
-  onChangeVisual: (value: PlayerVisual) => void;
-  coverBook?: Book | null;
   onClose: () => void;
   onSave: () => void;
 }
 
-// ─── PlayStylePicker ───────────────────────────────────────────────────────
-// 两种播放页样式各给一张能看懂的示意卡：左边是现在的方形书封，右边是黑胶
-// 唱片（预览里转盘一直在转、唱针反复起落，不用点进去也能看出区别）。
-const PlayStylePicker: React.FC<{
-  visual: PlayerVisual;
-  onChangeVisual: (value: PlayerVisual) => void;
-  coverBook?: Book | null;
-  labelClassic: string;
-  labelVinyl: string;
-}> = ({ visual, onChangeVisual, coverBook, labelClassic, labelVinyl }) => {
-  const cover = getCoverUrl(coverBook?.cover_url, coverBook?.library_id, coverBook?.id, 320);
-  const optionClass = (active: boolean) =>
-    `relative flex flex-col items-center gap-2 rounded-2xl border px-2 pb-3 pt-2 transition-colors ${
-      active
-        ? 'border-primary-500 bg-primary-500/10'
-        : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
-    }`;
-  return (
-    <div className="grid grid-cols-2 gap-3">
-      {PLAYER_VISUAL_OPTIONS.map(option => (
-        <button
-          key={option}
-          type="button"
-          onClick={() => onChangeVisual(option)}
-          aria-pressed={visual === option}
-          className={optionClass(visual === option)}
-        >
-          <div className="flex h-[132px] w-full items-center justify-center">
-            {option === 'vinyl' ? (
-              <VinylPlayerCover book={coverBook} isPlaying preview size={126} />
-            ) : (
-              <div className="h-[72px] w-[54px] overflow-hidden rounded-lg shadow-md bg-slate-200 dark:bg-slate-800">
-                <img src={cover} alt={coverBook?.title} referrerPolicy="no-referrer" className="h-full w-full object-cover" />
-              </div>
-            )}
-          </div>
-          <span className="flex items-center gap-1 text-xs font-bold text-slate-600 dark:text-slate-300">
-            {option === 'vinyl' ? <Disc3 size={13} /> : <Square size={13} />}
-            {option === 'vinyl' ? labelVinyl : labelClassic}
-          </span>
-          {visual === option && (
-            <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary-600 text-white">
-              <Check size={12} />
-            </span>
-          )}
-        </button>
-      ))}
-    </div>
-  );
-};
-
+// 播放样式（方形封面 / 黑胶）不在这里：它属于设备级的展示偏好，统一放在
+// 「个性化设置 → 播放偏好」里，播放器只负责消费那一份设置。
 const PlayerSettingsModal: React.FC<Props> = ({
   editSkipIntro,
   editSkipOutro,
@@ -78,9 +22,6 @@ const PlayerSettingsModal: React.FC<Props> = ({
   onChangeSkipOutro,
   volume,
   onChangeVolume,
-  visual,
-  onChangeVisual,
-  coverBook,
   onClose,
   onSave,
 }) => {
@@ -99,19 +40,6 @@ const PlayerSettingsModal: React.FC<Props> = ({
           </div>
 
           <div className="space-y-6">
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                {t('player.playStyle')}
-              </label>
-              <PlayStylePicker
-                visual={visual}
-                onChangeVisual={onChangeVisual}
-                coverBook={coverBook}
-                labelClassic={t('player.playStyleClassic')}
-                labelVinyl={t('player.playStyleVinyl')}
-              />
-            </div>
-
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
                 <SkipBack size={14} />

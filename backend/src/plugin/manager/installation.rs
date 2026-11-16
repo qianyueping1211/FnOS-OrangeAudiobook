@@ -355,7 +355,7 @@ impl PluginManager {
             preinstalled_dir.display()
         );
 
-        let installer = PluginInstaller::new(
+        let installer = PluginInstaller::new_for_preinstall(
             self.config.plugin_dir.clone(),
             self.config.plugin_dir.join("temp"),
         )?;
@@ -405,8 +405,13 @@ impl PluginManager {
     ) -> Result<Option<PluginId>> {
         let metadata = installer.get_package_metadata(package_path)?;
         Self::validate_core_compatibility(&metadata)?;
-        self.ensure_install_signature_identity_allowed(package_path, &metadata)
-            .await?;
+        // A bundled package carries no publisher signature: there is no
+        // identity to compare, and its only source is the app's own installer,
+        // so the "same id, different publisher" guard is skipped for it.
+        if plugin_install_signature_identity(package_path).is_ok() {
+            self.ensure_install_signature_identity_allowed(package_path, &metadata)
+                .await?;
+        }
 
         if self.has_same_or_newer_installed_version(&metadata).await? {
             return Ok(None);

@@ -172,6 +172,7 @@ const SearchPage: React.FC = () => {
     error: string;
   }>({ key: '', items: [], error: '' });
   const [openingSourceId, setOpeningSourceId] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
   
   // Cover shape and icon size settings from bookshelf
   const { coverShape, iconSize } = useBookshelfDisplaySettings();
@@ -191,6 +192,15 @@ const SearchPage: React.FC = () => {
     }, 500);
     return () => clearTimeout(timer);
   }, [query]);
+
+  // The search field is the only thing this page is for: put the caret in it on
+  // entry so the mobile keyboard comes up without an extra tap.
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      searchInputRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   // Fetch all metadata options on mount
   useEffect(() => {
@@ -255,7 +265,10 @@ const SearchPage: React.FC = () => {
   }, []);
 
   const sourceIdsKey = bookSources.map((source) => source.id).join(',');
-  const onlineKey = sourceMode !== 'local' && debouncedQuery.trim()
+  const missingOnlineSources = sourceMode !== 'local' && bookSources.length === 0;
+  // No source means no query to run: folding the id list into the key keeps the
+  // page from sitting in "loading" forever while the sources are still unknown.
+  const onlineKey = sourceMode !== 'local' && sourceIdsKey && debouncedQuery.trim()
     ? `online|${debouncedQuery.trim()}`
     : '';
   const onlineItems = onlineResult.key === onlineKey ? onlineResult.items : [];
@@ -272,7 +285,8 @@ const SearchPage: React.FC = () => {
         .post(
           '/api/v1/scraper/search',
           { source, query: keyword, page: 1, page_size: 20 },
-          { signal: controller.signal },
+          // A source that never answers must stop being "loading" on this page.
+          { signal: controller.signal, timeout: 15000 },
         )
         .then((response) => ({
           source,
@@ -408,13 +422,15 @@ const SearchPage: React.FC = () => {
 
         <div className="reader-search-header space-y-4">
           <h1 className="reader-search-title">{t('searchPage.title')}</h1>
-          <p className="text-sm md:text-base text-slate-500">{t('searchPage.subtitle')}</p>
 
           {/* Main Search Input */}
           <div className="reader-search-field relative">
             <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
             <input 
+              ref={searchInputRef}
+              autoFocus
               type="search"
+              enterKeyHint="search"
               aria-label={t('searchPage.placeholder')}
               placeholder={t('searchPage.placeholder')}
               value={query}
@@ -439,9 +455,9 @@ const SearchPage: React.FC = () => {
 
           {/* Three fixed choices only; the plugin name never surfaces here.
               "全部" is the default, so a search asks the shelf and the online
-              sources together. */}
-          {bookSources.length > 0 && (
-            <div className="reader-search-source-row">
+              sources together. The row stays visible even before a source
+              answers, so the mode never silently disappears. */}
+          <div className="reader-search-source-row">
               <span className="reader-search-source-label">{t('searchPage.sourceRow', '来源')}</span>
               <div className="flex flex-wrap items-center gap-2">
                 {(['all', 'local', 'online'] as const).map((mode) => (
@@ -467,7 +483,6 @@ const SearchPage: React.FC = () => {
                 ))}
               </div>
             </div>
-          )}
 
           {/* Filters Toggle Button */}
           <div className="reader-search-filter-toggle">
@@ -595,7 +610,9 @@ const SearchPage: React.FC = () => {
             </h2>
           </header>
           {onlineError && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{onlineError}</p>}
-          {onlineItems.length > 0 ? (
+          {missingOnlineSources ? (
+            <p className="py-8 text-center text-sm text-slate-400">{t('searchPage.onlineNoSource', '暂无在线书源')}</p>
+          ) : onlineItems.length > 0 ? (
             <div className={`grid ${getBookshelfGridClass(iconSize)} pt-1`}>
               {onlineItems.map((item) => (
                 <OnlineBookCard

@@ -41,6 +41,10 @@ pub struct PluginInstaller {
     plugin_dir: PathBuf,
     /// Temporary directory for extraction
     _temp_dir: PathBuf,
+    /// Bundled packages ship inside the app's own installer, so an unsigned one
+    /// is still that app's own payload; uploads and store downloads keep the
+    /// signature requirement.
+    allow_unsigned: bool,
 }
 
 impl PluginInstaller {
@@ -55,7 +59,18 @@ impl PluginInstaller {
         Ok(Self {
             plugin_dir,
             _temp_dir: temp_dir,
+            allow_unsigned: false,
         })
+    }
+
+    /// Installer for the packages bundled with the app itself. Those are not
+    /// signed by a publisher key, and they cannot be confused with a third
+    /// party's build of the same plugin, so the signature identity check does
+    /// not apply to them.
+    pub fn new_for_preinstall(plugin_dir: PathBuf, temp_dir: PathBuf) -> Result<Self> {
+        let mut installer = Self::new(plugin_dir, temp_dir)?;
+        installer.allow_unsigned = true;
+        Ok(installer)
     }
 
     /// Install a plugin from a package file
@@ -162,10 +177,22 @@ impl PluginInstaller {
         // The installer can also be called by preinstall and store flows, so
         // signature validation belongs here as well as in the HTTP confirmation
         // step. An unknown but valid publisher may be authorized by the caller.
+        // A bundled package (allow_unsigned) has no publisher identity to
+        // compare, so its missing signature is not an error.
         let signature = if package_path.is_dir() {
             None
         } else {
-            Some(tr_package::read_package_signature_identity(package_path)?.label())
+            match tr_package::read_package_signature_identity(package_path) {
+                Ok(identity) => Some(identity.label()),
+                Err(error) if self.allow_unsigned => {
+                    debug!(
+                        "Bundled plugin package is unsigned, continuing without identity: {}",
+                        error
+                    );
+                    None
+                }
+                Err(error) => return Err(error),
+            }
         };
 
         Ok(PluginPackage {

@@ -48,7 +48,7 @@ export default function HomePage() {
   // book that the reader then sees disappear again.
   const [heroFailedId, setHeroFailedId] = useState<string | null>(null);
   const visible = data.identity === identity ? data : { ...(initial || emptyHome()), identity, loading: !initial };
-  const { books, bookCount, recent, favorites, playlists, layout, loading, recentLoaded } = visible;
+  const { books, bookCount, recent, favorites, playlists, series, layout, loading, recentLoaded } = visible;
 
   useEffect(() => {
     let current = initial || emptyHome();
@@ -143,6 +143,19 @@ export default function HomePage() {
   const latest = [...books]
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
     .slice(0, 3);
+  // "为你推荐" is the shelf's own signal: favourites first, then the newest
+  // arrivals, so a small library still fills the row. It is only painted when
+  // the reader keeps the switch on in 个性化设置.
+  const recommended = useMemo(() => {
+    const seen = new Set<string>();
+    return [...favorites, ...latest]
+      .filter(book => { if (seen.has(book.id)) return false; seen.add(book.id); return true; })
+      .slice(0, 6);
+  }, [favorites, latest]);
+  // The mobile home is pinned to one screen only while the reader keeps every
+  // extra section off: turning any of them on has to scroll, so the lock is
+  // dropped here instead of deleting the sections from the page.
+  const extraHomeSections = layout.showRecommended || layout.showRecent || layout.showCollections;
   const last = recentBooks[0];
   // The hero waits for the resume history before it considers the newest book:
   // /api/books/page usually answers before /api/progress/recent, so falling back
@@ -207,7 +220,7 @@ export default function HomePage() {
     }
   }, [hero?.id, hero?.title, heroCredit]);
 
-  return <div className="reader-page reader-home reader-locked-page flex flex-1 flex-col">
+  return <div className={`reader-page reader-home flex flex-1 flex-col ${extraHomeSections ? '' : 'reader-locked-page'}`}>
     <header className="reader-heading reader-page-toolbar">
       <div><div className="reader-eyebrow">{t('reader.privateLibrary')}</div><h1>{t('reader.homeTitle')}</h1><p>{t('reader.homeSubtitle')}</p></div>
       <Link to="/search" className="reader-search-link"><Search size={19} /><span>{t('reader.searchPlaceholder')}</span></Link>
@@ -237,9 +250,29 @@ export default function HomePage() {
       <Shortcut to="/history" icon={<History />} title={t('home.recentListening')} count={recentBooks.length} />
       <Shortcut to="/playlists" icon={<ListMusic />} title={t('nav.playlists')} count={playlists.length} />
     </nav>}
+    {layout.showRecommended && recommended.length > 0 && <section className="reader-section">
+      <SectionTitle title={t('home.recommended')} to="/bookshelf" />
+      <div className="reader-grid">{recommended.map(book => <BookCard key={book.id} book={book} coverShape={coverShape} />)}</div>
+    </section>}
     {layout.showRecentlyAdded && <section className="reader-section">
       <SectionTitle title={t('home.recentlyAdded')} to="/bookshelf" />
       {loading && !latest.length ? <LoadingSpinner className="min-h-40" /> : latest.length ? <div className="reader-grid">{latest.map(book => <BookCard key={book.id} book={book} coverShape={coverShape} />)}</div> : <Empty />}
+    </section>}
+    {layout.showRecent && recentBooks.length > 0 && <section className="reader-section">
+      <SectionTitle title={t('home.recentListening')} to="/history" />
+      <div className="reader-recent-grid">{recentBooks.slice(0, 4).map(item => <Link key={item.book_id} to={'/book/' + item.book_id} className="reader-recent">
+        <CoverArt title={item.book_title || t('home.unknownBook')} url={item.cover_url} libraryId={item.library_id} bookId={item.book_id} />
+        <div className="reader-recent-text"><strong>{item.book_title || t('home.unknownBook')}</strong><small>{item.chapter_title}</small>
+          <div className="reader-meter"><span style={{ width: Math.min(100, Math.max(0, item.position / (item.chapter_duration || item.duration || 1) * 100)) + '%' }} /></div>
+        </div><ChevronRight size={16} className="text-slate-500 shrink-0" />
+      </Link>)}</div>
+    </section>}
+    {layout.showCollections && (playlists.length > 0 || series.length > 0) && <section className="reader-section">
+      <SectionTitle title={t('home.collections')} to="/playlists" />
+      {playlists.length || series.length ? <div className="reader-recent-grid">
+        {playlists.slice(0, 4).map(item => <Link className="reader-recent" key={item.id} to={'/playlists/' + item.id}><ListMusic size={25} className="text-primary-500" /><div className="reader-recent-text"><strong>{item.title}</strong><small>{t('home.bookCount', { count: item.books?.length || item.book_ids?.length || 0 })}</small></div><ChevronRight size={16} /></Link>)}
+        {series.slice(0, 2).map(item => <Link className="reader-recent" key={item.id} to={'/series/' + item.id}><Library size={25} className="text-primary-500" /><div className="reader-recent-text"><strong>{item.title}</strong><small>{item.author}</small></div><ChevronRight size={16} /></Link>)}
+      </div> : <Empty />}
     </section>}
     <div style={{ height: currentChapter ? 'var(--safe-bottom-with-player)' : 'var(--safe-bottom-base)' }} />
     </div>

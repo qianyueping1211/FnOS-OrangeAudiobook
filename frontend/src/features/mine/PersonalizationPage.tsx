@@ -25,6 +25,8 @@ import {
   type HomeLayoutSettings,
 } from "../../core/utils/homeLayout";
 import BackButton from "../../shared/widgets/BackButton";
+import PlayStylePicker from "../../shared/player/PlayStylePicker";
+import { usePlayerVisual, writePlayerVisual } from "../player/playerVisual";
 import { getRuntimePath, getRuntimeUrl } from "../../core/utils/runtimeUrl";
 import {
   CheckCircle2,
@@ -99,6 +101,8 @@ const PersonalizationPage: React.FC = () => {
   );
   const [applicationTimeZone, setApplicationTimeZoneState] = useState(getApplicationTimeZone());
   const [timeZoneSaving, setTimeZoneSaving] = useState(false);
+  // 播放页封面样式是这台设备的偏好，播放器与这一页共用同一份 localStorage。
+  const playerVisual = usePlayerVisual();
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -496,6 +500,13 @@ const PersonalizationPage: React.FC = () => {
             {t("settings.playback")}
           </h2>
           <div className="space-y-6">
+            <div className="space-y-2">
+              <p className="font-bold dark:text-white">{t("player.playStyle", "播放样式")}</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {t("player.playStyleDescription", "播放页封面用方形书封还是黑胶唱片，只影响这台设备。")}
+              </p>
+              <PlayStylePicker visual={playerVisual} onChangeVisual={writePlayerVisual} />
+            </div>
             <ToggleRow
               title={t("settings.bookshelfProgress", "书架显示阅读进度")}
               description={t("settings.bookshelfProgressDescription", "在封面上显示已读、未读或阅读百分比")}

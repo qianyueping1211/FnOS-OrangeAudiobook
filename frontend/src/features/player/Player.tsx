@@ -7,7 +7,7 @@ import type { Chapter } from "../../core/types";
 import { setAlpha, toSolidColor, isTooLight } from "../../core/utils/color";
 import { getCoverUrl } from "../../core/utils/image";
 import { useBookshelfCoverShape } from "../../core/hooks/useBookshelfCoverShape";
-import { usePlayerVisual, writePlayerVisual } from "./playerVisual";
+import { usePlayerVisual } from "./playerVisual";
 import ProgressBar from "./ProgressBar";
 import { usePlayback } from "./usePlayback";
 import {
@@ -584,9 +584,6 @@ const Player: React.FC = () => {
               editSkipIntro={editSkipIntro}
               editSkipOutro={editSkipOutro}
               volume={volume}
-              visual={playerVisual}
-              onChangeVisual={writePlayerVisual}
-              coverBook={currentBook}
               onChangeVolume={(value) => {
                 setVolume(value);
                 if (value > 0) setIsMuted(false);
