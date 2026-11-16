@@ -20,6 +20,8 @@ on:
       - '.github/workflows/native-publish.yml'
       - '.github/workflows/quality.yml'
       - '.github/scripts/**'
+      # 发布说明直接从这一段抽取，改了它就得重新出包，否则 tag 上的说明是旧的。
+      - 'CHANGELOG.md'
     tags:
       - 'v*'
 
