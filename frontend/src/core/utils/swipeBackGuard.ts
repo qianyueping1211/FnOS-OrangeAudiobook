@@ -11,6 +11,8 @@ type GuardState = Record<string, unknown> & { __tingSwipeGuard?: boolean };
 
 const GUARD_KEY = '__tingSwipeGuard';
 
+const GUARD_HASH = '#ting-swipe-guard';
+
 // 优先级：关闭 > 取消 > 返回。中文是各页面上的实际文案，英文是 t() 的回退。
 // 英文必须按整词匹配，否则 playback / background 这类词也会命中 back。
 const DISMISS_PATTERNS: readonly RegExp[] = [
@@ -95,9 +97,12 @@ function ensureGuard(): void {
   }
   const state = window.history.state;
   const base: GuardState = state && typeof state === 'object' ? { ...(state as GuardState) } : {};
+  // 护垫带一个哨兵 hash：WebKit 对「压一条 URL 完全相同的条目」处理不稳，
+  // 带上的 hash 不改路由（path 没变），但让这条历史有独立地址。
+  const url = window.location.pathname + window.location.search + GUARD_HASH;
   try {
     // 保留路由自己的 state（其中的索引让 react-router 认得出这是同一页）。
-    window.history.pushState({ ...base, [GUARD_KEY]: true }, '', window.location.href);
+    window.history.pushState({ ...base, [GUARD_KEY]: true }, '', url);
   } catch {
     // 极少数环境禁用 pushState，此时手势退回宿主默认行为，不做拦截。
   }
