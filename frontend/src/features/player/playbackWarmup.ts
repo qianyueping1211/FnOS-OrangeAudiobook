@@ -44,11 +44,14 @@ export const warmRecentPlayback = (): Promise<PlaybackWarmup | null> => {
         ready = value;
         return value;
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         // A failed warm-up must not be sticky: the player page will fetch for
-        // itself and can try again on the next open.
+        // itself and can try again on the next open. 失败要能区分出来——null 表示
+        // "确实没有最近收听"，抛错表示"这次没取到"，播放页据此决定是显示空态
+        // 还是自动重试。
         pending = null;
-        return null;
+        ready = null;
+        throw error;
       });
   }
   return pending;

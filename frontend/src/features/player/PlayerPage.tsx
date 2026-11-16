@@ -7,7 +7,7 @@ import type { Book, Chapter, Progress } from '../../core/types';
 import { sortChaptersForPlayback } from '../../core/utils/chapter';
 import { isTooLight } from '../../core/utils/color';
 import { usePlayerStore } from '../../core/stores/playerStore';
-import { takeRecentPlayback } from './playbackWarmup';
+import { takeRecentPlayback, warmRecentPlayback } from './playbackWarmup';
 
 // Navigation keeps the shared Player and its one audio element alive.
 export default function PlayerPage() {
@@ -50,31 +50,43 @@ function PlaybackSelection({ requestedBook, requestedChapter }: { requestedBook:
         themeColor: book.theme_color && !isTooLight(book.theme_color) ? book.theme_color : '#F2EDE4',
       }));
     };
+    const loadOnce = async () => {
+      const options = { signal: controller.signal };
+      // 启动时已经取回过的最近收听先用上，点「播放」就不用再等三个请求。
+      // 没取回就等那次预热（同一个 promise，不会重复发请求）——它失败才往下试。
+      if (!requestedBook) {
+        const warmed = takeRecentPlayback() || await warmRecentPlayback();
+        if (warmed) {
+          commit(warmed.book, warmed.chapters, warmed.progress, warmed.book.id);
+        }
+        // null = 这台机器上确实还没有收听记录，是空态而不是失败。
+        return;
+      }
+      const bookId = requestedBook;
+      const id = encodeURIComponent(bookId);
+      const [bookResponse, chapterResponse, progress] = await Promise.all([
+        apiClient.get<Book>('/api/books/' + id, options),
+        apiClient.get<Chapter[]>('/api/books/' + id + '/chapters', options),
+        apiClient.get<Progress>('/api/progress/' + id, options).then(response => response.data).catch(() => undefined),
+      ]);
+      commit(bookResponse.data, sortChaptersForPlayback(chapterResponse.data), progress, bookId);
+    };
+    // 刚启动那一两分钟里，宿主网关还没完全就绪，第一个请求偶尔会直接断掉。
+    // 以前这里一次失败就摆"重试连接"，看着像是坏了；现在先自己退避重试两轮
+    // （0.6s / 1.2s），仍然失败才让用户看到重试按钮。
     const loadRecent = async () => {
       try {
-        const options = { signal: controller.signal };
-        // 启动时已经取回过的最近收听先用上，点「播放」就不用再等三个请求。
-        if (!requestedBook) {
-          const warmed = takeRecentPlayback();
-          if (warmed) {
-            commit(warmed.book, warmed.chapters, warmed.progress, warmed.book.id);
+        for (let round = 0; ; round += 1) {
+          try {
+            await loadOnce();
             return;
+          } catch (error) {
+            if (controller.signal.aborted) throw error;
+            if (round >= 2) throw error;
+            await new Promise(resolve => window.setTimeout(resolve, 600 * (round + 1)));
+            if (controller.signal.aborted) throw error;
           }
         }
-        let last: Progress | undefined;
-        if (!requestedBook) {
-          const recent = (await apiClient.get<Progress[]>('/api/progress/recent', options)).data;
-          last = [...recent].sort((a,b) => Date.parse(b.updated_at)-Date.parse(a.updated_at))[0];
-        }
-        const bookId = requestedBook || last?.book_id;
-        if (!bookId) return;
-        const id = encodeURIComponent(bookId);
-        const [bookResponse, chapterResponse, progress] = await Promise.all([
-          apiClient.get<Book>('/api/books/' + id, options),
-          apiClient.get<Chapter[]>('/api/books/' + id + '/chapters', options),
-          last ? Promise.resolve(last) : apiClient.get<Progress>('/api/progress/' + id, options).then(response => response.data).catch(() => undefined),
-        ]);
-        commit(bookResponse.data, sortChaptersForPlayback(chapterResponse.data), progress, bookId);
       } catch {
         if (!controller.signal.aborted) setFailed(true);
       } finally {
