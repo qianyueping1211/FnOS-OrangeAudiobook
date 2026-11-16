@@ -1,18 +1,23 @@
-// 手机端从左边缘向右滑，飞牛宿主会把它当成 WebView 的「返回」。听书不要这种
-// 整页后退，也不要跨导航往回跳：滑动只做一件事——点掉当前页面上现成的
-// 「关闭 > 取消 > 返回」。四个默认页面上没有这类按钮，滑动就等于什么也没发生。
+// 手机端从左边缘向右滑，飞牛宿主会把它当成 WebView 的「返回」，一退就是整页
+// 切换、底部导航跟着换选中项。听书不要这种整页后退，所以滑动只在一小撮页面里
+// 顶替「返回」按钮：书架的搜索结果页、书籍详情页、书单详情页。其余页面
+// （首页、播放、书架本身、书单列表、设置）一律不响应，页面上有什么按钮都不动。
 //
-// 做法是每个页面都在历史里垫一条同 URL 的「护垫」条目：右滑只退到护垫，URL
-// 没变，画面和底部导航都不动。这时看页面上有没有可点的按钮，有就点它，没有就
-// 把护垫补回去。护垫必须每页都垫，只在有按钮的页面垫的话，一滑就是真的退到
-// 上一页并换掉底部导航的选中项。
+// 实现方式不是预先在历史里垫条目（真机上没生效，且页面加载时改历史在 WebKit
+// 上崩过），而是抢在路由之前按住那次后退：popstate 用 capture 注册，比路由的
+// 监听先跑；退掉的那一格 URL 立刻用 pushState 拉回来，路由收不到这次事件，
+// DOM 和底部导航一动不动，这时候才去点按钮。
+//
+// 只在触摸设备上装：桌面浏览器、自动化测试没有这个手势。
 import { consumeInternalBack } from './appExit';
+import { getRuntimePathname } from './runtimeUrl';
 
-type GuardState = Record<string, unknown> & { __tingSwipeGuard?: boolean };
-
-const GUARD_KEY = '__tingSwipeGuard';
-
-const GUARD_HASH = '#ting-swipe-guard';
+// 允许滑动代替返回的页面：书架的搜索结果、书籍详情、书单详情。
+const SWIPE_BACK_ROUTES: readonly RegExp[] = [
+  /^\/search$/,
+  /^\/book\/[^/]+$/,
+  /^\/playlists\/[^/]+$/,
+];
 
 // 优先级：关闭 > 取消 > 返回。中文是各页面上的实际文案，英文是 t() 的回退。
 // 英文必须按整词匹配，否则 playback / background 这类词也会命中 back。
@@ -23,9 +28,6 @@ const DISMISS_PATTERNS: readonly RegExp[] = [
 ];
 
 const CLICKABLE_SELECTOR = 'button, [role="button"], a[href]';
-
-const hasGuard = (state: unknown): boolean =>
-  !!state && typeof state === 'object' && (state as GuardState)[GUARD_KEY] === true;
 
 const isVisible = (el: HTMLElement): boolean => {
   if (el.hasAttribute('disabled') || el.getAttribute('aria-disabled') === 'true') return false;
@@ -47,7 +49,7 @@ const labelOf = (el: HTMLElement): string =>
 
 /**
  * 找当前页面上可点的「关闭 / 取消 / 返回」，优先级 关闭 > 取消 > 返回。
- * 只找不点：护垫每页都垫，它在手势真正发生时才决定要不要点。
+ * 只找不点：手势真的发生时它才决定要不要点。
  */
 const findDismissCandidate = (): HTMLElement | null => {
   // 弹窗通常挂在树的最末尾，反过来找能让「关闭」优先于页面顶部的「返回」。
@@ -64,89 +66,74 @@ const findDismissCandidate = (): HTMLElement | null => {
   return null;
 };
 
+const allowsSwipeBack = (): boolean => {
+  const path = getRuntimePathname();
+  return SWIPE_BACK_ROUTES.some(pattern => pattern.test(path));
+};
+
 /**
  * 按「关闭 > 取消 > 返回」的优先级点掉当前页面的一个按钮。
- * 找到并点掉返回 true；页面上一个都没有时返回 false，什么也不做。
+ * 不在允许滑动的页面上、或者一个按钮都没有时返回 false，什么也不做。
  */
 export const invokePageDismissAction = (): boolean => {
+  if (!allowsSwipeBack()) return false;
   const hit = findDismissCandidate();
   if (!hit) return false;
   hit.click();
   return true;
 };
 
-let waitingForLoad = false;
+let installed = false;
 
-/**
- * 右滑是飞牛宿主 WebView 的手势。宿主在页面里注入 flutter_inappwebview 桥；
- * 普通浏览器（桌面预览、自动化测试）没有这个桥，也就没有右滑，不必压护垫。
- */
-const hostPresent = (): boolean => {
-  const bridge = (window as unknown as { flutter_inappwebview?: { callHandler?: unknown } })
-    .flutter_inappwebview;
-  return typeof bridge?.callHandler === 'function';
+/** 当前画面对应的地址。后退被按住之后要用它把 URL 拉回来。 */
+let heldUrl = '';
+
+/** 刚替用户点过按钮：它自己发起的后退要放行，别把按钮的导航又按住。 */
+let dismissWindowUntil = 0;
+
+const isTouchSurface = (): boolean => {
+  if (typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches) {
+    return true;
+  }
+  return /iPhone|iPad|Android|Mobile/i.test(navigator.userAgent);
 };
 
-function ensureGuard(): void {
-  if (!hostPresent()) return;
-  if (hasGuard(window.history.state)) return;
-  // 文档还在加载时改历史，WebKit 上有整页崩溃的先例，等 load 完再垫。
-  if (document.readyState !== 'complete') {
-    if (!waitingForLoad) {
-      waitingForLoad = true;
-      window.addEventListener(
-        'load',
-        () => {
-          waitingForLoad = false;
-          // 留出一个宏任务，避开 WebKit 正在收尾的 load 事件。
-          window.setTimeout(ensureGuard, 0);
-        },
-        { once: true },
-      );
-    }
-    return;
-  }
+/** 把地址栏拉回当前画面，DOM 不动。 */
+const holdCurrentPage = (): void => {
   const state = window.history.state;
-  const base: GuardState = state && typeof state === 'object' ? { ...(state as GuardState) } : {};
-  // 路由用 state 里的 idx 判断自己排第几条；护垫必须让它继续往后数，
-  // 否则同一个 idx 出现在两个条目上，WebKit 处理历史时会崩。
-  const nextIdx = typeof base.idx === 'number' ? base.idx + 1 : base.idx;
-  // 护垫带一个哨兵 hash：路由看到的路径没变，但这条历史和原页面地址不同，
-  // WebKit 处理「同一串 URL 连成一片」的历史时会崩，绕开它。
-  const guardUrl = `${window.location.pathname}${window.location.search}${GUARD_HASH}`;
+  const base = state && typeof state === 'object' ? { ...(state as Record<string, unknown>) } : null;
   try {
-    window.history.pushState({ ...base, idx: nextIdx, [GUARD_KEY]: true }, '', guardUrl);
+    window.history.pushState(base, '', heldUrl || window.location.href);
   } catch {
-    // 极少数环境禁用 pushState，此时手势退回宿主默认行为，不做拦截。
+    // 禁用 pushState 的环境只能让宿主退到底，至少不去点错按钮。
   }
-}
+};
 
-let installed = false;
+const onPopState = (event: PopStateEvent): void => {
+  // 站内「返回」按钮自己发起的历史回退，放行。
+  if (consumeInternalBack()) return;
+  // 刚刚替用户点过按钮，这一退是它自己的导航，放行。
+  if (Date.now() < dismissWindowUntil) return;
+  // 抢在路由之前按住：这一格退掉之后，路由不该看到这次 popstate。
+  event.stopImmediatePropagation();
+  holdCurrentPage();
+  if (invokePageDismissAction()) {
+    // 点了按钮，页面自己会导航。它若走 history.back()，这一次要放行，
+    // 否则又会被按住，来回点同一个按钮。
+    dismissWindowUntil = Date.now() + 600;
+  }
+};
 
 export const installSwipeBackGuard = (): void => {
   if (installed) return;
+  if (!isTouchSurface()) return;
   installed = true;
-  window.addEventListener('popstate', () => {
-    // 站内「返回」按钮自己发起的历史回退，放行。
-    if (consumeInternalBack()) return;
-    // 已经站在护垫上（例如宿主前进），没有手势要处理。
-    if (hasGuard(window.history.state)) return;
-    // 护垫被右滑吃掉了，URL 没变，所以画面还停在原处。
-    const acted = invokePageDismissAction();
-    if (acted) {
-      // 按钮自己会导航，页面可能已经换掉；等它落定再按新页面决定要不要垫护垫。
-      window.setTimeout(syncSwipeBackGuard, 0);
-    } else {
-      // 页面上没有「关闭 / 取消 / 返回」：这次手势什么也不做，只把护垫补回去，
-      // 否则下一次右滑就会退到真正的上一页，底部导航跟着换掉。
-      syncSwipeBackGuard();
-    }
-  });
-  ensureGuard();
+  heldUrl = window.location.href;
+  window.addEventListener('popstate', onPopState, true);
 };
 
-/** 每次站内跳转后重新垫护垫，右滑才有东西可吃。 */
+/** 每次站内跳转后更新「当前画面的地址」，按住后退时才拉得回来。 */
 export const syncSwipeBackGuard = (): void => {
   if (!installed) return;
-  ensureGuard();
+  heldUrl = window.location.href;
 };
