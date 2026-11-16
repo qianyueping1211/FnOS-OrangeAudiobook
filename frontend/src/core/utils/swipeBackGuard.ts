@@ -12,10 +12,11 @@ type GuardState = Record<string, unknown> & { __tingSwipeGuard?: boolean };
 const GUARD_KEY = '__tingSwipeGuard';
 
 // 优先级：关闭 > 取消 > 返回。中文是各页面上的实际文案，英文是 t() 的回退。
-const DISMISS_LABELS: readonly string[][] = [
-  ['关闭', 'close'],
-  ['取消', 'cancel'],
-  ['返回', 'back', 'go back'],
+// 英文必须按整词匹配，否则 playback / background 这类词也会命中 back。
+const DISMISS_PATTERNS: readonly RegExp[] = [
+  /关闭|\bclose\b/,
+  /取消|\bcancel\b/,
+  /返回|\bback\b|\bgo back\b/,
 ];
 
 const CLICKABLE_SELECTOR = 'button, [role="button"], a[href]';
@@ -50,10 +51,10 @@ const findDismissCandidate = (): HTMLElement | null => {
   const visible = Array.from(document.querySelectorAll<HTMLElement>(CLICKABLE_SELECTOR))
     .reverse()
     .filter(isVisible);
-  for (const group of DISMISS_LABELS) {
+  for (const pattern of DISMISS_PATTERNS) {
     const hit = visible.find(el => {
       const label = labelOf(el);
-      return group.some(word => label.includes(word));
+      return pattern.test(label);
     });
     if (hit) return hit;
   }
