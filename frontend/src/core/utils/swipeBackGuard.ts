@@ -86,7 +86,8 @@ function ensureGuard(): void {
         'load',
         () => {
           waitingForLoad = false;
-          ensureGuard();
+          // 留出一个宏任务，避开 WebKit 正在收尾的 load 事件。
+          window.setTimeout(ensureGuard, 0);
         },
         { once: true },
       );
