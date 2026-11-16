@@ -73,7 +73,9 @@ async function fixture(context, gated = false) {
     if (startup && ['/api/favorites', '/api/playlists', '/api/series'].includes(p)) await optional.promise;
     if (p === '/api/me') result = user;
     else if (p === '/api/auth/session-restore') result = { user, token: 'synthetic-session' };
-    else if (p === '/api/settings') result = { theme: 'dark', language: 'zh-CN', bookshelf_progress_enabled: true, settings_json: { bookshelf_cover_shape: 'rect' } };
+    // A phone that keeps the home page to one screen: every switch in
+    // 个性化设置 → 首页调整 except hero / stats / latest books is off.
+    else if (p === '/api/settings') result = { theme: 'dark', language: 'zh-CN', bookshelf_progress_enabled: true, settings_json: { bookshelf_cover_shape: 'rect', home_layout: { show_hero: true, show_stats: true, show_recommended: false, show_recent: false, show_recently_added: true, show_collections: false } } };
     else if (p === '/api/system/time-zone') result = { time_zone: 'Asia/Shanghai' };
     else if (p === '/api/health') result = { version: '2.1.0', status: 'ok' };
     else if (p === '/api/books') result = books;
@@ -221,6 +223,8 @@ async function fixture(context, gated = false) {
             const scrollerOverflow = await page.locator('.reader-home .reader-page-scroll').evaluate(element => getComputedStyle(element).overflowY);
             assert.equal(scrollerOverflow, 'hidden', name + ' home must not scroll on a phone');
           }
+          // 为你推荐 / 最近收听 / 书单与系列 只由个性化设置里的开关决定：
+          // 这份 mock 把它们关掉，首页就保持一屏三本。代码里始终保留这些区块。
           assert.equal(await page.getByRole('heading', { name: '为你推荐', exact: true }).count(), 0);
           assert.equal(await page.locator('.reader-brand strong').textContent(), '橙子听书');
           assert.equal(await page.locator('.reader-brand img').evaluate(image => image.complete && image.naturalWidth > 0), true);
