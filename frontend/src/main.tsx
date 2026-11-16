@@ -7,10 +7,14 @@ import './design/player-layout-fixes.css'
 import i18n from './core/i18n'
 import App from './App.tsx'
 import { installIOSViewportGuards } from './core/utils/iosViewport'
+import { installSwipeBackGuard } from './core/utils/swipeBackGuard'
 
 // 宿主把右滑当成 WebView 的"返回"：只要历史里真有上一页就退一页。
 // 所以这里只装 iOS 视口保护，站内跳转保持正常的 push 历史。
 installIOSViewportGuards();
+// 入口就装：登录态还没加载、Layout 还没挂载时，宿主的手势也能被按住。
+// 它是幂等的，Layout 里那次调用只是重复确认。
+installSwipeBackGuard();
 
 const savedTheme = localStorage.getItem('theme') || 'dark';
 document.documentElement.classList.add(savedTheme === 'system'
