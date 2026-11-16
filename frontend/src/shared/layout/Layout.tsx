@@ -31,6 +31,7 @@ import { setApplicationTimeZone } from '../../core/utils/timeZone';
 import { useClientExtensions } from '../../core/hooks/useClientExtensions';
 import { useUiPreferencesStore } from '../../core/stores/uiPreferencesStore';
 import { consumeInternalBack } from '../../core/utils/appExit';
+import { installSwipeBackGuard, syncSwipeBackGuard } from '../../core/utils/swipeBackGuard';
 import { rememberPath } from '../../core/utils/appHistory';
 import { warmFileManager } from '../../core/utils/nasFileManager';
 import { primePlaybackFromWarm, warmRecentPlayback } from '../../features/player/playbackWarmup';
@@ -159,7 +160,15 @@ const Layout: React.FC = () => {
   React.useEffect(() => {
     rememberPath(`${location.pathname}${location.search}`);
     if (location.pathname === '/player') usePlayerStore.getState().setIsBackstage(false);
+    // 每个页面都在历史里垫一条同 URL 的护垫，右滑才只会退到护垫而不是换页。
+    syncSwipeBackGuard();
   }, [location.pathname, location.search]);
+
+  // 左边缘右滑交给页面自己的「关闭 / 取消 / 返回」按钮，页面位置不动；
+  // 三者都没有时这次滑动什么也不做。绝不让手势替宿主关窗。
+  React.useEffect(() => {
+    installSwipeBackGuard();
+  }, []);
 
   // 左边缘右滑是 WebView 的"返回"。站内跳转保持真实历史后，宿主手势自己就会
   // 退一页，这里只把应用内主动返回的 popstate 标记消化掉，绝不替宿主关窗，
