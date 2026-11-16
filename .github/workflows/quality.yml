@@ -101,8 +101,10 @@ jobs:
         run: |
           npm install --prefix "$RUNNER_TEMP/ting-ui-tools" --no-save --package-lock=false playwright@1.56.1
           "$RUNNER_TEMP/ting-ui-tools/node_modules/.bin/playwright" install --with-deps chromium webkit
-      - name: Verify desktop and iPhone layouts in Chromium and WebKit
-        run: NODE_PATH="$RUNNER_TEMP/ting-ui-tools/node_modules" node tests/design-ui.cjs
+      - name: Verify desktop and iPhone layouts in Chromium
+        run: NODE_PATH="$RUNNER_TEMP/ting-ui-tools/node_modules" node tests/design-ui.cjs --engine=chromium
+      - name: Verify iPhone layouts in WebKit
+        run: NODE_PATH="$RUNNER_TEMP/ting-ui-tools/node_modules" node tests/design-ui.cjs --engine=webkit
       - uses: actions/upload-artifact@v7
         if: always()
         with:

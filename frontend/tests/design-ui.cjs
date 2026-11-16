@@ -118,7 +118,11 @@ async function fixture(context, gated = false) {
     await ready();
     await mkdir(path.join(root, 'ui-artifacts'), { recursive: true });
     const reports = [];
+    // --engine=chromium|webkit runs one engine on its own: the CI runner takes the
+    // WebKit render process down when both engines share one long-lived process.
+    const onlyEngine = (process.argv.find(argument => argument.startsWith('--engine=')) || '').slice('--engine='.length);
     for (const [engine, engineName] of [[chromium, 'chromium'], [webkit, 'webkit']]) {
+      if (onlyEngine && onlyEngine !== engineName) continue;
     browser = await engine.launch();
     const sizes = engineName === 'chromium'
       ? [['desktop', { width: 1440, height: 1000 }], ['iphone16pro', { width: 402, height: 874 }], ['iphone16promax', { width: 440, height: 956 }]]
