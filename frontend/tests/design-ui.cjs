@@ -164,12 +164,12 @@ async function fixture(context, gated = false) {
       await page.locator('.reader-player.is-page').waitFor();
       assert.equal(new URL(page.url()).pathname, '/player');
       await page.locator('.reader-player-book-cover').click();
-      await page.waitForURL('**/book/book-0?chapter_id=chapter-book-0');
+      await page.waitForURL(url => /\/book\/book-0$/.test(new URL(url).pathname) && new URL(url).search === '?chapter_id=chapter-book-0');
       await page.locator('.reader-book-header').waitFor();
       await page.locator('.reader-mini-info').waitFor();
       await page.locator(mobile ? '.reader-tab[href="/"]' : '.reader-nav[href="/"]').click();
       await page.locator('.reader-hero-cover-link').click();
-      await page.waitForURL('**/book/book-0?chapter_id=chapter-book-0');
+      await page.waitForURL(url => /\/book\/book-0$/.test(new URL(url).pathname) && new URL(url).search === '?chapter_id=chapter-book-0');
       await page.locator('.reader-book-header').waitFor();
       for (const [route, slug] of [['/', 'home'], ['/bookshelf', 'bookshelf'], ['/search', 'search'], ['/mine', 'settings'], ['/playlists', 'playlists']]) {
         await navigateTo(route);

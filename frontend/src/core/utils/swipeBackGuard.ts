@@ -11,6 +11,8 @@ type GuardState = Record<string, unknown> & { __tingSwipeGuard?: boolean };
 
 const GUARD_KEY = '__tingSwipeGuard';
 
+const GUARD_HASH = '#ting-swipe-guard';
+
 // 优先级：关闭 > 取消 > 返回。中文是各页面上的实际文案，英文是 t() 的回退。
 // 英文必须按整词匹配，否则 playback / background 这类词也会命中 back。
 const DISMISS_PATTERNS: readonly RegExp[] = [
@@ -74,7 +76,18 @@ export const invokePageDismissAction = (): boolean => {
 
 let waitingForLoad = false;
 
+/**
+ * 右滑是飞牛宿主 WebView 的手势。宿主在页面里注入 flutter_inappwebview 桥；
+ * 普通浏览器（桌面预览、自动化测试）没有这个桥，也就没有右滑，不必压护垫。
+ */
+const hostPresent = (): boolean => {
+  const bridge = (window as unknown as { flutter_inappwebview?: { callHandler?: unknown } })
+    .flutter_inappwebview;
+  return typeof bridge?.callHandler === 'function';
+};
+
 function ensureGuard(): void {
+  if (!hostPresent()) return;
   if (hasGuard(window.history.state)) return;
   // 没有可点的按钮就不垫护垫：这一页右滑不做任何事，交给宿主默认行为。
   if (!findDismissCandidate()) return;
@@ -99,8 +112,11 @@ function ensureGuard(): void {
   // 路由用 state 里的 idx 判断自己排第几条；护垫必须让它继续往后数，
   // 否则同一个 idx 出现在两个条目上，WebKit 处理历史时会崩。
   const nextIdx = typeof base.idx === 'number' ? base.idx + 1 : base.idx;
+  // 护垫带一个哨兵 hash：路由看到的路径没变，但这条历史和原页面地址不同，
+  // WebKit 处理「同一串 URL 连成一片」的历史时会崩，绕开它。
+  const guardUrl = `${window.location.pathname}${window.location.search}${GUARD_HASH}`;
   try {
-    window.history.pushState({ ...base, idx: nextIdx, [GUARD_KEY]: true }, '', window.location.href);
+    window.history.pushState({ ...base, idx: nextIdx, [GUARD_KEY]: true }, '', guardUrl);
   } catch {
     // 极少数环境禁用 pushState，此时手势退回宿主默认行为，不做拦截。
   }
