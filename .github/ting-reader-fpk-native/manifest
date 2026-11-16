@@ -1,5 +1,5 @@
 appname               = ting-reader
-version               = 2.2.41
+version               = 2.2.42
 display_name          = ${common.displayName}
 desc                  = ${common.desc}
 arch                  = x86
