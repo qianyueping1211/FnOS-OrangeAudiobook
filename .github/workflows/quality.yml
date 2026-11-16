@@ -65,9 +65,12 @@ jobs:
           # Creating an embedded V8 isolate dies with a bare SIGSEGV on this
           # runner often enough that the whole test process is taken down
           # (it predates the current release and does not reproduce locally).
-          # Skip the tests that build an isolate, retry once for anything else.
-          SKIP='--skip plugin::js::bindings::tests:: --skip test_js_runtime_creation'
-          cargo test --locked -- $SKIP || cargo test --locked -- $SKIP
+          # Skip the tests that build an isolate, run the rest on a single
+          # thread so isolates are never alive concurrently, and retry: the
+          # crash takes down the whole process, so more than one attempt is
+          # the only way to distinguish it from a real failure.
+          SKIP='--test-threads=1 --skip plugin::js::bindings::tests:: --skip test_js_runtime_creation'
+          cargo test --locked -- $SKIP || cargo test --locked -- $SKIP || cargo test --locked -- $SKIP
       # The same gateway smoke test runs on the final native binary before release.
       - name: Report tests requiring external artifacts
         working-directory: backend
