@@ -464,20 +464,17 @@ jobs:
           git push origin beta --force
 
       - name: Release Beta FPK
-        uses: softprops/action-gh-release@v2
         if: needs.native.outputs.target == 'beta'
-        with:
-          tag_name: beta
-          name: Beta Release
-          body: "Latest beta build of ting-reader native FPK."
-          prerelease: true
-          make_latest: false
-          overwrite_files: true
-          files: |
-            FnOS-OrangeAudiobook-x86_64-beta.fpk
-            SHA256SUMS.txt
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # 先删掉旧 release（tag 保留，上一步刚把它推到本次提交上），再按同一 tag 重建。
+          gh release delete beta --yes 2>/dev/null || true
+          gh release create beta FnOS-OrangeAudiobook-x86_64-beta.fpk SHA256SUMS.txt \
+            --title "Beta Release" \
+            --notes "Latest beta build of ting-reader native FPK." \
+            --prerelease --latest=false
 
       - name: Extract Release Notes
         if: needs.native.outputs.target == 'formal'
@@ -492,19 +489,27 @@ jobs:
           test -s RELEASE_NOTES.md
 
       - name: Release Formal FPK
-        uses: softprops/action-gh-release@v2
         if: needs.native.outputs.target == 'formal'
-        with:
-          tag_name: ${{ needs.native.outputs.release_tag }}
-          target_commitish: ${{ needs.source.outputs.sha }}
-          body_path: RELEASE_NOTES.md
-          files: |
-            FnOS-OrangeAudiobook-x86_64-${{ env.VERSION }}.fpk
-            SHA256SUMS.txt
-          fail_on_unmatched_files: false
-          overwrite_files: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.native.outputs.release_tag }}
+          TARGET_SHA: ${{ needs.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          FPK="FnOS-OrangeAudiobook-x86_64-${VERSION}.fpk"
+          test -f "$FPK"
+          if ! git rev-parse -q --verify "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            git tag "$RELEASE_TAG" "$TARGET_SHA"
+            git push origin "refs/tags/$RELEASE_TAG"
+          fi
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$FPK" SHA256SUMS.txt --clobber
+            gh release edit "$RELEASE_TAG" --notes-file RELEASE_NOTES.md
+          else
+            gh release create "$RELEASE_TAG" "$FPK" SHA256SUMS.txt \
+              --title "$RELEASE_TAG" \
+              --notes-file RELEASE_NOTES.md
+          fi
 
       - name: Summarize build bottlenecks
         if: always()
