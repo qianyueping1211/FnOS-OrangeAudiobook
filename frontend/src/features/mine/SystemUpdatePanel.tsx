@@ -6,6 +6,7 @@ import { apiErrorMessage } from '../../core/api/errors';
 import { notifyUpdateChanged, useSystemUpdate, type UpdateInfo } from '../../core/hooks/useSystemUpdate';
 import { CLIENT_VERSION } from '../../core/version';
 import { getRuntimePath } from '../../core/utils/runtimeUrl';
+import { isNewerVersion } from '../../core/utils/versionCompare';
 
 export default function SystemUpdatePanel() {
   const { t } = useTranslation();
@@ -17,7 +18,12 @@ export default function SystemUpdatePanel() {
   const [error, setError] = useState('');
   const [confirm, setConfirm] = useState(false);
   const active = info?.installer.state === 'downloading' || info?.installer.state === 'installing';
-  const reloadNeeded = info?.installer.state === 'completed' && info.current_version !== CLIENT_VERSION;
+  // 只有「装好的版本确实比我手上这份前端新」才需要重新载入。安装状态会一直留在
+  // 状态文件里，拿它去比宿主的 current_version 会让提示永远挂着，把升级按钮顶掉。
+  const installedVersion = info?.installer.state === 'completed'
+    ? (info?.installer.version || info?.current_version)
+    : undefined;
+  const reloadNeeded = isNewerVersion(installedVersion, CLIENT_VERSION);
   useEffect(() => {
     if (!active) return;
     const controller = new AbortController();
@@ -68,14 +74,16 @@ export default function SystemUpdatePanel() {
         {info?.has_token && !tokenEdited ? t('reader.deleteToken') : t('reader.saveToken')}
       </button>
       <button type="button" className="reader-button primary" disabled={busy || active} onClick={() => {
+        // 远端有更高的版本时永远先给升级入口，否则「装完还没刷新」的状态会把
+        // 升级按钮顶成重新载入，用户就没有任何办法再升级了。
+        if (info?.update_available) setConfirm(true);
         // A finished install replaced the bundle on disk: a plain reload would
         // keep the SPA route the update was started from, so restart at home.
-        if (reloadNeeded) window.location.replace(getRuntimePath('/'));
-        else if (info?.update_available) setConfirm(true);
+        else if (reloadNeeded) window.location.replace(getRuntimePath('/'));
         else void check();
       }}>
         {busy || active ? <Loader2 size={17} className="animate-spin" /> : info?.update_available ? <ArrowUpCircle size={17} /> : <RefreshCw size={16} />}
-        {active ? t('reader.upgrading') : reloadNeeded ? t('reader.reload') : info?.update_available ? t('reader.upgrade') : t('mine.checkUpdate')}
+        {active ? t('reader.upgrading') : info?.update_available ? t('reader.upgrade') : reloadNeeded ? t('reader.reload') : t('mine.checkUpdate')}
       </button>
     </div>
     {active && <progress className="reader-update-progress" max={100} value={info?.installer.progress || 0} />}

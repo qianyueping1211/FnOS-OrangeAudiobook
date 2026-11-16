@@ -1,7 +1,7 @@
 // Runs only in GitHub Actions. All content and API traffic are synthetic.
 const { chromium, webkit } = require('playwright');
 const { spawn } = require('node:child_process');
-const { mkdir, writeFile } = require('node:fs/promises');
+const { mkdir, readFile, writeFile } = require('node:fs/promises');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const root = process.cwd();
@@ -23,6 +23,15 @@ let hasRecent = true;
 let installerOverride = null;
 const info = () => ({ current_version: '2.1.0', latest_version: latest, tag: latest ? 'v' + latest : '', notes: '本次更新统一了移动端与桌面端的阅读体验。', has_token: hasToken,
   checked_at: Math.floor(Date.now() / 1000), update_available: !!latest, installer: installerOverride || { state: 'idle', progress: 0, message: '' } });
+// The running bundle's own version, so fixtures can describe an install that is
+// genuinely newer than the page the update panel is rendered by.
+const bumpPatch = version => {
+  const parts = String(version || '0.0.0').split('.').map(part => Number.parseInt(part, 10) || 0);
+  while (parts.length < 3) parts.push(0);
+  parts[parts.length - 1] += 1;
+  return parts.join('.');
+};
+
 async function ready() {
   for (let i = 0; i < 100; i++) {
     try { if ((await fetch(base)).ok) return; } catch {}
@@ -452,9 +461,18 @@ async function fixture(context, gated = false) {
         assert.ok(updateMessage.indexOf('本机加速') < updateMessage.indexOf('正在读取并校验私有版本'));
         assert.equal(await page.locator('.reader-update-summary').boundingBox().then(b => b.y), updateHeadingBefore.y);
         assert.equal(installCalls, 1, 'This install call is intercepted by the synthetic fixture');
-        // A finished install replaced the bundle: reload must land on home,
-        // not on the update page it was started from.
-        installerOverride = { state: 'completed', progress: 100, message: '安装完成' };
+        // The freshly installed version is newer than this bundle and a further
+        // release is already published: the upgrade entry has to stay reachable,
+        // it must not be replaced by the reload hint.
+        const installedVersion = bumpPatch(JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')).version);
+        installerOverride = { state: 'completed', progress: 100, message: '安装完成', version: installedVersion };
+        latest = '9.9.0';
+        await page.reload();
+        await page.getByRole('button', { name: '升级', exact: true }).waitFor();
+        assert.equal(await page.getByRole('button', { name: '重新载入', exact: true }).count(), 0, name + ' a published release must keep the upgrade entry');
+        // Nothing newer is published, so the panel falls back to the reload hint,
+        // and that reload must land on home rather than the update page.
+        latest = '';
         await page.reload();
         await page.getByRole('button', { name: '重新载入', exact: true }).waitFor();
         await page.getByRole('button', { name: '重新载入', exact: true }).click();

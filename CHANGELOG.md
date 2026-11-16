@@ -1,3 +1,10 @@
+## [2.2.36] - 2026-11-16
+
+### 修复：发现新版本却无法升级
+
+- 「检查更新」查到新版本时，主按钮会被上一条安装留下的「重新载入」提示顶掉，点下去只是刷新页面，升级入口彻底消失。现在远端有更高版本时永远先给「升级」，重新载入只作为没有新版本时剩下的那一步。
+- 重新载入的判断改成「装好的版本确实高于当前前端」，不再拿宿主记录的版本号与前端版本号硬比，避免这条提示常驻。
+
 ## [2.2.35] - 2026-11-16
 
 ### 手机右滑改为调用页面按钮
@@ -59,7 +66,9 @@
 ## [2.2.29] - 2026-11-15
 ### 「本地查看」按橙子音乐的链路重做：启动预热，点击时等宿主就绪再打开
 - 这次去读了 FnOS-OrangeMusic 「下载」页里「查看与下载」的实现：应用启动时先 warmFileManager() 把 SDK 与宿主通道准备好（app.js 一行 
-avigation().then(n => n.warmFileManager())），点按钮时 eveal() → openSavedFileFolder() → openMusicFolder()，即先 eady()（20 秒上限）再 openFileManager(文件夹)（10 秒上限）。
+avigation().then(n => n.warmFileManager())），点按钮时 
+eveal() → openSavedFileFolder() → openMusicFolder()，即先 
+eady()（20 秒上限）再 openFileManager(文件夹)（10 秒上限）。
 - 上一版绕过 SDK 直接 callHandler('openFileManager')：宿主没有注册这个 handler 时既不动作也不报错，界面看起来就是「点了没反应」。现在完全照这条链路走，并把预热挪到启动阶段，ppApiVersion 在用户点之前就已经取到。
 - 手机端与桌面扩展窗口走同一条路径；独立浏览器仍提示从飞牛应用中心重新打开。界面上不出现任何 NAS 路径。
 ### 播放页：后台加载好，点「播放」直接显示
