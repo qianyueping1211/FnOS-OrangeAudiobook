@@ -78,9 +78,13 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
   const { t } = useTranslation();
   const user = useAuthStore((state) => state.user);
   const isAdmin = user?.role === 'admin';
-  const [books, setBooks] = useState<Book[]>(snapshot?.books ?? []);
+  const [books, setBooks] = useState<Book[]>((snapshot?.books ?? []).filter((book) => book.library_type !== 'source'));
   const [series, setSeries] = useState<Series[]>(snapshot?.series ?? []);
   const [libraries, setLibraries] = useState<ShelfLibrary[]>(snapshot?.libraries ?? []);
+  // Online book-source libraries hold gathered audiobooks, not NAS files, so the
+  // shelf leaves them out. loadedRaw keeps paging on the server's row count so
+  // the filter can never skip a row.
+  const [loadedRaw, setLoadedRaw] = useState(snapshot?.books?.length ?? 0);
   const [selectedLibraryId, setSelectedLibraryId] = useState<string>(snapshot?.libraryId ?? cachedPrefs?.libraryId ?? '');
   const [loading, setLoading] = useState(!snapshot);
   const [sortBy, setSortBy] = useState<ShelfSnapshot['sortBy']>(snapshot?.sortBy ?? cachedPrefs?.sortBy ?? 'createdAt');
@@ -162,7 +166,7 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
   // the server (series members are filtered there), so a 700-book library no
   // longer arrives in a single response before the first card can paint.
   useEffect(() => {
-    if (loading || books.length >= totalBooks) return;
+    if (loading || loadedRaw >= totalBooks) return;
     const pane = document.querySelector<HTMLElement>('.reader-bookshelf-page .reader-page-scroll');
     const shell = document.getElementById('main-content');
     const scrollable = (element: HTMLElement | null): element is HTMLElement => {
@@ -175,23 +179,24 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
     let frame = 0;
 
     const loadNextPage = async () => {
-      if (loadingMoreRef.current || books.length >= totalBooks) return;
+      if (loadingMoreRef.current || loadedRaw >= totalBooks) return;
       loadingMoreRef.current = true;
       try {
         const res = await apiClient.get('/api/books/page', {
           params: {
             library_id: selectedLibraryId || undefined,
-            offset: books.length,
+            offset: loadedRaw,
             page_size: pageSizeRef.current,
             sort: sortForApi(sortBy),
           },
         });
         const data = res.data as { items: Book[]; total: number };
         const items = data.items || [];
-        setTotalBooks(typeof data.total === 'number' ? data.total : books.length + items.length);
+        setLoadedRaw(loadedRaw + items.length);
+        setTotalBooks(typeof data.total === 'number' ? data.total : loadedRaw + items.length);
         setBooks((prev) => {
           const seen = new Set(prev.map((book) => book.id));
-          return [...prev, ...items.filter((book) => !seen.has(book.id))];
+          return [...prev, ...items.filter((book) => book.library_type !== 'source' && !seen.has(book.id))];
         });
       } catch (err) {
         console.error('Failed to load the next bookshelf page', err);
@@ -221,7 +226,7 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
       window.cancelAnimationFrame(frame);
       window.clearTimeout(topUp);
     };
-  }, [loading, books, totalBooks, sortBy, selectedLibraryId]);
+  }, [loading, books, loadedRaw, totalBooks, sortBy, selectedLibraryId]);
 
   useEffect(() => {
     const request = new AbortController();
@@ -337,7 +342,7 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
       ]);
       if (request.signal.aborted) return;
       const libs = libsRes.data as Library[];
-      setLibraries(libs);
+      setLibraries(libs.filter((library) => library.library_type !== 'source'));
 
       // A saved library id that no longer exists is dropped, which re-runs
       // this effect without a filter.
@@ -349,9 +354,11 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
       }
 
       const pageData = booksRes.data as { items: Book[]; total: number };
+      const pageItems = pageData.items || [];
       loadedLibrary.current = selectedLibraryId;
-      setBooks(pageData.items || []);
-      setTotalBooks(typeof pageData.total === 'number' ? pageData.total : (pageData.items?.length ?? 0));
+      setBooks(pageItems.filter((book) => book.library_type !== 'source'));
+      setLoadedRaw(pageItems.length);
+      setTotalBooks(typeof pageData.total === 'number' ? pageData.total : pageItems.length);
       setSeries(seriesRes.data);
     } catch (err) {
       if (!request.signal.aborted) console.error('Failed to fetch bookshelf data', err);

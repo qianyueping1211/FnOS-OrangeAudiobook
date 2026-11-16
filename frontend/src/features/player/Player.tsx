@@ -5,7 +5,9 @@ import { useLocation, useNavigate } from "react-router";
 import { usePlayerStore } from "../../core/stores/playerStore";
 import type { Chapter } from "../../core/types";
 import { setAlpha, toSolidColor, isTooLight } from "../../core/utils/color";
+import { getCoverUrl } from "../../core/utils/image";
 import { useBookshelfCoverShape } from "../../core/hooks/useBookshelfCoverShape";
+import { usePlayerVisual, writePlayerVisual } from "./playerVisual";
 import ProgressBar from "./ProgressBar";
 import { usePlayback } from "./usePlayback";
 import {
@@ -103,6 +105,7 @@ const Player: React.FC = () => {
   const [editSkipOutro, setEditSkipOutro] = useState(0);
 
   const isDark = useIsDarkMode();
+  const playerVisual = usePlayerVisual();
 
   const effectiveThemeColor =
     themeColor && !isTooLight(themeColor) ? themeColor : undefined;
@@ -466,6 +469,15 @@ const Player: React.FC = () => {
                 : undefined,
           }}
         >
+          {playerVisual === 'vinyl' && currentBook?.cover_url ? (
+            <div className="reader-vinyl-ambient" aria-hidden="true">
+              <img
+                src={getCoverUrl(currentBook.cover_url, currentBook.library_id, currentBook.id, 640)}
+                alt=""
+                referrerPolicy="no-referrer"
+              />
+            </div>
+          ) : null}
           <ExpandedPlayerHeader
             onExit={() => {
               void handleExitExpanded();
@@ -487,11 +499,13 @@ const Player: React.FC = () => {
             onOpenSettings={() => setShowSettings(true)}
           />
 
-          <div className="flex-1 flex flex-col items-center justify-center max-w-[520px] mx-auto w-full gap-5 sm:gap-7 min-[700px]:landscape:max-w-[1280px] min-[700px]:landscape:grid min-[700px]:landscape:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] min-[700px]:landscape:items-center min-[700px]:landscape:gap-16 xl:landscape:gap-24">
+          <div className="relative z-10 flex-1 flex flex-col items-center justify-center max-w-[520px] mx-auto w-full gap-5 sm:gap-7 min-[700px]:landscape:max-w-[1280px] min-[700px]:landscape:grid min-[700px]:landscape:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] min-[700px]:landscape:items-center min-[700px]:landscape:gap-16 xl:landscape:gap-24">
             <div className="flex w-full min-w-0 flex-col items-center gap-5 sm:gap-7">
               <ExpandedCover
                 book={currentBook}
                 expandedCoverSizeClass={expandedCoverSizeClass}
+                visual={playerVisual}
+                isPlaying={isPlaying}
                 onOpenBook={() => {
                   if (!currentBook) return;
                   setIsExpanded(false);
@@ -570,6 +584,9 @@ const Player: React.FC = () => {
               editSkipIntro={editSkipIntro}
               editSkipOutro={editSkipOutro}
               volume={volume}
+              visual={playerVisual}
+              onChangeVisual={writePlayerVisual}
+              coverBook={currentBook}
               onChangeVolume={(value) => {
                 setVolume(value);
                 if (value > 0) setIsMuted(false);

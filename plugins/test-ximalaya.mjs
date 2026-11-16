@@ -1,0 +1,15 @@
+import { search, detail, list_chapters, resolve_audio } from "file:///D:/Documents/Learn/GitHub/FnOS-OrangeAudiobook/plugins/ximalaya-book-source/plugin.js";
+const s = await search({ title: "晚安妈妈", page: 1, page_size: 5, author: null, narrator: null, filters: {} });
+console.log("search ok", s.ok, "items", s.data.items.length, "has_more", s.data.has_more);
+console.log(JSON.stringify(s.data.items[0] ?? null).slice(0, 300));
+const id = s.data.items[0]?.id;
+console.log("detail id", id);
+const d = await detail({ id, url: null });
+console.log("detail ok", d.ok, "title", d.data.metadata.title, "chapters", d.data.chapters.length, "complete", d.data.chapters_complete);
+console.log("chapter0", JSON.stringify(d.data.chapters[0] ?? null).slice(0, 200));
+const lc = await list_chapters({ source: { id, url: null }, page: 1, page_size: 100 });
+console.log("list_chapters", lc.ok, "items", lc.data.items.length, "has_more", lc.data.has_more, "total", lc.data.total);
+const first = lc.data.items[0];
+const audio = await resolve_audio({ chapter_id: first.id });
+console.log("resolve_audio ok", audio.ok, audio.data.mime, audio.data.url.slice(0, 100));
+console.log("headers", JSON.stringify(audio.data.headers));

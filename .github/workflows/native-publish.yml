@@ -317,6 +317,12 @@ jobs:
 
           cp backend/config.toml .github/ting-reader-fpk-native/app/server/
           cp -r frontend/dist .github/ting-reader-fpk-native/app/server/static
+          # The Ximalaya book source ships with the app: pack it from source on
+          # every build so the bundled .tr can never drift from the source tree.
+          node plugins/pack-tr.mjs plugins/ximalaya-book-source \
+            .github/ting-reader-fpk-native/app/server/preinstalled-plugins/ximalaya-book-source.tr
+          node plugins/verify-tr.mjs \
+            .github/ting-reader-fpk-native/app/server/preinstalled-plugins/ximalaya-book-source.tr
           curl --fail --location --retry 3 \
             "https://github.com/dqsq2e2/ting-reader-plugin-store/releases/download/v${TING_PLUGIN_STORE_VERSION}/ting-reader-plugin-store-${TING_PLUGIN_STORE_VERSION}.tr" \
             --output .github/ting-reader-fpk-native/app/server/preinstalled-plugins/ting-reader-plugin-store.tr

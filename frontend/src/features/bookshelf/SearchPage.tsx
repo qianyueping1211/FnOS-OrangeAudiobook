@@ -4,11 +4,18 @@ import { getBookshelfGridClass, useBookshelfDisplaySettings } from '../../core/h
 import type { Book, Library, Series } from '../../core/types';
 import { apiErrorMessage } from '../../core/api/errors';
 import BookCard from '../../shared/cards/BookCard';
-import { Search as SearchIcon, Loader2, BookX, ChevronLeft, ChevronRight, SlidersHorizontal, ChevronUp, ChevronDown } from 'lucide-react';
+import OnlineBookCard, { type OnlineBookItem } from '../../shared/cards/OnlineBookCard';
+import { Search as SearchIcon, Loader2, BookX, ChevronLeft, ChevronRight, SlidersHorizontal, ChevronUp, ChevronDown, Cloud } from 'lucide-react';
 import BackButton from '../../shared/widgets/BackButton';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router';
 
 type FilterOption = string | { id: string; name: string };
+
+interface BookSourceOption {
+  id: string;
+  name: string;
+}
 
 interface FilterRowProps {
   label: string;
@@ -125,6 +132,7 @@ const FilterRow: React.FC<FilterRowProps> = ({
 
 const SearchPage: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   
   // Filter states
@@ -150,6 +158,20 @@ const SearchPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
+
+  // Online book sources: the shelf never queries them on its own except in the
+  // default "全部" mode, where a search asks both. The source row only offers
+  // 全部 / 书架 / 在线 — the plugin behind it stays unnamed. Local results stay on top.
+  const [bookSources, setBookSources] = useState<BookSourceOption[]>([]);
+  const [sourceMode, setSourceMode] = useState<'all' | 'local' | 'online'>('all');
+  // One fetch result tagged with the query it belongs to. Anything stale is
+  // dropped while rendering instead of being cleared inside an effect.
+  const [onlineResult, setOnlineResult] = useState<{
+    key: string;
+    items: OnlineBookItem[];
+    error: string;
+  }>({ key: '', items: [], error: '' });
+  const [openingSourceId, setOpeningSourceId] = useState('');
   
   // Cover shape and icon size settings from bookshelf
   const { coverShape, iconSize } = useBookshelfDisplaySettings();
@@ -216,6 +238,102 @@ const SearchPage: React.FC = () => {
     fetchMetadata();
   }, []);
 
+  // Book source plugins declare themselves with book_source: true; everything
+  // else in the scraper list is a metadata fetcher for local libraries.
+  useEffect(() => {
+    let cancelled = false;
+    apiClient.get('/api/scraper/sources')
+      .then((response) => {
+        if (cancelled) return;
+        const raw = (response.data?.sources ?? []) as { id: string; name: string; book_source?: boolean }[];
+        setBookSources(raw.filter((source) => source.book_source).map((source) => ({ id: source.id, name: source.name })));
+      })
+      .catch((error) => {
+        if (!cancelled) console.error('Failed to load book sources', error);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const sourceIdsKey = bookSources.map((source) => source.id).join(',');
+  const onlineKey = sourceMode !== 'local' && debouncedQuery.trim()
+    ? `online|${debouncedQuery.trim()}`
+    : '';
+  const onlineItems = onlineResult.key === onlineKey ? onlineResult.items : [];
+  const onlineError = onlineResult.key === onlineKey ? onlineResult.error : '';
+  const onlineLoading = Boolean(onlineKey) && onlineResult.key !== onlineKey;
+
+  useEffect(() => {
+    if (!onlineKey || !sourceIdsKey) return;
+    const keyword = onlineKey.slice(onlineKey.indexOf('|') + 1);
+    const sources = sourceIdsKey.split(',');
+    const controller = new AbortController();
+    Promise.allSettled(
+      sources.map((source) => apiClient
+        .post(
+          '/api/v1/scraper/search',
+          { source, query: keyword, page: 1, page_size: 20 },
+          { signal: controller.signal },
+        )
+        .then((response) => ({
+          source,
+          items: (response.data?.items ?? []) as OnlineBookItem[],
+        }))),
+    )
+      .then((settled) => {
+        if (controller.signal.aborted) return;
+        const seen = new Set<string>();
+        const items: OnlineBookItem[] = [];
+        let failure = '';
+        for (const entry of settled) {
+          if (entry.status === 'rejected') {
+            failure = failure || apiErrorMessage(entry.reason, t('searchPage.onlineFailed', '检索在线书源失败'));
+            continue;
+          }
+          for (const item of entry.value.items) {
+            // Same title-only rule as the local shelf: an album whose title does
+            // not contain the keyword is not a match for this query.
+            if (!(item.title ?? '').toLowerCase().includes(keyword.toLowerCase())) continue;
+            const dedupe = `${entry.value.source}:${item.id}`;
+            if (seen.has(dedupe)) continue;
+            seen.add(dedupe);
+            items.push({ ...item, sourceId: entry.value.source });
+          }
+        }
+        // One failing source must not hide the answers another source returned.
+        setOnlineResult({ key: onlineKey, items, error: items.length > 0 ? '' : failure });
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        setOnlineResult({
+          key: onlineKey,
+          items: [],
+          error: apiErrorMessage(error, t('searchPage.onlineFailed', '检索在线书源失败')),
+        });
+      });
+    return () => controller.abort();
+  }, [onlineKey, sourceIdsKey, t]);
+
+  // Opening an online result is the only moment it enters the database, and the
+  // host files it under the source's managed library rather than the shelf.
+  const openOnlineBook = useCallback(async (item: OnlineBookItem) => {
+    if (!item.sourceId || openingSourceId) return;
+    setOpeningSourceId(item.id);
+    try {
+      const { data } = await apiClient.post('/api/v1/scraper/books', {
+        source: item.sourceId,
+        book: { id: item.id, url: null },
+      });
+      if (data?.book_id) navigate(`/book/${data.book_id}`);
+    } catch (error) {
+      setOnlineResult((prev) => ({
+        ...prev,
+        error: apiErrorMessage(error, t('searchPage.onlineOpenFailed', '打开这本书失败')),
+      }));
+    } finally {
+      setOpeningSourceId('');
+    }
+  }, [openingSourceId, navigate, t]);
+
   const hasActiveFilters = selectedLibraryId || selectedTag || selectedGenre
     || selectedYear || selectedAuthor || selectedNarrator || selectedSeries;
 
@@ -246,6 +364,13 @@ const SearchPage: React.FC = () => {
         if (controller.signal.aborted) return;
 
         let filtered = data as Book[];
+        // The query is a title query: the host also matches author and narrator,
+        // which made "论语" return unrelated books whose reader happens to share
+        // a character. Keep only titles that contain the typed keyword.
+        const keyword = debouncedQuery.trim().toLowerCase();
+        if (keyword) {
+          filtered = filtered.filter((book) => (book.title ?? '').toLowerCase().includes(keyword));
+        }
         if (selectedAuthor) filtered = filtered.filter(book => book.author === selectedAuthor);
         if (selectedNarrator) filtered = filtered.filter(book => book.narrator === selectedNarrator);
         if (selectedGenre) {
@@ -311,6 +436,38 @@ const SearchPage: React.FC = () => {
               )
             )}
           </div>
+
+          {/* Three fixed choices only; the plugin name never surfaces here.
+              "全部" is the default, so a search asks the shelf and the online
+              sources together. */}
+          {bookSources.length > 0 && (
+            <div className="reader-search-source-row">
+              <span className="reader-search-source-label">{t('searchPage.sourceRow', '来源')}</span>
+              <div className="flex flex-wrap items-center gap-2">
+                {(['all', 'local', 'online'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    aria-pressed={sourceMode === mode}
+                    onClick={() => setSourceMode(mode)}
+                    className={`shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm transition-all whitespace-nowrap ${
+                      sourceMode === mode
+                        ? 'bg-primary-500 text-white font-medium shadow-md shadow-primary-500/20'
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    {mode === 'online' && <Cloud size={14} strokeWidth={2} aria-hidden="true" />}
+                    {t(
+                      mode === 'all'
+                        ? 'searchPage.sourceAll'
+                        : mode === 'local' ? 'searchPage.sourceLocal' : 'searchPage.sourceOnline',
+                      mode === 'all' ? '全部' : mode === 'local' ? '书架' : '在线',
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Filters Toggle Button */}
           <div className="reader-search-filter-toggle">
@@ -406,7 +563,7 @@ const SearchPage: React.FC = () => {
         </div>
       )}
 
-      {hasSearch && (
+      {hasSearch && sourceMode !== 'online' && (
         <section aria-live="polite" aria-busy={loading}>
           {searchError && <p role="alert" className="mb-4 text-sm text-red-600 dark:text-red-400">{searchError}</p>}
           {results.length > 0 ? (
@@ -425,6 +582,35 @@ const SearchPage: React.FC = () => {
               <h3 className="text-xl font-medium dark:text-white">{t('searchPage.noResults')}</h3>
               <p className="text-slate-500 mt-2">{t('searchPage.noResultsHint')}</p>
             </div>
+          )}
+        </section>
+      )}
+
+      {sourceMode !== 'local' && debouncedQuery.trim() && (
+        <section className="space-y-3" aria-live="polite" aria-busy={onlineLoading}>
+          <header className="flex items-center gap-2 pt-2">
+            <Cloud size={16} className="text-slate-400" aria-hidden="true" />
+            <h2 className="text-sm font-medium text-slate-600 dark:text-slate-300">
+              {t('searchPage.onlineTitle', '在线结果')}
+            </h2>
+          </header>
+          {onlineError && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{onlineError}</p>}
+          {onlineItems.length > 0 ? (
+            <div className={`grid ${getBookshelfGridClass(iconSize)} pt-1`}>
+              {onlineItems.map((item) => (
+                <OnlineBookCard
+                  key={item.id}
+                  item={item}
+                  coverShape={coverShape}
+                  busy={openingSourceId === item.id}
+                  onOpen={openOnlineBook}
+                />
+              ))}
+            </div>
+          ) : onlineLoading ? (
+            <p className="py-8 text-center text-sm text-slate-400">{t('common.loading')}</p>
+          ) : (
+            !onlineError && <p className="py-8 text-center text-sm text-slate-400">{t('searchPage.onlineEmpty', '没有搜到匹配的有声书')}</p>
           )}
         </section>
       )}

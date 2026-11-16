@@ -23,12 +23,18 @@ __pycache__/
 /data/
 /temp/
 /storage/
-/plugins/*/
+# Build output of the bundled book source plugin, not the source itself.
+/plugins/ximalaya-book-source/dist/
 /backend/data/
 /backend/temp/
 /backend/storage/
 /backend/plugins/
-/backend/preinstalled-plugins/
+
+# Local preview artifacts and packaging output (not shipped)
+/frontend/ui-artifacts/
+/frontend/tests/*-preview.cjs
+/frontend/tests/design-ui-*.cjs
+/release-2.2.*/
 
 # Environment
 .env

@@ -273,6 +273,21 @@ html,body,#root {overflow:hidden;max-width:100%;-webkit-text-size-adjust:100%;te
 .reader-filter-panel-heading .reader-button {min-height:36px;padding:6px 12px;font-size:13px}
 .reader-filter-row {display:grid;grid-template-columns:72px minmax(0,1fr);align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--reader-line)}
 .reader-filter-label {font-size:13px;font-weight:600;color:var(--reader-muted)}
+.reader-search-source-row {display:flex;align-items:center;gap:10px;min-width:0}
+.reader-search-source-label {flex:0 0 auto;font-size:13px;font-weight:600;color:var(--reader-muted)}
+.reader-search-source-row > div {min-width:0}
+
+/* Player chapter title: one line, marquee when it overflows. */
+.reader-marquee {display:block;width:100%;overflow:hidden;white-space:nowrap}
+.reader-marquee-inner {display:inline-block;white-space:nowrap;vertical-align:top;max-width:none}
+.reader-marquee-inner.is-scrolling {animation:reader-marquee var(--reader-marquee-duration,10s) ease-in-out infinite alternate}
+@keyframes reader-marquee {
+  0%, 10% {transform:translateX(0)}
+  90%, 100% {transform:translateX(var(--reader-marquee-shift,0))}
+}
+@media (prefers-reduced-motion: reduce) {
+  .reader-marquee-inner.is-scrolling {animation:none}
+}
 .reader-filter-options {display:flex;gap:8px;overflow-x:auto;max-width:100%;min-width:0;padding:2px}
 .reader-filter-options button {min-height:36px;border:1px solid transparent;font-size:14px}
 .reader-filter-options button[aria-pressed=true] {background:var(--reader-soft);border-color:var(--reader-accent);color:var(--reader-accent);box-shadow:none}
@@ -435,3 +450,73 @@ html.reader-ios { touch-action:pan-x pan-y }
   .reader-about-page.reader-locked-page .reader-page-scroll {overflow-y:hidden}
   .reader-about-page .reader-page-scroll {padding-bottom:8px}
 }
+
+/* ─── 黑胶唱片播放样式 ─────────────────────────────────────────────────────
+   VinylPlayerCover 的全部外观。按唱机实物的比例：盘子只占方框六成多，四周留白给唱臂；
+   枢轴是盘外正上方一颗小白点，细长白杆往右下伸，末端只搭在盘边。
+   暂停时整根抬起摆到盘外；播放时才转盘。 */
+.reader-vinyl {position:relative;width:100%;aspect-ratio:1/1;display:block;isolation:isolate}
+.reader-vinyl-disc {position:absolute;left:17%;top:17%;width:66%;height:66%;border-radius:50%;
+  background:
+    repeating-radial-gradient(circle at 50% 50%,rgba(255,255,255,.05) 0 .6px,rgba(0,0,0,.13) .6px 2.2px),
+    radial-gradient(circle at 50% 48%,#1c1b26 0%,#15141d 62%,#18171f 88%,#22212b 100%);
+  box-shadow:0 22px 48px rgba(0,0,0,.34),0 3px 10px rgba(0,0,0,.26),
+    inset 0 0 0 1px rgba(255,255,255,.12),
+    inset 0 -6px 18px rgba(0,0,0,.34)}
+.reader-vinyl-disc::after {content:'';position:absolute;inset:-2.4%;border-radius:50%;pointer-events:none;
+  box-shadow:inset 0 0 0 4px rgba(255,255,255,.02),inset 0 0 0 2px rgba(0,0,0,.3),
+    inset 0 0 0 1px rgba(255,255,255,.13)}
+.reader-vinyl-spin {position:absolute;inset:0;border-radius:50%;animation:reader-vinyl-spin 40s linear infinite;
+  animation-play-state:paused;will-change:transform}
+.reader-vinyl.is-playing .reader-vinyl-spin {animation-play-state:running}
+/* 墨盘上若有若无的细圆圈，对比要压得很低，一眼不能当成车轮。 */
+.reader-vinyl-grooves {position:absolute;inset:0;border-radius:50%;opacity:.035;mix-blend-mode:overlay;
+  background:repeating-radial-gradient(circle at 50% 50%,rgba(255,255,255,.09) 0 .5px,rgba(255,255,255,0) .5px 2.8px)}
+/* 中间的圆形贴纸：书封裁圆，只留极软的内影与一圈细边。 */
+.reader-vinyl-label {position:absolute;left:50%;top:50%;width:53%;aspect-ratio:1;transform:translate(-50%,-50%);
+  border-radius:50%;overflow:hidden;
+  box-shadow:0 0 0 1px rgba(255,255,255,.18),inset 0 0 16px rgba(0,0,0,.32)}
+.reader-vinyl-art {width:100%;height:100%;object-fit:cover;transform:scale(1.02)}
+.reader-vinyl-hole {position:absolute;left:50%;top:50%;width:2.8%;aspect-ratio:1;transform:translate(-50%,-50%);
+  border-radius:50%;background:#08070d;box-shadow:inset 0 0 0 1px rgba(255,255,255,.22)}
+/* 光不是均匀的亮，是一道一道的扇形反射：顺着某几个方向的纹路会连着亮起来。 */
+.reader-vinyl-gloss {position:absolute;inset:0;border-radius:50%;pointer-events:none;z-index:2;opacity:.42;
+  mix-blend-mode:screen;
+  background:conic-gradient(from 200deg at 50% 50%,
+    rgba(255,255,255,.10) 0deg,rgba(255,255,255,.02) 26deg,rgba(255,255,255,0) 46deg,
+    rgba(255,255,255,.04) 78deg,rgba(255,255,255,0) 108deg,
+    rgba(255,255,255,.09) 172deg,rgba(255,255,255,.02) 200deg,rgba(255,255,255,0) 228deg,
+    rgba(255,255,255,.05) 292deg,rgba(255,255,255,.11) 348deg,rgba(255,255,255,.10) 360deg)}
+/* 唱臂与盘同框：viewBox 的 120 个刻度就直接当容器百分比用。 */
+.reader-vinyl-tonearm {position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3;overflow:visible}
+.reader-vinyl-pivot {fill:#ffffff;opacity:.96}
+.reader-vinyl-rod {stroke:#f2f1f6;stroke-width:1.9;fill:none;stroke-linecap:round;opacity:.92}
+.reader-vinyl-head {fill:#ffffff}
+.reader-vinyl-needle {fill:#ffffff;opacity:.9}
+.reader-vinyl-head-line {fill:rgba(24,23,32,.55)}
+.reader-vinyl-arm {transform-box:view-box;transform-origin:60px 6px;transform:rotate(-18deg);
+  transition:transform .4s cubic-bezier(.22,.72,.28,1)}
+.reader-vinyl.is-playing .reader-vinyl-arm {transform:rotate(0deg)}
+@keyframes reader-vinyl-spin {to {transform:rotate(360deg)}}
+/* 设置面板里的示意卡片：转盘快一点、唱针反复起落，一眼就能看出两种样式的差别。 */
+.reader-vinyl.is-preview .reader-vinyl-rod {stroke-width:1.5;opacity:.8}
+.reader-vinyl.is-preview .reader-vinyl-spin {animation-duration:10s}
+.reader-vinyl.is-preview .reader-vinyl-arm {animation:reader-vinyl-arm-demo 3.4s cubic-bezier(.22,.72,.28,1) infinite}
+@keyframes reader-vinyl-arm-demo {0%,52% {transform:rotate(0deg)} 72%,100% {transform:rotate(-18deg)}}
+/* 黑胶形态自己带圆形轮廓，去掉方形封面那套白边、圆角与阴影。 */
+.reader-player-vinyl {width:min(96vw,400px)!important;max-width:none!important;aspect-ratio:1/1!important;
+  border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;
+  overflow:visible!important;padding:0;margin-bottom:-12%!important}
+@media(min-width:640px) {
+  .reader-player-vinyl {width:min(70vw,420px)!important}
+}
+@media(prefers-reduced-motion:reduce) {
+  .reader-vinyl-spin,.reader-vinyl-arm,.reader-vinyl.is-preview .reader-vinyl-arm {animation:none!important;transition:none!important}
+}
+
+/* 黑胶样式下整页背景不是死黑：铺一层书封自身放大模糊的暗色，盘和页面才连成一片。 */
+.reader-vinyl-ambient {position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.reader-vinyl-ambient img {width:100%;height:100%;object-fit:cover;
+  filter:blur(58px) saturate(1.5) brightness(.58);transform:scale(1.3)}
+.reader-vinyl-ambient::after {content:'';position:absolute;inset:0;
+  background:linear-gradient(180deg,rgba(8,8,12,.5) 0%,rgba(8,8,12,.68) 46%,rgba(8,8,12,.82) 100%)}

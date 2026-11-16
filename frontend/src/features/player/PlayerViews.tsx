@@ -4,6 +4,9 @@ import { ChevronUp, Power, Settings } from 'lucide-react';
 import type { Book } from '../../core/types';
 import { setAlpha } from '../../core/utils/color';
 import { getCoverUrl } from '../../core/utils/image';
+import type { PlayerVisual } from './playerVisual';
+import { VinylPlayerCover } from './VinylPlayerCover';
+import MarqueeText from '../../shared/widgets/MarqueeText';
 
 const PlayerCover: React.FC<{ book: Book | null | undefined }> = ({ book }) => {
   const [failedUrl, setFailedUrl] = React.useState<string>();
@@ -63,7 +66,7 @@ export const ExpandedPlayerHeader: React.FC<ExpandedPlayerHeaderProps> = ({
   const { t } = useTranslation();
 
   return (
-    <div className="flex items-center justify-between w-full max-w-[520px] min-[700px]:landscape:max-w-[1280px] mx-auto pb-3">
+    <div className="relative z-10 flex items-center justify-between w-full max-w-[520px] min-[700px]:landscape:max-w-[1280px] mx-auto pb-3">
       <button
         onClick={onExit}
         className="p-2 -ml-2 rounded-full text-slate-700 dark:text-white hover:bg-white/50 dark:hover:bg-slate-800/60 transition-colors"
@@ -136,17 +139,36 @@ interface ExpandedCoverProps {
   book: Book | null | undefined;
   expandedCoverSizeClass: string;
   onOpenBook: () => void;
+  // classic = 现在的方形书封；vinyl = 黑胶唱片（播放时落针）。
+  visual?: PlayerVisual;
+  isPlaying?: boolean;
 }
 
 export const ExpandedCover: React.FC<ExpandedCoverProps> = ({
   book,
   expandedCoverSizeClass,
   onOpenBook,
-}) => (
-  <button type="button" onClick={onOpenBook} aria-label={book?.title} className={`reader-player-book-cover ${expandedCoverSizeClass} rounded-[28px] sm:rounded-[36px] overflow-hidden shadow-2xl border-4 sm:border-8 border-white dark:border-slate-800 transition-all duration-500`}>
-    <PlayerCover book={book} />
-  </button>
-);
+  visual = 'classic',
+  isPlaying = false,
+}) => {
+  if (visual === 'vinyl') {
+    return (
+      <button
+        type="button"
+        onClick={onOpenBook}
+        aria-label={book?.title}
+        className={`reader-player-book-cover reader-player-vinyl w-full ${expandedCoverSizeClass}`}
+      >
+        <VinylPlayerCover book={book} isPlaying={isPlaying} />
+      </button>
+    );
+  }
+  return (
+    <button type="button" onClick={onOpenBook} aria-label={book?.title} className={`reader-player-book-cover ${expandedCoverSizeClass} rounded-[28px] sm:rounded-[36px] overflow-hidden shadow-2xl border-4 sm:border-8 border-white dark:border-slate-800 transition-all duration-500`}>
+      <PlayerCover book={book} />
+    </button>
+  );
+};
 
 // ─── ExpandedChapterTitle ──────────────────────────────────────────────────
 // 章节名：竖屏在封面下方，横屏在右侧功能按钮上方；error 横幅跟随章节名。
@@ -161,8 +183,8 @@ export const ExpandedChapterTitle: React.FC<ExpandedChapterTitleProps> = ({
   error,
 }) => (
   <div className="w-full min-w-0 text-center">
-    <h1 className="text-xl sm:text-2xl font-black leading-snug dark:text-white text-[#4A3728] line-clamp-2">
-      {chapterTitle}
+    <h1 className="text-xl sm:text-2xl font-black leading-snug dark:text-white text-[#4A3728]">
+      <MarqueeText text={chapterTitle} />
     </h1>
     {error && (
       <div className="mt-4 w-full rounded-2xl bg-red-500/15 border border-red-200/30 px-4 py-2 text-center text-xs font-bold text-red-600 dark:text-red-200">

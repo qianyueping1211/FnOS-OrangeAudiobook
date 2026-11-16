@@ -1,0 +1,59 @@
+id: ximalaya-book-source
+name: 喜马拉雅书源
+version: 1.0.0
+min_core_version: 2.0.0
+author: OrangeAudiobook
+description:
+  zh: 在喜马拉雅检索有声书，加入书架后可直接播放。免费章节无需登录；会员或已购买的内容请在喜马拉雅账号下收听。
+  en: Search Ximalaya audiobooks and add them to the shelf for direct playback. Free episodes need no login.
+runtime: javascript
+entry_point: plugin.js
+capabilities:
+  - id: metadata.search
+    kind: metadata_provider
+    book_source: true
+    operations: [search, detail, list_chapters, resolve_audio]
+    auto_scrape: false
+    search_fields:
+      - key: title
+        label:
+          zh: 书名
+          en: Title
+        type: text
+        required: true
+    result_fields:
+      - key: title
+        label:
+          zh: 书名
+          en: Title
+      - key: author
+        label:
+          zh: 主播
+          en: Anchor
+      - key: cover_url
+        label:
+          zh: 封面
+          en: Cover
+      - key: intro
+        label:
+          zh: 简介
+          en: Intro
+      - key: tags
+        label:
+          zh: 标签
+          en: Tags
+permissions:
+  - type: network_access
+    domain: www.ximalaya.com
+  - type: network_access
+    domain: mobile.ximalaya.com
+  - type: network_access
+    domain: search.ximalaya.com
+  - type: network_access
+    domain: imagev2.xmcdn.com
+  - type: network_access
+    domain: fdfs.xmcdn.com
+  - type: network_access
+    domain: a.xmcdn.com
+  - type: network_access
+    domain: aod.cos.tx.xmcdn.com

@@ -105,7 +105,9 @@ export const nasFolderOf = (path?: string): string | null => {
 };
 
 export const canRevealNasFolder = (book?: Pick<Book, 'path' | 'library_type'> | null): boolean =>
-  !!book && book.library_type !== 'webdav' && !!nasFolderOf(book.path);
+  // Online book-source books have no NAS folder at all: their path holds the
+  // source's own book id, so the folder affordance must stay hidden.
+  !!book && book.library_type !== 'webdav' && book.library_type !== 'source' && !!nasFolderOf(book.path);
 
 const globalBridge = (): FlutterBridge | null => {
   const candidate = (window as unknown as { flutter_inappwebview?: FlutterBridge }).flutter_inappwebview;

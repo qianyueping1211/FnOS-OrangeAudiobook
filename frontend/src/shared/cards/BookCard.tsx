@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Book } from '../../core/types';
-import { Check, ChevronRight } from 'lucide-react';
+import { Check, ChevronRight, Cloud } from 'lucide-react';
 import { Link } from 'react-router';
 
 import CoverArt from './CoverArt';
@@ -22,6 +22,9 @@ const BookCard: React.FC<BookCardProps> = ({ book, onClick, disableLink, coverSh
   const showProgress = useUiPreferencesStore((state) => state.bookshelfProgressEnabled);
   const progress = coverProgressPercent(book.progress_percent);
   const credits = bookPrimaryCredit(book.author, book.narrator);
+  // Books that came in through a book source plugin live on the source site, not
+  // on the NAS, so they get an "online" tag and never a local-file affordance.
+  const isOnline = book.library_type === 'source';
 
   const content = (
     <>
@@ -36,7 +39,13 @@ const BookCard: React.FC<BookCardProps> = ({ book, onClick, disableLink, coverSh
             {progress > 0 && <div className="h-0.5 bg-white/15"><div className={`h-full ${progress === 100 ? 'bg-emerald-400/85' : 'bg-primary-400/90'}`} style={{ width: `${progress}%` }} /></div>}
           </div>
         )}
-        <div className="absolute right-2 top-2 rounded-full bg-black/30 p-1.5 text-white opacity-0 group-hover:opacity-100 transition-opacity" aria-hidden="true"><ChevronRight size={16} /></div>
+        <div className="absolute bottom-2 right-2 rounded-full bg-black/30 p-1.5 text-white opacity-0 group-hover:opacity-100 transition-opacity" aria-hidden="true"><ChevronRight size={16} /></div>
+        {isOnline && (
+          <span className="pointer-events-none absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-medium leading-none text-white shadow-sm backdrop-blur-sm">
+            <Cloud size={11} strokeWidth={2} aria-hidden="true" />
+            {t('bookshelf.onlineBadge', '在线')}
+          </span>
+        )}
       </div>
       <div className="mt-2 min-w-0">
         <ExpandableTitle 
