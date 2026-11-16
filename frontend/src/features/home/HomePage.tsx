@@ -65,7 +65,7 @@ export default function HomePage() {
         booksReady = ready;
         setData({ ...current, identity, loading: !booksReady });
         if (booksReady) {
-          const latest = [...current.books].sort((a,b) => Date.parse(b.created_at)-Date.parse(a.created_at)).slice(0,24);
+          const latest = [...current.books].sort((a,b) => Date.parse(b.created_at)-Date.parse(a.created_at)).slice(0,3);
           const lastId = [...current.recent].sort((a,b) => Date.parse(b.updated_at)-Date.parse(a.updated_at))[0]?.book_id;
           const lastBook = current.books.find(book => book.id === lastId);
           if (lastBook && !latest.some(book => book.id === lastId)) latest.push(lastBook);
@@ -87,10 +87,9 @@ export default function HomePage() {
       // ships every row before the page can paint.
       void apiClient.get<{ items: Book[]; total: number }>('/api/books/page', {
         ...options,
-        // 「最近上新」要的是最新入库的书，系列里的成员也算新书：列表接口默认
-        // 把系列成员排除掉（书架另有系列区块），照原样请求会把大半新书筛掉，
-        // 首页就容易只剩半屏。
-        params: { page_size: 24, sort: 'created', include_series: true },
+        // 首页只摆最新三本（手机端固定一屏），系列书照旧交给书架的系列区块，
+        // 所以这里仍按接口默认过滤，只把 page_size 收小省一次往返体积。
+        params: { page_size: 6, sort: 'created' },
       }).then(({ data }) => update({
         books: [...(data.items || []), ...(heroBook && !(data.items || []).some(book => book.id === heroBook!.id) ? [heroBook] : [])],
         bookCount: typeof data.total === 'number' ? data.total : (data.items?.length || 0),
@@ -143,7 +142,7 @@ export default function HomePage() {
     });
   const latest = [...books]
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
-    .slice(0, 24);
+    .slice(0, 3);
   const last = recentBooks[0];
   // The hero waits for the resume history before it considers the newest book:
   // /api/books/page usually answers before /api/progress/recent, so falling back

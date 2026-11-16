@@ -232,7 +232,11 @@ input::placeholder,textarea::placeholder {color:var(--reader-muted);opacity:.8}
 }
 
 @media(max-width:959px) {
-  .reader-home .reader-grid>:nth-child(n+7),.reader-home .reader-recent-grid>:nth-child(n+3) {display:none}
+  /* 手机首页定死一屏：只画最新三本、页面本身不滚动，留白交给背景。 */
+  .reader-home .reader-grid>:nth-child(n+4),.reader-home .reader-recent-grid>:nth-child(n+3) {display:none}
+  /* 权重必须高于下面的 .reader-locked-page .reader-page-scroll{overflow-y:auto}，
+     否则首页的滚动壳会把这条盖掉。 */
+  .reader-home.reader-locked-page .reader-page-scroll {overflow-y:hidden}
 }
 
 /* The playback page reuses the expanded player while keeping navigation available. */
