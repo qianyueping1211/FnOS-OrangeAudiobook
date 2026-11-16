@@ -87,7 +87,10 @@ export default function HomePage() {
       // ships every row before the page can paint.
       void apiClient.get<{ items: Book[]; total: number }>('/api/books/page', {
         ...options,
-        params: { page_size: 24, sort: 'created' },
+        // 「最近上新」要的是最新入库的书，系列里的成员也算新书：列表接口默认
+        // 把系列成员排除掉（书架另有系列区块），照原样请求会把大半新书筛掉，
+        // 首页就容易只剩半屏。
+        params: { page_size: 24, sort: 'created', include_series: true },
       }).then(({ data }) => update({
         books: [...(data.items || []), ...(heroBook && !(data.items || []).some(book => book.id === heroBook!.id) ? [heroBook] : [])],
         bookCount: typeof data.total === 'number' ? data.total : (data.items?.length || 0),
