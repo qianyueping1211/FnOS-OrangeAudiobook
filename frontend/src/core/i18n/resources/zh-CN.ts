@@ -29,6 +29,7 @@ const zhCN = {
     "upgrade": "升级",
     "upgrading": "正在更新",
     "reload": "重新载入",
+    "localAccel": "本机加速",
     "releaseNotes": "版本变更记录",
     "confirmUpgrade": "确认升级",
     "confirmUpgradeMessage": "将升级至 v{{version}}。安装期间听书服务会短暂重启。",

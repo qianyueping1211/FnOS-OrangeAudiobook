@@ -465,16 +465,25 @@ async function fixture(context, gated = false) {
         // release is already published: the upgrade entry has to stay reachable,
         // it must not be replaced by the reload hint.
         const installedVersion = bumpPatch(JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')).version);
-        installerOverride = { state: 'completed', progress: 100, message: '安装完成', version: installedVersion };
+        installerOverride = { state: 'completed', progress: 100, message: '安装完成', version: installedVersion, network: '本机加速：127.0.0.1:7890' };
         latest = '9.9.0';
         await page.reload();
         await page.getByRole('button', { name: '升级', exact: true }).waitFor();
         assert.equal(await page.getByRole('button', { name: '重新载入', exact: true }).count(), 0, name + ' a published release must keep the upgrade entry');
+        // With a release published the acceleration hint rides inside the primary
+        // button instead of taking a line of its own.
+        assert.equal(await page.locator('.reader-marquee').count(), 1, name + ' acceleration hint belongs to the upgrade button');
+        assert.ok((await page.locator('.reader-marquee').innerText()).includes('本机加速'), name + ' acceleration hint keeps its label');
+        assert.equal(await page.locator('.reader-update-message').count(), 0, name + ' a stale install receipt must not open a status line');
         // Nothing newer is published, so the panel falls back to the reload hint,
         // and that reload must land on home rather than the update page.
         latest = '';
         await page.reload();
         await page.getByRole('button', { name: '重新载入', exact: true }).waitFor();
+        // A finished install leaves its receipt in the status file forever; it must
+        // not keep occupying the panel once there is nothing to install.
+        assert.equal(await page.getByText('安装完成', { exact: true }).count(), 0, name + ' a stale install receipt stays hidden');
+        assert.equal(await page.locator('.reader-marquee').count(), 0, name + ' no acceleration hint without a release');
         await page.getByRole('button', { name: '重新载入', exact: true }).click();
         await page.waitForURL(url => new URL(url).pathname === '/', { timeout: 15000 });
         await page.locator('.reader-home').waitFor();

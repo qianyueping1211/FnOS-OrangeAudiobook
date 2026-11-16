@@ -154,6 +154,14 @@ input::placeholder,textarea::placeholder {color:var(--reader-muted);opacity:.8}
 .reader-update-message.error {color:#e48697;background:rgba(212,93,119,.1)}
 .reader-release-notes {white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto;font-family:inherit;font-size:13px;line-height:1.8;color:var(--reader-muted);padding:16px 0}
 .reader-update-progress {width:100%;accent-color:var(--reader-accent);margin-top:15px;height:8px}
+/* 有新版本时主按钮里滚动显示本机加速地址：文本比按钮长，横着走一遍代替截断。 */
+.reader-marquee {display:block;overflow:hidden;max-width:14em;white-space:nowrap;
+  mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)}
+.reader-marquee span {display:inline-block;padding-left:100%;animation:reader-marquee 9s linear infinite}
+@keyframes reader-marquee {from {transform:translateX(0)} to {transform:translateX(-100%)}}
+@media (prefers-reduced-motion: reduce) {
+  .reader-marquee span {animation:none;padding-left:0;text-overflow:ellipsis;max-width:14em;overflow:hidden}
+}
 .reader-update-badge {display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;
   color:var(--reader-accent);background:var(--reader-soft);border-radius:10px;padding:9px;margin-top:12px}
 .reader-dialog-overlay {position:fixed;inset:0;z-index:180;background:#08060dc2;backdrop-filter:blur(8px);display:grid;place-items:center;padding:20px}

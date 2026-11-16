@@ -1,10 +1,11 @@
-// 手机端从左边缘向右滑，飞牛宿主会把它当成 WebView 的「返回」，真实历史一退
-// 就是整页切换。听书希望这一次手势交给当前页面自己的「关闭 / 取消 / 返回」
-// 按钮，页面本身的位置不动；三个按钮都不在时，这次滑动不做任何事。
+// 手机端从左边缘向右滑，飞牛宿主会把它当成 WebView 的「返回」。听书不要这种
+// 整页后退，也不要跨导航往回跳：滑动只做一件事——点掉当前页面上现成的
+// 「关闭 > 取消 > 返回」。四个默认页面上没有这类按钮，滑动就等于什么也没发生。
 //
-// 做法是给当前页面在历史里垫一条同 URL 的「护垫」条目：右滑只退到护垫，URL
-// 没变，画面就不会切换。这时再看页面上有没有可点的按钮，有就点它，没有就把
-// 护垫补回去，让这次手势完全无效果。
+// 做法是每个页面都在历史里垫一条同 URL 的「护垫」条目：右滑只退到护垫，URL
+// 没变，画面和底部导航都不动。这时看页面上有没有可点的按钮，有就点它，没有就
+// 把护垫补回去。护垫必须每页都垫，只在有按钮的页面垫的话，一滑就是真的退到
+// 上一页并换掉底部导航的选中项。
 import { consumeInternalBack } from './appExit';
 
 type GuardState = Record<string, unknown> & { __tingSwipeGuard?: boolean };
@@ -46,7 +47,7 @@ const labelOf = (el: HTMLElement): string =>
 
 /**
  * 找当前页面上可点的「关闭 / 取消 / 返回」，优先级 关闭 > 取消 > 返回。
- * 只找不点，护垫也要靠它判断这一页值不值得拦手势。
+ * 只找不点：护垫每页都垫，它在手势真正发生时才决定要不要点。
  */
 const findDismissCandidate = (): HTMLElement | null => {
   // 弹窗通常挂在树的最末尾，反过来找能让「关闭」优先于页面顶部的「返回」。
@@ -89,8 +90,6 @@ const hostPresent = (): boolean => {
 function ensureGuard(): void {
   if (!hostPresent()) return;
   if (hasGuard(window.history.state)) return;
-  // 没有可点的按钮就不垫护垫：这一页右滑不做任何事，交给宿主默认行为。
-  if (!findDismissCandidate()) return;
   // 文档还在加载时改历史，WebKit 上有整页崩溃的先例，等 load 完再垫。
   if (document.readyState !== 'complete') {
     if (!waitingForLoad) {
@@ -137,6 +136,10 @@ export const installSwipeBackGuard = (): void => {
     if (acted) {
       // 按钮自己会导航，页面可能已经换掉；等它落定再按新页面决定要不要垫护垫。
       window.setTimeout(syncSwipeBackGuard, 0);
+    } else {
+      // 页面上没有「关闭 / 取消 / 返回」：这次手势什么也不做，只把护垫补回去，
+      // 否则下一次右滑就会退到真正的上一页，底部导航跟着换掉。
+      syncSwipeBackGuard();
     }
   });
   ensureGuard();

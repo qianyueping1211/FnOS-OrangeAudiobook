@@ -29,6 +29,7 @@ const enUS = {
     "upgrade": "Upgrade",
     "upgrading": "Updating",
     "reload": "Reload",
+    "localAccel": "Local acceleration",
     "releaseNotes": "Release notes",
     "confirmUpgrade": "Confirm upgrade",
     "confirmUpgradeMessage": "Upgrade to v{{version}}? The listening service will restart briefly during installation.",
