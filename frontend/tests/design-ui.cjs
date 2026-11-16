@@ -333,14 +333,14 @@ async function fixture(context, gated = false) {
       await page.locator('.reader-mini-info').waitFor();
       assert.equal(await page.locator('.reader-player.is-mini').evaluate(element => getComputedStyle(element).position), 'fixed');
       if (mobile) assert.equal(await page.locator('.reader-tabs').evaluate(element => getComputedStyle(element).position), 'fixed');
-      // 一次点按只压一条历史：宿主把右滑交给 WebView 的 back 之后，退一次就该
-      // 落到上一个分区，底部导航的选中项也跟着换过去。
+      // 手机端接管了历史：站内跳转一律覆盖当前这一条，一次点按不增加历史，
+      // 右滑才没有可退的上一页（没有系统整页滑动动画，也不会换分区）。
       if (mobile) {
         assert.equal(await page.locator('.reader-tab.is-active').getAttribute('href'), '/mine');
         const historyDepth = await page.evaluate(() => history.length);
         await page.locator('.reader-tab[href="/bookshelf"]').click();
         await page.waitForFunction(() => location.pathname === '/bookshelf');
-        assert.equal(await page.evaluate(() => history.length), historyDepth + 1, name + ' one tap must add exactly one history entry');
+        assert.equal(await page.evaluate(() => history.length), historyDepth, name + ' one tap must not add a history entry on mobile');
         assert.equal(await page.locator('.reader-tab.is-active').getAttribute('href'), '/bookshelf');
       }
       await page.locator(nav + ' a[href="/bookshelf"]').click();
