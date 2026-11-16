@@ -12,6 +12,7 @@ import {
   isMiniPlayerHiddenPath,
 } from "./platform";
 import { getRuntimePathname } from "../../core/utils/runtimeUrl";
+import { exitApp } from "../../core/utils/appExit";
 import PlayerSettingsModal from "./PlayerSettingsModal";
 import BookmarkManagerModal from "./BookmarkManagerModal";
 import ChapterListDrawer from "./ChapterListDrawer";
@@ -63,7 +64,6 @@ const Player: React.FC = () => {
     setIsCollapsed,
     isSeriesEditing,
     isBackstage,
-    closePlayer,
   } = usePlayerStore();
 
   const {
@@ -462,10 +462,15 @@ const Player: React.FC = () => {
               if (isPlayerPage) navigate("/bookshelf");
             }}
             onClosePlayer={() => {
-              closePlayer();
               setShowSettings(false);
-              if (isPlayerPage) navigate('/');
-              else setIsExpanded(false);
+              if (isPlayerPage) {
+                // 播放页右上角电源只是把播放器"藏起来"并关掉宿主窗口，不真的关播放器：
+                // 不清 currentBook / 不断播放，重新打开点「播放」就能立刻回到全屏。
+                exitApp();
+                window.setTimeout(() => { navigate('/'); }, 600);
+              } else {
+                setIsExpanded(false);
+              }
             }}
             onOpenSettings={() => setShowSettings(true)}
           />
