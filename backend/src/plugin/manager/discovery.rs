@@ -51,9 +51,7 @@ impl PluginManager {
                 continue;
             }
 
-            if !bundled
-                && let Err(e) = tr_package::read_installed_signature_identity(&path)
-            {
+            if !bundled && let Err(e) = tr_package::read_installed_signature_identity(&path) {
                 error!(
                     "Skipping plugin directory {} because signature verification failed: {}",
                     path.display(),
