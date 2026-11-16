@@ -16,6 +16,11 @@ const FORMAT_NAME: &str = "ting-reader.trpack";
 const FORMAT_VERSION: u32 = 1;
 const PACKAGE_MANIFEST_PATH: &str = ".trpack/package.json";
 const SIGNATURE_MANIFEST_PATH: &str = ".trpack/signature.json";
+/// Marks a package that shipped inside the app installer rather than being
+/// signed by a publisher key. Discovery accepts that marker in place of
+/// `signature.json`, so a bundled plugin can load without a signature; the
+/// upload and store flows never write it.
+pub const BUNDLED_MARKER_PATH: &str = ".trpack/bundled";
 const SIGNATURE_FORMAT_NAME: &str = "ting-reader.trpack.signature";
 const SIGNATURE_FORMAT_VERSION: u32 = 1;
 const SIGNATURE_ALGORITHM: &str = "ed25519";
@@ -273,6 +278,21 @@ pub fn read_installed_signature_identity(plugin_path: &Path) -> Result<TrPackage
 pub fn has_installed_signature_metadata(plugin_path: &Path) -> bool {
     plugin_path.join(PACKAGE_MANIFEST_PATH).is_file()
         && plugin_path.join(SIGNATURE_MANIFEST_PATH).is_file()
+}
+
+/// Remember that this installed directory came out of a package bundled with
+/// the app itself, so discovery does not demand a publisher signature for it.
+pub fn mark_bundled_install(target: &Path) -> Result<()> {
+    let marker = target.join(BUNDLED_MARKER_PATH);
+    if let Some(parent) = marker.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(&marker, b"bundled\n")?;
+    Ok(())
+}
+
+pub fn is_bundled_install(plugin_path: &Path) -> bool {
+    plugin_path.join(BUNDLED_MARKER_PATH).is_file()
 }
 
 struct ReadPackage {

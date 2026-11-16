@@ -234,7 +234,7 @@ impl PluginInstaller {
         &self,
         source_path: &Path,
         target_path: &Path,
-        _package: &PluginPackage,
+        package: &PluginPackage,
     ) -> Result<()> {
         debug!(
             "Extracting plugin from {} to {}",
@@ -251,6 +251,9 @@ impl PluginInstaller {
         } else if tr_package::has_tr_magic(source_path)? {
             tr_package::extract_tr_package(source_path, target_path)?;
             tr_package::write_install_provenance(source_path, target_path)?;
+            if self.allow_unsigned && package.signature.is_none() {
+                tr_package::mark_bundled_install(target_path)?;
+            }
         } else {
             return Err(TingError::plugin_load(
                 PluginErrorKind::Loading,

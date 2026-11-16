@@ -545,10 +545,9 @@ impl PluginManager {
 
         while let Some(entry) = read_dir.next_entry().await.map_err(TingError::IoError)? {
             let path = entry.path();
-            if !path.is_dir()
-                || !has_plugin_manifest(&path)
-                || !tr_package::has_installed_signature_metadata(&path)
-            {
+            let has_known_origin = tr_package::has_installed_signature_metadata(&path)
+                || tr_package::is_bundled_install(&path);
+            if !path.is_dir() || !has_plugin_manifest(&path) || !has_known_origin {
                 continue;
             }
 

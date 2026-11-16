@@ -40,7 +40,10 @@ impl PluginManager {
                 continue;
             }
 
-            if !tr_package::has_installed_signature_metadata(&path) {
+            // A bundled package is marked at install time instead of carrying
+            // a publisher signature; both count as a known origin.
+            let bundled = tr_package::is_bundled_install(&path);
+            if !bundled && !tr_package::has_installed_signature_metadata(&path) {
                 warn!(
                     "Skipping plugin directory {} because it has no installed .tr signature metadata",
                     path.display()
@@ -48,13 +51,15 @@ impl PluginManager {
                 continue;
             }
 
-            if let Err(e) = tr_package::read_installed_signature_identity(&path) {
-                error!(
-                    "Skipping plugin directory {} because signature verification failed: {}",
-                    path.display(),
-                    e
-                );
-                continue;
+            if !bundled {
+                if let Err(e) = tr_package::read_installed_signature_identity(&path) {
+                    error!(
+                        "Skipping plugin directory {} because signature verification failed: {}",
+                        path.display(),
+                        e
+                    );
+                    continue;
+                }
             }
 
             match self.read_plugin_metadata(&path) {
@@ -187,6 +192,11 @@ fn ensure_discovered_versions_share_signature_identity(
 ) -> Result<()> {
     let mut expected: Option<TrPackageSignatureIdentity> = None;
     for (_, path) in versions {
+        // Bundled installs have no publisher identity to compare; the install
+        // step already keeps at most one bundle per plugin id.
+        if tr_package::is_bundled_install(path) {
+            continue;
+        }
         let identity = tr_package::read_installed_signature_identity(path)?;
         if let Some(expected) = &expected {
             if !expected.is_compatible_with(&identity) {
