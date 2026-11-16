@@ -212,7 +212,7 @@ input::placeholder,textarea::placeholder {color:var(--reader-muted);opacity:.8}
   .reader-page [class*="text-[10px]"] {font-size:11px}
   .reader-book-card .reader-book-title {font-size:14px}
   .reader-update-panel {padding:20px}
-  .reader-update-actions {align-items:stretch;flex-direction:column-reverse}
+  .reader-update-actions {align-items:stretch;flex-direction:column}
   .reader-update-actions .reader-button {width:100%;min-height:44px}
 }
 @media(min-width:960px) {

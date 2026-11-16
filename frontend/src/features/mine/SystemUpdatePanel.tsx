@@ -101,7 +101,6 @@ export default function SystemUpdatePanel() {
     </div>
     {active && <progress className="reader-update-progress" max={100} value={info?.installer.progress || 0} />}
     {(error || message || (showStatus && info?.installer.message)) && <div role="status" className={'reader-update-message' + (error || failed ? ' error' : '')}>
-      {active && info?.installer.network && <div className="mb-2 font-medium">{info.installer.network}</div>}
       {error || message || (showStatus ? info?.installer.message : '')}
     </div>}
     {info?.update_available && info.notes && <details className="mt-5"><summary className="text-sm cursor-pointer">{t('reader.releaseNotes')}</summary><div className="reader-release-notes">{info.notes}</div></details>}

@@ -48,7 +48,7 @@ export default function HomePage() {
   // book that the reader then sees disappear again.
   const [heroFailedId, setHeroFailedId] = useState<string | null>(null);
   const visible = data.identity === identity ? data : { ...(initial || emptyHome()), identity, loading: !initial };
-  const { books, bookCount, recent, favorites, playlists, series, layout, loading, recentLoaded } = visible;
+  const { books, bookCount, recent, favorites, playlists, layout, loading, recentLoaded } = visible;
 
   useEffect(() => {
     let current = initial || emptyHome();
@@ -235,25 +235,9 @@ export default function HomePage() {
       <Shortcut to="/history" icon={<History />} title={t('home.recentListening')} count={recentBooks.length} />
       <Shortcut to="/playlists" icon={<ListMusic />} title={t('nav.playlists')} count={playlists.length} />
     </nav>}
-    {layout.showRecent && recentBooks.length > 0 && <section className="reader-section">
-      <SectionTitle title={t('home.recentListening')} to="/history" />
-      <div className="reader-recent-grid">{recentBooks.slice(0, 4).map(item => <Link key={item.book_id} to={'/book/' + item.book_id} className="reader-recent">
-        <CoverArt title={item.book_title || t('home.unknownBook')} url={item.cover_url} libraryId={item.library_id} bookId={item.book_id} />
-        <div className="reader-recent-text"><strong>{item.book_title || t('home.unknownBook')}</strong><small>{item.chapter_title}</small>
-          <div className="reader-meter"><span style={{ width: Math.min(100, Math.max(0, item.position / (item.chapter_duration || item.duration || 1) * 100)) + '%' }} /></div>
-        </div><ChevronRight size={16} className="text-slate-500 shrink-0" />
-      </Link>)}</div>
-    </section>}
     {layout.showRecentlyAdded && <section className="reader-section">
       <SectionTitle title={t('home.recentlyAdded')} to="/bookshelf" />
       {loading && !latest.length ? <LoadingSpinner className="min-h-40" /> : latest.length ? <div className="reader-grid">{latest.map(book => <BookCard key={book.id} book={book} coverShape={coverShape} />)}</div> : <Empty />}
-    </section>}
-    {layout.showCollections && (playlists.length > 0 || series.length > 0) && <section className="reader-section">
-      <SectionTitle title={t('home.collections')} to="/playlists" />
-      {playlists.length || series.length ? <div className="reader-recent-grid">
-        {playlists.slice(0, 4).map(item => <Link className="reader-recent" key={item.id} to={'/playlists/' + item.id}><ListMusic size={25} className="text-primary-500" /><div className="reader-recent-text"><strong>{item.title}</strong><small>{t('home.bookCount', { count: item.books?.length || item.book_ids?.length || 0 })}</small></div><ChevronRight size={16} /></Link>)}
-        {series.slice(0, 2).map(item => <Link className="reader-recent" key={item.id} to={'/series/' + item.id}><Library size={25} className="text-primary-500" /><div className="reader-recent-text"><strong>{item.title}</strong><small>{item.author}</small></div><ChevronRight size={16} /></Link>)}
-      </div> : <Empty />}
     </section>}
     <div style={{ height: currentChapter ? 'var(--safe-bottom-with-player)' : 'var(--safe-bottom-base)' }} />
     </div>

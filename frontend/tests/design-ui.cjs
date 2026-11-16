@@ -456,9 +456,9 @@ async function fixture(context, gated = false) {
         const updateHeadingBefore = await page.locator('.reader-update-summary').boundingBox();
         await page.getByRole('button', { name: '升级', exact: true }).click();
         await page.getByRole('button', { name: '确认', exact: true }).click();
-        await page.getByText('本机加速：127.0.0.1:7890', { exact: true }).waitFor();
+        await page.getByText('正在读取并校验私有版本', { exact: true }).waitFor();
         const updateMessage = await page.locator('.reader-update-message').innerText();
-        assert.ok(updateMessage.indexOf('本机加速') < updateMessage.indexOf('正在读取并校验私有版本'));
+        assert.equal(updateMessage.includes('本机加速'), false, name + ' the in-progress status must not repeat the acceleration address');
         assert.equal(await page.locator('.reader-update-summary').boundingBox().then(b => b.y), updateHeadingBefore.y);
         assert.equal(installCalls, 1, 'This install call is intercepted by the synthetic fixture');
         // The freshly installed version is newer than this bundle and a further
