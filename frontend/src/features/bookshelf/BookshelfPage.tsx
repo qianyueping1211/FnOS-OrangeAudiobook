@@ -32,6 +32,37 @@ interface ShelfSnapshot {
 
 const sortForApi = (value: ShelfSnapshot['sortBy']) => (value === 'createdAt' ? 'created' : value);
 
+// 书架首屏以前要先等一次 /api/settings 再取书，冷启动就多了一次往返。设置本身
+// 很少变，把上一份按 identity 记在本地：有缓存就先把书取下来，settings 回来
+// 只做校正，参数真变了才会再取一遍。
+const SHELF_PREFS_KEY = 'ting-shelf-prefs';
+type ShelfPrefs = Pick<ShelfSnapshot, 'libraryId' | 'sortBy' | 'iconSize' | 'coverShape' | 'viewMode'>;
+const readShelfPrefs = (identity: string): ShelfPrefs | null => {
+  try {
+    const raw = window.localStorage.getItem(`${SHELF_PREFS_KEY}:${identity}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<ShelfPrefs>;
+    const sortValues: ShelfPrefs['sortBy'][] = ['createdAt', 'title', 'author', 'year'];
+    const iconValues: ShelfPrefs['iconSize'][] = ['small', 'medium', 'large'];
+    return {
+      libraryId: typeof parsed.libraryId === 'string' ? parsed.libraryId : '',
+      sortBy: sortValues.includes(parsed.sortBy as ShelfPrefs['sortBy']) ? parsed.sortBy as ShelfPrefs['sortBy'] : 'createdAt',
+      iconSize: iconValues.includes(parsed.iconSize as ShelfPrefs['iconSize']) ? parsed.iconSize as ShelfPrefs['iconSize'] : 'medium',
+      coverShape: parsed.coverShape === 'rect' ? 'rect' : 'square',
+      viewMode: parsed.viewMode === 'list' ? 'list' : 'grid',
+    };
+  } catch {
+    return null;
+  }
+};
+const writeShelfPrefs = (identity: string, prefs: ShelfPrefs): void => {
+  try {
+    window.localStorage.setItem(`${SHELF_PREFS_KEY}:${identity}`, JSON.stringify(prefs));
+  } catch {
+    // Private mode or a full quota: the next visit simply waits for settings again.
+  }
+};
+
 const BookshelfPage: React.FC = () => {
   const identity = useAuthStore(state => libraryCacheIdentity(state.serverUrl || state.activeUrl, state.token ? state.user?.id : undefined));
   return <BookshelfContents key={identity} cacheIdentity={identity} />;
@@ -40,6 +71,7 @@ const BookshelfPage: React.FC = () => {
 const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity }) => {
   const [snapshot] = useState(() => libraryViewCache.get<ShelfSnapshot>(cacheIdentity, 'shelf'));
   const [savedView] = useState(() => libraryViewCache.get<{ count: number; scroll: number }>(cacheIdentity, 'shelf-view'));
+  const [cachedPrefs] = useState(() => readShelfPrefs(cacheIdentity));
   const dataRequest = React.useRef<AbortController | null>(null);
   const loadedLibrary = React.useRef(snapshot?.libraryId);
   const bookOperations = useBookOperations();
@@ -49,14 +81,14 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
   const [books, setBooks] = useState<Book[]>(snapshot?.books ?? []);
   const [series, setSeries] = useState<Series[]>(snapshot?.series ?? []);
   const [libraries, setLibraries] = useState<ShelfLibrary[]>(snapshot?.libraries ?? []);
-  const [selectedLibraryId, setSelectedLibraryId] = useState<string>(snapshot?.libraryId ?? '');
+  const [selectedLibraryId, setSelectedLibraryId] = useState<string>(snapshot?.libraryId ?? cachedPrefs?.libraryId ?? '');
   const [loading, setLoading] = useState(!snapshot);
-  const [sortBy, setSortBy] = useState<ShelfSnapshot['sortBy']>(snapshot?.sortBy ?? 'createdAt');
-  const [iconSize, setIconSize] = useState<ShelfSnapshot['iconSize']>(snapshot?.iconSize ?? 'medium');
-  const [coverShape, setCoverShape] = useState<ShelfSnapshot['coverShape']>(snapshot?.coverShape ?? 'square');
-  const [viewMode, setViewMode] = useState<ShelfSnapshot['viewMode']>(snapshot?.viewMode ?? 'grid');
+  const [sortBy, setSortBy] = useState<ShelfSnapshot['sortBy']>(snapshot?.sortBy ?? cachedPrefs?.sortBy ?? 'createdAt');
+  const [iconSize, setIconSize] = useState<ShelfSnapshot['iconSize']>(snapshot?.iconSize ?? cachedPrefs?.iconSize ?? 'medium');
+  const [coverShape, setCoverShape] = useState<ShelfSnapshot['coverShape']>(snapshot?.coverShape ?? cachedPrefs?.coverShape ?? 'square');
+  const [viewMode, setViewMode] = useState<ShelfSnapshot['viewMode']>(snapshot?.viewMode ?? cachedPrefs?.viewMode ?? 'grid');
   const [showFilterMenu, setShowFilterMenu] = useState(false);
-  const [settingsLoaded, setSettingsLoaded] = useState(!!snapshot);
+  const [settingsLoaded, setSettingsLoaded] = useState(!!snapshot || !!cachedPrefs);
   
   // Alphabet Index State
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
@@ -210,6 +242,13 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
           setCoverShape(settings.bookshelf_cover_shape);
         }
         setViewMode(settings.bookshelf_view_mode === 'list' ? 'list' : 'grid');
+        writeShelfPrefs(cacheIdentity, {
+          libraryId: settings.bookshelf_library_id || '',
+          sortBy: (settings.bookshelf_sort_by as ShelfPrefs['sortBy']) || 'createdAt',
+          iconSize: (settings.bookshelf_icon_size as ShelfPrefs['iconSize']) || 'medium',
+          coverShape: (settings.bookshelf_cover_shape as ShelfPrefs['coverShape']) || 'square',
+          viewMode: settings.bookshelf_view_mode === 'list' ? 'list' : 'grid',
+        });
       } catch (err) {
         if (!request.signal.aborted) console.error('Failed to load bookshelf settings', err);
       } finally {
@@ -218,7 +257,7 @@ const BookshelfContents: React.FC<{ cacheIdentity: string }> = ({ cacheIdentity 
     };
     loadSettings();
     return () => request.abort();
-  }, []);
+  }, [cacheIdentity]);
 
   // Close operations menu when clicking outside
   useEffect(() => {

@@ -65,7 +65,7 @@ export default function HomePage() {
         booksReady = ready;
         setData({ ...current, identity, loading: !booksReady });
         if (booksReady) {
-          const latest = [...current.books].sort((a,b) => Date.parse(b.created_at)-Date.parse(a.created_at)).slice(0,12);
+          const latest = [...current.books].sort((a,b) => Date.parse(b.created_at)-Date.parse(a.created_at)).slice(0,24);
           const lastId = [...current.recent].sort((a,b) => Date.parse(b.updated_at)-Date.parse(a.updated_at))[0]?.book_id;
           const lastBook = current.books.find(book => book.id === lastId);
           if (lastBook && !latest.some(book => book.id === lastId)) latest.push(lastBook);
@@ -140,7 +140,7 @@ export default function HomePage() {
     });
   const latest = [...books]
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
-    .slice(0, 12);
+    .slice(0, 24);
   const last = recentBooks[0];
   // The hero waits for the resume history before it considers the newest book:
   // /api/books/page usually answers before /api/progress/recent, so falling back
