@@ -72,10 +72,27 @@ export const invokePageDismissAction = (): boolean => {
   return true;
 };
 
-const ensureGuard = (): void => {
+let waitingForLoad = false;
+
+function ensureGuard(): void {
   if (hasGuard(window.history.state)) return;
   // 没有可点的按钮就不垫护垫：这一页右滑不做任何事，交给宿主默认行为。
   if (!findDismissCandidate()) return;
+  // 文档还在加载时改历史，WebKit 上有整页崩溃的先例，等 load 完再垫。
+  if (document.readyState !== 'complete') {
+    if (!waitingForLoad) {
+      waitingForLoad = true;
+      window.addEventListener(
+        'load',
+        () => {
+          waitingForLoad = false;
+          ensureGuard();
+        },
+        { once: true },
+      );
+    }
+    return;
+  }
   const state = window.history.state;
   const base: GuardState = state && typeof state === 'object' ? { ...(state as GuardState) } : {};
   try {
@@ -84,7 +101,7 @@ const ensureGuard = (): void => {
   } catch {
     // 极少数环境禁用 pushState，此时手势退回宿主默认行为，不做拦截。
   }
-};
+}
 
 let installed = false;
 
