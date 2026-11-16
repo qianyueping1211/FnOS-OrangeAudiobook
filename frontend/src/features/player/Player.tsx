@@ -204,11 +204,21 @@ const Player: React.FC = () => {
   }, [isExpanded]);
 
   // Fullscreen Logic for Widget
-  const { toggleFullscreen, exitExpanded: handleExitExpanded } =
-    useWidgetFullscreen({
-      isWidgetMode,
-      setIsExpanded,
-    });
+  const { exitExpanded: handleExitExpanded } = useWidgetFullscreen({
+    isWidgetMode,
+    setIsExpanded,
+  });
+
+  // 全屏播放只有一条入口：导航到 /player 那一页。「播放」tab、迷你条封面、
+  // 迷你条展开键全都走这里，不再有"路由页"和"展开态"两套并行的全屏。
+  // 只有 PC 微件（/widget 这个宿主容器）没有 tab 路由，仍用展开态。
+  const openFullPlayer = () => {
+    if (isWidgetMode) {
+      setIsExpanded(true);
+      return;
+    }
+    navigate('/player');
+  };
 
   if (!currentChapter) return null;
 
@@ -345,7 +355,7 @@ const Player: React.FC = () => {
                 chapterTitle={currentChapter.title}
                 coverSizeClass={miniCoverSizeClass}
                 isWidgetMode={isWidgetMode}
-                onCoverClick={toggleFullscreen}
+                onCoverClick={openFullPlayer}
               />
 
               {/* Widget Vertical Layout: Progress Bar (Visible only on small widget) */}
@@ -432,7 +442,7 @@ const Player: React.FC = () => {
                   )
                 }
                 onCollapse={() => setIsCollapsed(true)}
-                onExpand={() => setIsExpanded(true)}
+                onExpand={openFullPlayer}
                 onOpenChapterList={openChapterList}
               />
             </div>
@@ -462,16 +472,17 @@ const Player: React.FC = () => {
               if (isPlayerPage) navigate("/bookshelf");
             }}
             onClosePlayer={() => {
+              // 全屏播放只剩一条路径（/player），关闭也只有这一套语义：把播放器收进
+              // 后台，不清 currentBook、不打断播放，也不退化成迷你条，然后回首页。
+              // PC 微件没有 tab 路由，那里只收起展开态。
               setShowSettings(false);
-              if (isPlayerPage) {
-                // 电源键只把播放器收进后台：不清 currentBook、不打断播放，也不再
-                // 退到宿主窗口外面。回到首页后连迷你条都不占位，点「播放」tab 时
-                // 因为这些状态还在，界面立刻就能出来，不用重新拉书和章节。
-                setIsBackstage(true);
-                navigate('/');
-              } else {
+              if (isWidgetMode) {
                 setIsExpanded(false);
+                return;
               }
+              setIsBackstage(true);
+              setIsExpanded(false);
+              navigate('/');
             }}
             onOpenSettings={() => setShowSettings(true)}
           />
