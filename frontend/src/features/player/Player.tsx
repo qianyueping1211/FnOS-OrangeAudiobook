@@ -296,7 +296,7 @@ const Player: React.FC = () => {
   return (
     <div
       className={`
-        reader-player ${isPlayerPage ? "is-page" : !isExpanded && !isWidgetMode ? "is-mini" : ""} transition-all duration-500 ease-in-out
+        reader-player ${isPlayerPage ? "is-page" : !isExpanded && !isWidgetMode ? "is-mini" : ""} ${isExpanded ? "transition-none" : "transition-all duration-500 ease-in-out"}
         ${(isHiddenPage || isSeriesEditing) && !isExpanded ? "translate-y-full opacity-0 pointer-events-none" : ""}
         ${
           isExpanded
@@ -453,7 +453,7 @@ const Player: React.FC = () => {
       {/* Expanded Player View */}
       {isExpanded && (
         <div
-          className="absolute inset-0 flex flex-col p-4 sm:p-8 md:p-12 overflow-y-auto animate-in slide-in-from-bottom duration-500 bg-white dark:bg-slate-950"
+          className="absolute inset-0 flex flex-col p-4 sm:p-8 md:p-12 overflow-y-auto bg-white dark:bg-slate-950"
             style={{
               paddingTop: "max(env(safe-area-inset-top, 0px), clamp(1rem, 3vw, 3rem))",
               paddingBottom: "max(env(safe-area-inset-bottom, 0px), clamp(1rem, 3vw, 3rem))",
