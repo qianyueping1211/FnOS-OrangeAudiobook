@@ -8,9 +8,11 @@
 // 监听先跑；退掉的那一格 URL 立刻用 pushState 拉回来，路由收不到这次事件，
 // DOM 和底部导航一动不动，这时候才去点按钮。
 //
-// 只在触摸设备上装：桌面浏览器、自动化测试没有这个手势。
+// 只在触摸设备或飞牛宿主里装（触屏、手机 UA、iframe、宿主桥、网关路径任一成立）：
+// 普通桌面浏览器、自动化测试没有这个手势。
 import { consumeInternalBack } from './appExit';
-import { getRuntimePathname } from './runtimeUrl';
+import { getGatewayBasePath, getRuntimePathname } from './runtimeUrl';
+import { isFramed, swipeLog } from './swipeDebug';
 
 // 允许滑动代替返回的页面：书架的搜索结果、书籍详情、书单详情。
 const SWIPE_BACK_ROUTES: readonly RegExp[] = [
@@ -91,11 +93,20 @@ let heldUrl = '';
 /** 刚替用户点过按钮：它自己发起的后退要放行，别把按钮的导航又按住。 */
 let dismissWindowUntil = 0;
 
-const isTouchSurface = (): boolean => {
+/**
+ * 这个环境要不要按住后退。触屏、手机 UA、被嵌在 iframe 里（飞牛窗口）、
+ * 有飞牛宿主桥、地址在网关路径下，任一成立就装。reasons 写进诊断日志。
+ */
+const detectGuardedSurface = (): { guarded: boolean; reasons: string[] } => {
+  const reasons: string[] = [];
   if (typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches) {
-    return true;
+    reasons.push('coarse');
   }
-  return /iPhone|iPad|Android|Mobile/i.test(navigator.userAgent);
+  if (/iPhone|iPad|Android|Mobile/i.test(navigator.userAgent)) reasons.push('ua');
+  if (isFramed()) reasons.push('iframe');
+  if ((window as unknown as { flutter_inappwebview?: unknown }).flutter_inappwebview) reasons.push('host');
+  if (getGatewayBasePath()) reasons.push('gateway');
+  return { guarded: reasons.length > 0, reasons };
 };
 
 /** 把地址栏拉回当前画面，DOM 不动。 */
@@ -111,13 +122,22 @@ const holdCurrentPage = (): void => {
 
 const onPopState = (event: PopStateEvent): void => {
   // 站内「返回」按钮自己发起的历史回退，放行。
-  if (consumeInternalBack()) return;
+  if (consumeInternalBack()) {
+    swipeLog('pop CAPTURE internal-back, passed');
+    return;
+  }
   // 刚刚替用户点过按钮，这一退是它自己的导航，放行。
-  if (Date.now() < dismissWindowUntil) return;
+  if (Date.now() < dismissWindowUntil) {
+    swipeLog('pop CAPTURE in dismiss window, passed');
+    return;
+  }
+  const target = getRuntimePathname();
   // 抢在路由之前按住：这一格退掉之后，路由不该看到这次 popstate。
   event.stopImmediatePropagation();
   holdCurrentPage();
-  if (invokePageDismissAction()) {
+  const dismissed = invokePageDismissAction();
+  swipeLog(`pop CAPTURE to=${target} held=${getRuntimePathname()} click=${dismissed}`);
+  if (dismissed) {
     // 点了按钮，页面自己会导航。它若走 history.back()，这一次要放行，
     // 否则又会被按住，来回点同一个按钮。
     dismissWindowUntil = Date.now() + 600;
@@ -126,7 +146,9 @@ const onPopState = (event: PopStateEvent): void => {
 
 export const installSwipeBackGuard = (): void => {
   if (installed) return;
-  if (!isTouchSurface()) return;
+  const { guarded, reasons } = detectGuardedSurface();
+  swipeLog(`guard ${guarded ? 'ON' : 'OFF'} [${reasons.join(',') || '-'}]`);
+  if (!guarded) return;
   installed = true;
   heldUrl = window.location.href;
   window.addEventListener('popstate', onPopState, true);
