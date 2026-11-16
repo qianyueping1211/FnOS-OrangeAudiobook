@@ -476,10 +476,11 @@ async function fixture(context, gated = false) {
         await page.reload();
         await page.getByRole('button', { name: '升级', exact: true }).waitFor();
         assert.equal(await page.getByRole('button', { name: '重新载入', exact: true }).count(), 0, name + ' a published release must keep the upgrade entry');
-        // With a release published the acceleration hint rides inside the primary
-        // button instead of taking a line of its own.
-        assert.equal(await page.locator('.reader-marquee').count(), 1, name + ' acceleration hint belongs to the upgrade button');
-        assert.ok((await page.locator('.reader-marquee').innerText()).includes('本机加速'), name + ' acceleration hint keeps its label');
+        // The acceleration address must not surface anywhere: it is not a user
+        // facing fact, and rolling it in the primary button misled people into
+        // thinking the upgrade had already changed something.
+        assert.equal(await page.locator('.reader-marquee').count(), 0, name + ' the acceleration address must not ride in the upgrade button');
+        assert.equal((await page.locator('.reader-update-actions').innerText()).includes('本机加速'), false, name + ' the acceleration address must stay out of the update actions');
         assert.equal(await page.locator('.reader-update-message').count(), 0, name + ' a stale install receipt must not open a status line');
         // Nothing newer is published, so the panel falls back to the reload hint,
         // and that reload must land on home rather than the update page.
@@ -495,6 +496,16 @@ async function fixture(context, gated = false) {
         await page.locator('.reader-home').waitFor();
         assert.equal(new URL(page.url()).pathname, '/', name + ' reload after an install lands on home');
         installerOverride = null;
+      }
+      if (mobile) {
+        // The system update page is a fixed screen on a phone: panel, notes and
+        // licences all sit inside one viewport, so the shell must not scroll it.
+        await navigateTo('/about');
+        await page.locator('.reader-update-panel').waitFor();
+        const aboutScroller = await page.locator('.reader-about-page .reader-page-scroll').evaluate(element => getComputedStyle(element).overflowY);
+        assert.equal(aboutScroller, 'hidden', name + ' the update page must not scroll on a phone');
+        assert.equal((await page.locator('.reader-update-actions').innerText()).includes('本机加速'), false, name + ' the acceleration address must stay out of the update actions');
+        await page.screenshot({ path: path.join(root, 'ui-artifacts', name + '-update-locked.png') });
       }
       assert.deepEqual(errors, [], name + ' runtime errors');
       await context.close();

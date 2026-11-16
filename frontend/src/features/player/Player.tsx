@@ -12,7 +12,6 @@ import {
   isMiniPlayerHiddenPath,
 } from "./platform";
 import { getRuntimePathname } from "../../core/utils/runtimeUrl";
-import { exitApp } from "../../core/utils/appExit";
 import PlayerSettingsModal from "./PlayerSettingsModal";
 import BookmarkManagerModal from "./BookmarkManagerModal";
 import ChapterListDrawer from "./ChapterListDrawer";
@@ -64,6 +63,7 @@ const Player: React.FC = () => {
     setIsCollapsed,
     isSeriesEditing,
     isBackstage,
+    setIsBackstage,
   } = usePlayerStore();
 
   const {
@@ -214,7 +214,7 @@ const Player: React.FC = () => {
 
   // 启动时预热好的播放器挂在树上但不占位、不可见：用户一碰播放器（点播放、
   // 展开、切到播放页）这个条件立刻失效，隐藏随之解除。
-  const isBackstageHidden = isBackstage && !isPlayerPage && !isExpanded && !isPlaying;
+  const isBackstageHidden = isBackstage && !isPlayerPage && !isExpanded;
 
   const miniPlayerStyle = !isExpanded
     ? {
@@ -464,10 +464,11 @@ const Player: React.FC = () => {
             onClosePlayer={() => {
               setShowSettings(false);
               if (isPlayerPage) {
-                // 播放页右上角电源只是把播放器"藏起来"并关掉宿主窗口，不真的关播放器：
-                // 不清 currentBook / 不断播放，重新打开点「播放」就能立刻回到全屏。
-                exitApp();
-                window.setTimeout(() => { navigate('/'); }, 600);
+                // 电源键只把播放器收进后台：不清 currentBook、不打断播放，也不再
+                // 退到宿主窗口外面。回到首页后连迷你条都不占位，点「播放」tab 时
+                // 因为这些状态还在，界面立刻就能出来，不用重新拉书和章节。
+                setIsBackstage(true);
+                navigate('/');
               } else {
                 setIsExpanded(false);
               }

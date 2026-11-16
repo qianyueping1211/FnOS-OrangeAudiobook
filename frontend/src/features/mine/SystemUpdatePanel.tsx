@@ -26,16 +26,11 @@ export default function SystemUpdatePanel() {
     : undefined;
   const reloadNeeded = isNewerVersion(installedVersion, CLIENT_VERSION);
   const failed = info?.installer.state === 'error';
-  // 状态文件里 installer 会一直停在 completed，「已确认安装」「本机加速」这类
-  // 陈年回执没有新版本时就不该再占着版面。
+  // 状态文件里 installer 会一直停在 completed，「已确认安装」这类陈年回执没有
+  // 新版本时就不该再占着版面。
   const showStatus = active || failed;
-  // 有新版本时，本机加速提示挪进主按钮里滚动显示，不再单占一行。
-  const networkSummary = (info?.installer.network || '').replace(/^本机加速[：:]\s*/, '');
-  // 点下主按钮到服务端把 installer.state 改成 downloading 之间还有一个窗口，
-  // 那段时间 rolling 仍为真，按钮会先把「本机加速」滚一遍再变成「正在更新」。
-  // 一旦按下就压住，安装态接上之后本来也不会再显示。
-  const [networkSuppressed, setNetworkSuppressed] = useState(false);
-  const rolling = !!info?.update_available && !active && !networkSuppressed && !!networkSummary;
+  // 本机加速地址不再进主按钮、也不再单独占一行：它只是宿主代理地址，
+  // 显示出来既不解释什么、点升级时还会先滚一遍误导人。
   const upgradeLabel = active
     ? t('reader.upgrading')
     : info?.update_available ? t('reader.upgrade') : reloadNeeded ? t('reader.reload') : t('mine.checkUpdate');
@@ -91,16 +86,14 @@ export default function SystemUpdatePanel() {
       <button type="button" className="reader-button primary" aria-label={upgradeLabel} disabled={busy || active} onClick={() => {
         // 远端有更高的版本时永远先给升级入口，否则「装完还没刷新」的状态会把
         // 升级按钮顶成重新载入，用户就没有任何办法再升级了。
-        if (info?.update_available) { setNetworkSuppressed(true); setConfirm(true); }
+        if (info?.update_available) setConfirm(true);
         // A finished install replaced the bundle on disk: a plain reload would
         // keep the SPA route the update was started from, so restart at home.
         else if (reloadNeeded) window.location.replace(getRuntimePath('/'));
         else void check();
       }}>
         {busy || active ? <Loader2 size={17} className="animate-spin" /> : info?.update_available ? <ArrowUpCircle size={17} /> : <RefreshCw size={16} />}
-        {rolling
-          ? <span className="reader-marquee" title={networkSummary}><span>{`${t('reader.localAccel')}：${networkSummary}`}</span></span>
-          : upgradeLabel}
+        {upgradeLabel}
       </button>
     </div>
     {active && <progress className="reader-update-progress" max={100} value={info?.installer.progress || 0} />}
@@ -108,7 +101,7 @@ export default function SystemUpdatePanel() {
       {error || message || (showStatus ? info?.installer.message : '')}
     </div>}
     {info?.update_available && info.notes && <details className="mt-5"><summary className="text-sm cursor-pointer">{t('reader.releaseNotes')}</summary><div className="reader-release-notes">{info.notes}</div></details>}
-    {confirm && <UpgradeConfirmation version={info?.latest_version || ''} onCancel={() => { setConfirm(false); setNetworkSuppressed(false); }} onConfirm={() => void upgrade()} />}
+    {confirm && <UpgradeConfirmation version={info?.latest_version || ''} onCancel={() => setConfirm(false)} onConfirm={() => void upgrade()} />}
   </section>;
 }
 function UpgradeConfirmation({ version, onCancel, onConfirm }: { version: string; onCancel: () => void; onConfirm: () => void }) {

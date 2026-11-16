@@ -7,8 +7,9 @@ import { getLocalizedPrivacyPolicyUrl, getLocalizedUserAgreementUrl, getLocalize
 export default function AboutPage() {
   const { t, i18n } = useTranslation();
   const user = useAuthStore(state => state.user);
-  return <div className="reader-page flex-1">
-    <div className="max-w-4xl mx-auto w-full">
+  return <div className="reader-page reader-about-page reader-locked-page flex flex-1 flex-col">
+    <div className="reader-page-scroll">
+      <div className="max-w-4xl mx-auto w-full">
       <BackButton fallback="/mine" />
       <header className="reader-settings-title mt-5"><h1>{t('reader.systemUpdate')}</h1><p>{t('reader.updateDescription')}</p></header>
       {user?.role === 'admin' && <SystemUpdatePanel />}
@@ -21,7 +22,7 @@ export default function AboutPage() {
           <a href={getLocalizedPrivacyPolicyUrl(i18n.language)} target="_blank" rel="noreferrer">{t('mine.privacyPolicy')}</a>
         </div>
       </details>
-      <div style={{ height: 'var(--safe-bottom-base)' }} />
+    </div>
     </div>
   </div>;
 }
