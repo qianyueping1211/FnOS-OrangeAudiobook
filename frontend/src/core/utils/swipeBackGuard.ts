@@ -1,18 +1,18 @@
-// 手机端从左边缘向右滑，飞牛宿主会把它当成 WebView 的「返回」，一退就是整页
-// 切换、底部导航跟着换选中项。听书不要这种整页后退，所以滑动只在一小撮页面里
-// 顶替「返回」按钮：书架的搜索结果页、书籍详情页、书单详情页。其余页面
-// （首页、播放、书架本身、书单列表、设置）一律不响应，页面上有什么按钮都不动。
+// 手机端从左边缘向右滑，飞牛宿主会把它当成 WebView 的「返回」：系统先画一段
+// 整页滑动动画，松手后再退一格历史，路由跟着换页、底部导航换选中项。
+// 听书不要这种整页后退，所以：
 //
-// 实现方式不是预先在历史里垫条目（真机上没生效，且页面加载时改历史在 WebKit
-// 上崩过），而是抢在路由之前按住那次后退：popstate 用 capture 注册，比路由的
-// 监听先跑；退掉的那一格 URL 立刻用 pushState 拉回来，路由收不到这次事件，
-// DOM 和底部导航一动不动，这时候才去点按钮。
+// 1. 历史始终保持「只有当前这一条」：站内所有 pushState 都改成 replaceState。
+//    系统没有上一页可退，右滑就没有动画，也不会换页、刷新（首页、播放、书架本身、
+//    书单列表、设置都是这样）。
+// 2. 只有书架的搜索结果页、书籍详情页、书单详情页才多垫一条同 URL 的历史，
+//    让右滑能「退」到它。松手后 capture 阶段的 popstate 抢在路由之前接住，
+//    把垫的那条补回去，再去点页面上的「关闭 / 取消 / 返回」按钮。
+//    离开这三类页面时，用 history.go(-1) 把垫的那条退掉，回到只有一条的状态。
 //
 // 只在触摸设备或飞牛宿主里装（触屏、手机 UA、iframe、宿主桥、网关路径任一成立）：
-// 普通桌面浏览器、自动化测试没有这个手势。
-import { consumeInternalBack } from './appExit';
+// 普通桌面浏览器、自动化测试没有这个手势，保持原样的历史。
 import { getGatewayBasePath, getRuntimePathname } from './runtimeUrl';
-import { isFramed, swipeLog } from './swipeDebug';
 
 // 允许滑动代替返回的页面：书架的搜索结果、书籍详情、书单详情。
 const SWIPE_BACK_ROUTES: readonly RegExp[] = [
@@ -51,7 +51,6 @@ const labelOf = (el: HTMLElement): string =>
 
 /**
  * 找当前页面上可点的「关闭 / 取消 / 返回」，优先级 关闭 > 取消 > 返回。
- * 只找不点：手势真的发生时它才决定要不要点。
  */
 const findDismissCandidate = (): HTMLElement | null => {
   // 弹窗通常挂在树的最末尾，反过来找能让「关闭」优先于页面顶部的「返回」。
@@ -59,10 +58,7 @@ const findDismissCandidate = (): HTMLElement | null => {
     .reverse()
     .filter(isVisible);
   for (const pattern of DISMISS_PATTERNS) {
-    const hit = visible.find(el => {
-      const label = labelOf(el);
-      return pattern.test(label);
-    });
+    const hit = visible.find(el => pattern.test(labelOf(el)));
     if (hit) return hit;
   }
   return null;
@@ -85,77 +81,124 @@ export const invokePageDismissAction = (): boolean => {
   return true;
 };
 
-let installed = false;
-
-/** 当前画面对应的地址。后退被按住之后要用它把 URL 拉回来。 */
-let heldUrl = '';
-
-/** 刚替用户点过按钮：它自己发起的后退要放行，别把按钮的导航又按住。 */
-let dismissWindowUntil = 0;
-
-/**
- * 这个环境要不要按住后退。触屏、手机 UA、被嵌在 iframe 里（飞牛窗口）、
- * 有飞牛宿主桥、地址在网关路径下，任一成立就装。reasons 写进诊断日志。
- */
-const detectGuardedSurface = (): { guarded: boolean; reasons: string[] } => {
-  const reasons: string[] = [];
-  if (typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches) {
-    reasons.push('coarse');
+const isFramed = (): boolean => {
+  try {
+    return window.top !== window.self;
+  } catch {
+    return true;
   }
-  if (/iPhone|iPad|Android|Mobile/i.test(navigator.userAgent)) reasons.push('ua');
-  if (isFramed()) reasons.push('iframe');
-  if ((window as unknown as { flutter_inappwebview?: unknown }).flutter_inappwebview) reasons.push('host');
-  if (getGatewayBasePath()) reasons.push('gateway');
-  return { guarded: reasons.length > 0, reasons };
 };
 
-/** 把地址栏拉回当前画面，DOM 不动。 */
-const holdCurrentPage = (): void => {
-  const state = window.history.state;
-  const base = state && typeof state === 'object' ? { ...(state as Record<string, unknown>) } : null;
+/** 这个环境要不要接管历史。 */
+const isGuardedSurface = (): boolean => {
+  if (typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches) return true;
+  if (/iPhone|iPad|Android|Mobile/i.test(navigator.userAgent)) return true;
+  if (isFramed()) return true;
+  if ((window as unknown as { flutter_inappwebview?: unknown }).flutter_inappwebview) return true;
+  return Boolean(getGatewayBasePath());
+};
+
+type HistoryWrite = (data: unknown, unused: string, url?: string | URL | null) => void;
+
+let installed = false;
+let originalPush: HistoryWrite = () => undefined;
+let originalReplace: HistoryWrite = () => undefined;
+
+/** 历史里现在是否多垫了一条（只会出现在三类允许滑动的页面上）。 */
+let armed = false;
+
+/** 当前画面对应的地址，右滑被接住后用它把垫的那条补回去。 */
+let heldUrl = '';
+
+/** 正在用 history.go(-1) 退掉多余的垫条：等它的 popstate 回来。 */
+let pendingDisarm: { state: unknown; url: string; timer: number } | null = null;
+
+const arm = (): void => {
   try {
-    window.history.pushState(base, '', heldUrl || window.location.href);
+    originalPush(window.history.state, '', window.location.href);
+    armed = true;
   } catch {
-    // 禁用 pushState 的环境只能让宿主退到底，至少不去点错按钮。
+    // 禁用 pushState 的环境放弃垫条，右滑就只是没有动作。
   }
+};
+
+const disarm = (): void => {
+  const timer = window.setTimeout(() => {
+    // 宿主没有退（比如根本没有上一条），别一直等下去。
+    pendingDisarm = null;
+  }, 1000);
+  pendingDisarm = { state: window.history.state, url: window.location.href, timer };
+  window.history.go(-1);
+};
+
+let reconcileScheduled = false;
+
+/** 让历史条数和当前页面对上：三类页面两条，其余一条。 */
+const reconcile = (): void => {
+  reconcileScheduled = false;
+  heldUrl = window.location.href;
+  if (pendingDisarm) return;
+  const allowed = allowsSwipeBack();
+  if (allowed && !armed) arm();
+  else if (!allowed && armed) disarm();
 };
 
 const onPopState = (event: PopStateEvent): void => {
-  // 站内「返回」按钮自己发起的历史回退，放行。
-  if (consumeInternalBack()) {
-    swipeLog('pop CAPTURE internal-back, passed');
+  // 退掉垫条的那次回退：把新页面的地址写回第一条，路由不用知道。
+  if (pendingDisarm) {
+    event.stopImmediatePropagation();
+    window.clearTimeout(pendingDisarm.timer);
+    const { state, url } = pendingDisarm;
+    pendingDisarm = null;
+    try {
+      originalReplace(state, '', url);
+    } catch {
+      // 写不回去也只是地址栏落后一格，页面本身没动。
+    }
+    armed = false;
+    reconcile();
     return;
   }
-  // 刚刚替用户点过按钮，这一退是它自己的导航，放行。
-  if (Date.now() < dismissWindowUntil) {
-    swipeLog('pop CAPTURE in dismiss window, passed');
-    return;
-  }
-  const target = getRuntimePathname();
-  // 抢在路由之前按住：这一格退掉之后，路由不该看到这次 popstate。
+  // 其余的后退都是右滑：抢在路由之前按住，路由收不到这次事件。
   event.stopImmediatePropagation();
-  holdCurrentPage();
-  const dismissed = invokePageDismissAction();
-  swipeLog(`pop CAPTURE to=${target} held=${getRuntimePathname()} click=${dismissed}`);
-  if (dismissed) {
-    // 点了按钮，页面自己会导航。它若走 history.back()，这一次要放行，
-    // 否则又会被按住，来回点同一个按钮。
-    dismissWindowUntil = Date.now() + 600;
+  if (armed) {
+    // 退到了第一条，把垫的那条补回去，下一次右滑还有地方退。
+    try {
+      originalPush(window.history.state, '', heldUrl || window.location.href);
+    } catch {
+      armed = false;
+    }
+    invokePageDismissAction();
+  } else {
+    // 不该有后退的页面却收到了（比如前进手势）：把地址拉回当前画面。
+    try {
+      originalReplace(window.history.state, '', heldUrl || window.location.href);
+    } catch {
+      // 忽略
+    }
   }
 };
 
 export const installSwipeBackGuard = (): void => {
   if (installed) return;
-  const { guarded, reasons } = detectGuardedSurface();
-  swipeLog(`guard ${guarded ? 'ON' : 'OFF'} [${reasons.join(',') || '-'}]`);
-  if (!guarded) return;
+  if (!isGuardedSurface()) return;
   installed = true;
   heldUrl = window.location.href;
+  originalPush = window.history.pushState.bind(window.history);
+  originalReplace = window.history.replaceState.bind(window.history);
+  // 站内所有「前进一页」都改成覆盖当前这一条，历史不再增长。
+  window.history.pushState = (data: unknown, unused: string, url?: string | URL | null) => {
+    originalReplace(data, unused, url);
+  };
   window.addEventListener('popstate', onPopState, true);
 };
 
-/** 每次站内跳转后更新「当前画面的地址」，按住后退时才拉得回来。 */
+/** 每次站内跳转后调用：更新当前画面地址，并让历史条数跟上当前页面。 */
 export const syncSwipeBackGuard = (): void => {
   if (!installed) return;
   heldUrl = window.location.href;
+  if (reconcileScheduled) return;
+  reconcileScheduled = true;
+  // 稍后再动历史：页面加载那一刻就改历史在 WebKit 上崩过。
+  window.setTimeout(reconcile, 0);
 };
