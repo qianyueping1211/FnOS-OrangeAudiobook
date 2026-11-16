@@ -12,7 +12,7 @@
 // 普通桌面浏览器、自动化测试没有这个手势。
 import { consumeInternalBack } from './appExit';
 import { getGatewayBasePath, getRuntimePathname } from './runtimeUrl';
-import { swipeLog } from './swipeDebug';
+import { isFramed, swipeLog } from './swipeDebug';
 
 // 允许滑动代替返回的页面：书架的搜索结果、书籍详情、书单详情。
 const SWIPE_BACK_ROUTES: readonly RegExp[] = [
@@ -103,13 +103,7 @@ const detectGuardedSurface = (): { guarded: boolean; reasons: string[] } => {
     reasons.push('coarse');
   }
   if (/iPhone|iPad|Android|Mobile/i.test(navigator.userAgent)) reasons.push('ua');
-  let framed = false;
-  try {
-    framed = window.top !== window.self;
-  } catch {
-    framed = true;
-  }
-  if (framed) reasons.push('iframe');
+  if (isFramed()) reasons.push('iframe');
   if ((window as unknown as { flutter_inappwebview?: unknown }).flutter_inappwebview) reasons.push('host');
   if (getGatewayBasePath()) reasons.push('gateway');
   return { guarded: reasons.length > 0, reasons };

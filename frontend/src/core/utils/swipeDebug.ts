@@ -7,6 +7,15 @@ const MAX_LINES = 14;
 let lines: string[] = [];
 let overlay: HTMLDivElement | null = null;
 
+/** 页面是否被嵌在别的窗口里（飞牛窗口）。跨域读取 top 抛异常时也算嵌入。 */
+export const isFramed = (): boolean => {
+  try {
+    return window.top !== window.self;
+  } catch {
+    return true;
+  }
+};
+
 const load = (): string[] => {
   try {
     const raw = window.sessionStorage.getItem(STORAGE_KEY);
@@ -68,13 +77,7 @@ export const installSwipeDebug = (): void => {
   render();
 
   const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
-  let framed = false;
-  try {
-    framed = window.top !== window.self;
-  } catch {
-    framed = true;
-  }
-  swipeLog(`boot nav=${navigation?.type ?? '?'} path=${window.location.pathname} len=${window.history.length} iframe=${framed}`);
+  swipeLog(`boot nav=${navigation?.type ?? '?'} path=${window.location.pathname} len=${window.history.length} iframe=${isFramed()}`);
 
   window.addEventListener('pagehide', (event) => swipeLog(`pagehide persisted=${event.persisted}`));
   window.addEventListener('pageshow', (event) => swipeLog(`pageshow persisted=${event.persisted}`));
