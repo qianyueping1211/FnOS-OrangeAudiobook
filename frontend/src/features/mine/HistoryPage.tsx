@@ -1,7 +1,8 @@
 import { apiErrorMessage } from '../../core/api/errors';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import apiClient from '../../core/api/client';
+import { useOnlineBookFilter } from '../../core/utils/onlineBooks';
 import type { ActivityBook, ReadingPage as Page } from '../../core/api/reading';
 import type { Progress } from '../../core/types';
 import { usePlayerStore } from '../../core/stores/playerStore';
@@ -25,7 +26,10 @@ const HistoryPage: React.FC = () => {
   useApplicationTimeZone();
   const currentChapter = usePlayerStore((state) => state.currentChapter);
   const coverShape = useBookshelfCoverShape();
-  const [books, setBooks] = useState<ActivityBook[]>([]);
+  const [allBooks, setBooks] = useState<ActivityBook[]>([]);
+  // 个性化设置里关掉「在线书籍播放」后，历史里的在线书不显示。
+  const hideOnline = useOnlineBookFilter();
+  const books = useMemo(() => allBooks.filter((book) => !hideOnline(book)), [allBooks, hideOnline]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [chapters, setChapters] = useState<Record<string, Progress[]>>({});
