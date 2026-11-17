@@ -15,6 +15,7 @@ import LoadingSpinner from '../../shared/ui/LoadingSpinner';
 import { useAuthStore } from '../../core/stores/authStore';
 import { libraryCacheIdentity, libraryViewCache } from '../../core/api/libraryCache';
 import { loadClientSettings } from '../../core/api/clientSettings';
+import { useOnlineBookFilter } from '../../core/utils/onlineBooks';
 
 type HomeSnapshot = {
   books: Book[]; bookCount: number; recent: Progress[]; favorites: Book[];
@@ -48,7 +49,16 @@ export default function HomePage() {
   // book that the reader then sees disappear again.
   const [heroFailedId, setHeroFailedId] = useState<string | null>(null);
   const visible = data.identity === identity ? data : { ...(initial || emptyHome()), identity, loading: !initial };
-  const { books, bookCount, recent, favorites, playlists, series, layout, loading, recentLoaded } = visible;
+  const { books: allBooks, bookCount, recent: allRecent, favorites: allFavorites, playlists: allPlaylists, series, layout, loading, recentLoaded } = visible;
+  // 个性化设置里关掉「在线书籍播放」后，继续收听、最近、收藏、书单封面里的在线书都不显示。
+  const hideOnline = useOnlineBookFilter();
+  const books = useMemo(() => allBooks.filter(book => !hideOnline(book)), [allBooks, hideOnline]);
+  const recent = useMemo(() => allRecent.filter(item => !hideOnline(item)), [allRecent, hideOnline]);
+  const favorites = useMemo(() => allFavorites.filter(book => !hideOnline(book)), [allFavorites, hideOnline]);
+  const playlists = useMemo(
+    () => allPlaylists.map(item => ({ ...item, books: item.books ? item.books.filter(book => !hideOnline(book)) : item.books })),
+    [allPlaylists, hideOnline],
+  );
 
   useEffect(() => {
     let current = initial || emptyHome();
@@ -185,7 +195,7 @@ export default function HomePage() {
   // The player keeps its own copy of the book (survives reloads), so the hero
   // prefers the library's freshly loaded row whenever it has one: otherwise a
   // metadata fix (author/narrator/title) stays hidden behind that cached copy.
-  const playingBook = currentBook ? books.find(book => book.id === currentBook.id) ?? currentBook : undefined;
+  const playingBook = currentBook && !hideOnline(currentBook) ? books.find(book => book.id === currentBook.id) ?? currentBook : undefined;
   // Once the resume history has an entry, the hero waits for that exact book
   // instead of falling back to the newest one: the newest book is what used to
   // flash for a second and then turn into "继续收听". Only when the history is
