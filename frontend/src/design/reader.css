@@ -89,8 +89,11 @@ input::placeholder,textarea::placeholder {color:var(--reader-muted);opacity:.8}
    wrapping, so the hero keeps one fixed height whatever the book is called. */
 .reader-hero-title {display:block;max-width:100%;min-width:0;white-space:nowrap;overflow:hidden}
 .reader-hero-line {display:inline-block;white-space:nowrap;padding-right:2px}
-.reader-hero-line.is-scrolling {animation:reader-hero-marquee var(--marquee-duration,10s) ease-in-out infinite alternate}
-@keyframes reader-hero-marquee {from {transform:translateX(0)} to {transform:translateX(var(--marquee-shift,0px))}}
+.reader-hero-line.is-scrolling {animation:reader-hero-marquee var(--marquee-duration,10s) linear infinite}
+@keyframes reader-hero-marquee {
+  0%, 12% {transform:translateX(0)}
+  88%, 100% {transform:translateX(var(--marquee-shift,0px))}
+}
 /* Narrator in front of the title, as "樊登：孔子传" - same size and same colour
    as the title, so the line reads as one phrase rather than a muted label. */
 .reader-hero-credit {font-size:inherit;font-weight:600;color:inherit;letter-spacing:0;margin-right:2px}
@@ -286,10 +289,10 @@ html,body,#root {overflow:hidden;max-width:100%;-webkit-text-size-adjust:100%;te
 /* Player chapter title: one line, marquee when it overflows. */
 .reader-marquee {display:block;width:100%;overflow:hidden;white-space:nowrap}
 .reader-marquee-inner {display:inline-block;white-space:nowrap;vertical-align:top;max-width:none}
-.reader-marquee-inner.is-scrolling {animation:reader-marquee var(--reader-marquee-duration,10s) ease-in-out infinite alternate}
+.reader-marquee-inner.is-scrolling {animation:reader-marquee var(--reader-marquee-duration,10s) linear infinite}
 @keyframes reader-marquee {
-  0%, 10% {transform:translateX(0)}
-  90%, 100% {transform:translateX(var(--reader-marquee-shift,0))}
+  0%, 12% {transform:translateX(0)}
+  88%, 100% {transform:translateX(var(--reader-marquee-shift,0))}
 }
 @media (prefers-reduced-motion: reduce) {
   .reader-marquee-inner.is-scrolling {animation:none}
