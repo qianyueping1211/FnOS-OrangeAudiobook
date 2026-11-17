@@ -1,6 +1,6 @@
 id: ximalaya-book-source
 name: 喜马拉雅书源
-version: 1.0.1
+version: 1.0.2
 min_core_version: 2.0.0
 author: OrangeAudiobook
 description:
@@ -50,10 +50,4 @@ permissions:
   - type: network_access
     domain: search.ximalaya.com
   - type: network_access
-    domain: imagev2.xmcdn.com
-  - type: network_access
-    domain: fdfs.xmcdn.com
-  - type: network_access
-    domain: a.xmcdn.com
-  - type: network_access
-    domain: aod.cos.tx.xmcdn.com
+    domain: "*.xmcdn.com"
