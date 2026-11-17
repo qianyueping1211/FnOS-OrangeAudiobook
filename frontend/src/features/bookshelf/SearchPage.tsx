@@ -10,6 +10,7 @@ import BackButton from '../../shared/widgets/BackButton';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { getRuntimePathname } from '../../core/utils/runtimeUrl';
+import { useUiPreferencesStore } from '../../core/stores/uiPreferencesStore';
 
 type FilterOption = string | { id: string; name: string };
 
@@ -189,7 +190,10 @@ const SearchPage: React.FC = () => {
   // The source list is still on its way: the online block must say "加载中"
   // rather than "暂无在线书源" while the answer is simply not back yet.
   const [sourcesReady, setSourcesReady] = useState(false);
-  const [sourceMode, setSourceMode] = useState<'all' | 'local' | 'online'>(restored?.sourceMode ?? 'all');
+  const [chosenSourceMode, setSourceMode] = useState<'all' | 'local' | 'online'>(restored?.sourceMode ?? 'all');
+  // 个性化设置里关掉「在线书籍播放」后，搜索只查书架，来源行也不显示。
+  const onlineEnabled = useUiPreferencesStore((state) => state.onlineBooksEnabled);
+  const sourceMode: 'all' | 'local' | 'online' = onlineEnabled ? chosenSourceMode : 'local';
   // One fetch result tagged with the query it belongs to. Anything stale is
   // dropped while rendering instead of being cleared inside an effect.
   const [onlineResult, setOnlineResult] = useState<{
@@ -506,7 +510,7 @@ const SearchPage: React.FC = () => {
               "全部" is the default, so a search asks the shelf and the online
               sources together. The row stays visible even before a source
               answers, so the mode never silently disappears. */}
-          <div className="reader-search-source-row">
+          {onlineEnabled && <div className="reader-search-source-row">
               <span className="reader-search-source-label">{t('searchPage.sourceRow', '来源')}</span>
               <div className="flex flex-wrap items-center gap-2">
                 {(['all', 'local', 'online'] as const).map((mode) => (
@@ -531,7 +535,7 @@ const SearchPage: React.FC = () => {
                   </button>
                 ))}
               </div>
-            </div>
+            </div>}
 
           {/* Filters Toggle Button */}
           <div className="reader-search-filter-toggle">
