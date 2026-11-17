@@ -9,6 +9,8 @@ interface PlayerState {
   currentChapter: Chapter | null;
   chapters: Chapter[];
   isPlaying: boolean;
+  // 想播放但音频还没准备好（在线书籍缓存中、网络缓冲中）：按钮转圈、唱针抬起。
+  isBuffering: boolean;
   duration: number;
   currentTime: number;
   playbackSpeed: number;
@@ -34,6 +36,7 @@ interface PlayerState {
   prevChapter: () => void;
   playChapter: (book: Book, chapters: Chapter[], chapter: Chapter, resumePosition?: number) => void;
   setIsPlaying: (isPlaying: boolean) => void;
+  setIsBuffering: (isBuffering: boolean) => void;
   updateBook: (book: Book) => void;
   setIsExpanded: (isExpanded: boolean) => void;
   setIsCollapsed: (isCollapsed: boolean) => void;
@@ -53,6 +56,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       currentChapter: null,
       chapters: [],
       isPlaying: false,
+      isBuffering: false,
       duration: 0,
       currentTime: 0,
       playbackSpeed: 1.0,
@@ -64,7 +68,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       isBackstage: false,
       playbackRevision: 0,
 
-      setIsPlaying: (isPlaying) => set(isPlaying ? { isPlaying, isBackstage: false } : { isPlaying }),
+      setIsPlaying: (isPlaying) => set(isPlaying ? { isPlaying, isBackstage: false } : { isPlaying, isBuffering: false }),
+      setIsBuffering: (isBuffering) => set((state) => state.isBuffering === isBuffering ? {} : { isBuffering }),
       updateBook: (book) => set(state => state.currentBook?.id === book.id
         ? { currentBook: { ...state.currentBook, ...book } } : {}),
       setIsExpanded: (isExpanded) => set(isExpanded ? { isExpanded, isBackstage: false } : { isExpanded }),
@@ -76,6 +81,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         currentChapter: null,
         chapters: [],
         isPlaying: false,
+        isBuffering: false,
         duration: 0,
         currentTime: 0,
         isExpanded: false,
