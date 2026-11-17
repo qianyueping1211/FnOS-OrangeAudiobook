@@ -44,10 +44,4 @@ capabilities:
           en: Tags
 permissions:
   - type: network_access
-    domain: www.ximalaya.com
-  - type: network_access
-    domain: mobile.ximalaya.com
-  - type: network_access
-    domain: search.ximalaya.com
-  - type: network_access
-    domain: "*.xmcdn.com"
+    domain: "*"
