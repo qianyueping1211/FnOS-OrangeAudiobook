@@ -265,7 +265,8 @@ html,body,#root {overflow:hidden;max-width:100%;-webkit-text-size-adjust:100%;te
 /* Search pins its own top bar: without it the back button slid under the header
    as soon as the results started scrolling. */
 .reader-search-toolbar {position:relative;margin-bottom:24px;text-align:left}
-.reader-search-header {text-align:left;margin-top:12px}
+/* 返回按钮与标题之间留出一口气：12px 读起来像贴在一起的同一块。 */
+.reader-search-header {text-align:left;margin-top:22px}
 .reader-search-field {width:100%;margin-top:20px}
 .reader-search-field input {min-height:48px;box-shadow:none;padding-block:12px}
 .reader-search-options {display:flex;align-items:center;justify-content:flex-start;margin-top:16px}

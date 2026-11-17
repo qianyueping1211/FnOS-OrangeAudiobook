@@ -163,6 +163,9 @@ const SearchPage: React.FC = () => {
   // default "全部" mode, where a search asks both. The source row only offers
   // 全部 / 书架 / 在线 — the plugin behind it stays unnamed. Local results stay on top.
   const [bookSources, setBookSources] = useState<BookSourceOption[]>([]);
+  // The source list is still on its way: the online block must say "加载中"
+  // rather than "暂无在线书源" while the answer is simply not back yet.
+  const [sourcesReady, setSourcesReady] = useState(false);
   const [sourceMode, setSourceMode] = useState<'all' | 'local' | 'online'>('all');
   // One fetch result tagged with the query it belongs to. Anything stale is
   // dropped while rendering instead of being cleared inside an effect.
@@ -260,12 +263,15 @@ const SearchPage: React.FC = () => {
       })
       .catch((error) => {
         if (!cancelled) console.error('Failed to load book sources', error);
+      })
+      .finally(() => {
+        if (!cancelled) setSourcesReady(true);
       });
     return () => { cancelled = true; };
   }, []);
 
   const sourceIdsKey = bookSources.map((source) => source.id).join(',');
-  const missingOnlineSources = sourceMode !== 'local' && bookSources.length === 0;
+  const missingOnlineSources = sourceMode !== 'local' && sourcesReady && bookSources.length === 0;
   // No source means no query to run: folding the id list into the key keeps the
   // page from sitting in "loading" forever while the sources are still unknown.
   const onlineKey = sourceMode !== 'local' && sourceIdsKey && debouncedQuery.trim()
@@ -273,7 +279,10 @@ const SearchPage: React.FC = () => {
     : '';
   const onlineItems = onlineResult.key === onlineKey ? onlineResult.items : [];
   const onlineError = onlineResult.key === onlineKey ? onlineResult.error : '';
-  const onlineLoading = Boolean(onlineKey) && onlineResult.key !== onlineKey;
+  // A search with no answer yet — sources still loading, or the query has not
+  // come back — always reads as "loading" instead of showing an empty block.
+  const onlineLoading = sourceMode !== 'local' && Boolean(debouncedQuery.trim())
+    && (!sourcesReady || (Boolean(onlineKey) && onlineResult.key !== onlineKey));
 
   useEffect(() => {
     if (!onlineKey || !sourceIdsKey) return;
