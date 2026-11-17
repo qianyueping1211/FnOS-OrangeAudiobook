@@ -666,6 +666,7 @@ const BookDetailPage: React.FC = () => {
           playButtonContainerRef={playButtonContainerRef}
           isFavorite={isFavorite}
           isAdmin={user?.role === 'admin'}
+          isOnlineSource={book.library_type === 'source'}
           tagsRef={tagsRef}
           isTagsExpanded={isTagsExpanded}
           isTagsOverflowing={isTagsOverflowing}

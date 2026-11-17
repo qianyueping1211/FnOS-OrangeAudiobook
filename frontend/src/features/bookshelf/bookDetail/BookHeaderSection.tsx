@@ -53,6 +53,8 @@ interface Props {
   viewingLocal?: boolean;
   localViewError?: string;
   localViewNote?: string;
+  // 在线书源的元数据由源站提供，没有本地文件可刮削也没有可写的元数据文件。
+  isOnlineSource?: boolean;
 }
 
 const BookHeaderSection: React.FC<Props> = ({
@@ -89,6 +91,7 @@ const BookHeaderSection: React.FC<Props> = ({
   viewingLocal,
   localViewError,
   localViewNote,
+  isOnlineSource,
 }) => {
   const { t } = useTranslation();
   const playLabel =
@@ -110,7 +113,7 @@ const BookHeaderSection: React.FC<Props> = ({
   const scrapeLabel = t("bookshelf.scrape");
   const editLabel = t("common.edit");
   const moreLabel = t("bookshelf.more");
-  const canEditMetadata = isAdmin;
+  const canEditMetadata = isAdmin && !isOnlineSource;
   const actionButtonLabels = canEditMetadata
     ? [favoriteLabel, scrapeLabel, editLabel, moreLabel]
     : [favoriteLabel, moreLabel];

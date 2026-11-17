@@ -3,7 +3,7 @@
 // 章节走 mobile.ximalaya.com 的专辑接口；播放地址是加密的，用 aes-ecb.js 就地解密。
 // 免费章节不登录也能听；会员或已购买的内容由源站接口自行判定，插件不做任何绕过。
 
-import { success, publishSearch } from "./sdk.mjs";
+import { success, publishSearch, publishDetailMetadata } from "./sdk.mjs";
 import { decryptAes128EcbBase64 } from "./aes-ecb.js";
 
 const WEB = "https://www.ximalaya.com";
@@ -53,6 +53,45 @@ function coverUrl(raw) {
 
 function finishedLabel(value) {
   return String(value) === "2" ? "完结" : "连载";
+}
+
+const HTML_ENTITIES = {
+  nbsp: " ", amp: "&", lt: "<", gt: ">", quot: '"', apos: "'",
+  ldquo: "\u201c", rdquo: "\u201d", lsquo: "\u2018", rsquo: "\u2019",
+  hellip: "\u2026", mdash: "\u2014", ndash: "\u2013", middot: "\u00b7",
+  bull: "\u2022", times: "\u00d7", ensp: " ", emsp: " ", thinsp: " ",
+};
+
+// 源站简介是编辑器导出的 HTML，直接塞给宿主会满屏标签，先压成纯文本。
+function htmlToText(value) {
+  let text = trimmed(value);
+  if (!text) return "";
+  if (!/[<&]/.test(text)) return text.replace(/\s+/g, " ");
+  text = text
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<\s*(?:br|\/p|\/div|\/li|\/h[1-6])\s*\/?>/gi, "\n")
+    .replace(/<[^>]*>/g, " ");
+  text = text.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (match, code) => {
+    if (code[0] === "#") {
+      const point = code[1] === "x" || code[1] === "X"
+        ? parseInt(code.slice(2), 16)
+        : parseInt(code.slice(1), 10);
+      return Number.isFinite(point) && point > 0 && point <= 0x10ffff
+        ? String.fromCodePoint(point) : match;
+    }
+    return HTML_ENTITIES[code.toLowerCase()] ?? match;
+  });
+  return text
+    .replace(/[ \t\u00a0]+/g, " ")
+    .replace(/\s*\n\s*/g, "\n")
+    .replace(/\n{2,}/g, "\n")
+    .trim();
+}
+
+function introText(value, max = 800) {
+  const text = htmlToText(value).replace(/\n+/g, " ").trim();
+  return text.length > max ? `${text.slice(0, max).trimEnd()}…` : text;
 }
 
 function albumIdOf(input) {
@@ -128,7 +167,7 @@ async function fetchAlbumInfo(albumId) {
     title: trimmed(info.albumTitle),
     anchor: trimmed(info.anchorName),
     cover: coverUrl(info.cover),
-    intro: trimmed(info.richIntro) || trimmed(info.shortIntro),
+    intro: introText(info.richIntro) || introText(info.shortIntro),
     finished: finishedLabel(info.isFinished),
   };
 }
@@ -164,7 +203,7 @@ export async function search(request) {
         author: anchor || "喜马拉雅",
         narrator: anchor || null,
         cover_url: coverUrl(doc.cover_path),
-        intro: trimmed(doc.custom_title) || trimmed(doc.intro),
+        intro: introText(doc.custom_title) || introText(doc.intro),
         genre: trimmed(doc.category_name) || null,
         duration: null,
         tags,
@@ -189,7 +228,7 @@ export async function detail(input) {
     .filter(Boolean);
 
   return success({
-    metadata: {
+    metadata: publishDetailMetadata({
       id: albumId,
       source_url: `${WEB}/album/${albumId}`,
       title: info.title || `喜马拉雅专辑 ${albumId}`,
@@ -200,7 +239,7 @@ export async function detail(input) {
       genre: null,
       tags: [info.finished, `${firstPage.total} 集`].filter(Boolean),
       duration: null,
-    },
+    }),
     // 整套目录可能上千集，这里只给首批，其余交给 list_chapters 按页取。
     chapters_complete: false,
     chapters,

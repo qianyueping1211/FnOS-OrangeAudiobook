@@ -157,6 +157,27 @@ export default function HomePage() {
   // dropped here instead of deleting the sections from the page.
   const extraHomeSections = layout.showRecommended || layout.showRecent || layout.showCollections;
   const last = recentBooks[0];
+  // 手机端页面高度按内容算，不按屏幕撑：内容没占满一屏时底部不留空格，
+  // 只有真的需要滚动（最后一行会被浮层压住）时才补上底部让位。
+  const homeRef = useRef<HTMLDivElement | null>(null);
+  const tailRef = useRef<HTMLDivElement | null>(null);
+  const [tailClearance, setTailClearance] = useState(false);
+  useEffect(() => {
+    const page = homeRef.current;
+    const tail = tailRef.current;
+    const viewport = page?.parentElement;
+    if (!page || !tail || !viewport) return;
+    const update = () => {
+      // 减去尾巴自身高度，量出"纯内容"的高度，避免补完空白后又判定成溢出。
+      const natural = page.scrollHeight - tail.offsetHeight;
+      setTailClearance(natural > viewport.clientHeight + 1);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(page);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, []);
   // The hero waits for the resume history before it considers the newest book:
   // /api/books/page usually answers before /api/progress/recent, so falling back
   // early paints "recently added" for a frame and then swaps to "continue
@@ -220,7 +241,7 @@ export default function HomePage() {
     }
   }, [hero?.id, hero?.title, heroCredit]);
 
-  return <div className={`reader-page reader-home flex flex-1 flex-col ${extraHomeSections ? '' : 'reader-locked-page'}`}>
+  return <div ref={homeRef} className={`reader-page reader-home flex flex-1 flex-col ${extraHomeSections ? '' : 'reader-locked-page'}`}>
     <header className="reader-heading reader-page-toolbar">
       <div><div className="reader-eyebrow">{t('reader.privateLibrary')}</div><h1>{t('reader.homeTitle')}</h1><p>{t('reader.homeSubtitle')}</p></div>
       <Link to="/search" className="reader-search-link"><Search size={19} /><span>{t('reader.searchPlaceholder')}</span></Link>
@@ -274,7 +295,11 @@ export default function HomePage() {
         {series.slice(0, 2).map(item => <Link className="reader-recent" key={item.id} to={'/series/' + item.id}><Library size={25} className="text-primary-500" /><div className="reader-recent-text"><strong>{item.title}</strong><small>{item.author}</small></div><ChevronRight size={16} /></Link>)}
       </div> : <Empty />}
     </section>}
-    <div style={{ height: currentChapter ? 'var(--safe-bottom-with-player)' : 'var(--safe-bottom-base)' }} />
+    <div
+      ref={tailRef}
+      className="reader-home-tail"
+      style={{ height: tailClearance ? (currentChapter ? 'var(--safe-bottom-with-player)' : 'var(--safe-bottom-base)') : 0 }}
+    />
     </div>
   </div>;
 }

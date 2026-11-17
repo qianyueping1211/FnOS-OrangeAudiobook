@@ -206,6 +206,11 @@ input::placeholder,textarea::placeholder {color:var(--reader-muted);opacity:.8}
   .reader-update-panel {padding:20px}
   .reader-update-actions {align-items:stretch;flex-direction:column}
   .reader-update-actions .reader-button {width:100%;min-height:44px}
+  /* 首页按内容排：顶部不再留 22px 的页边，标题和搜索框之间的间隙也收一点，
+     剩下的整屏空白由内容自己决定（见 HomePage 的尾巴测量）。 */
+  .reader-home {padding-top:12px}
+  .reader-home .reader-heading {gap:12px;margin-bottom:16px}
+  .reader-home .reader-heading p {margin-top:5px}
 }
 @media(min-width:960px) {
   :root {--bottom-nav-h:0px;--player-h:76px;--player-gap:16px;--mini-player-offset:16px;
@@ -368,6 +373,9 @@ html.reader-ios { touch-action:pan-x pan-y }
   flex-basis:var(--reader-playing-clearance);
   min-height:var(--reader-playing-clearance);
 }
+
+/* 首页末尾留白由内容是否溢出决定，不是固定占位。 */
+.reader-home-tail {flex:none;width:100%}
 
 /* Home listening covers are shown straight-on and square without changing source files. */
 .reader-home .reader-hero-cover { aspect-ratio:1;transform:none }
