@@ -465,40 +465,43 @@ html.reader-ios { touch-action:pan-x pan-y }
    枢轴是盘外正上方一颗小白点，细长白杆往右下伸，末端只搭在盘边。
    暂停时整根抬起摆到盘外；播放时才转盘。 */
 .reader-vinyl {position:relative;width:100%;aspect-ratio:1/1;display:block;isolation:isolate}
-.reader-vinyl-disc {position:absolute;left:17%;top:17%;width:66%;height:66%;border-radius:50%;
+.reader-vinyl-disc {position:absolute;left:16%;top:16%;width:68%;height:68%;border-radius:50%;
   background:
-    repeating-radial-gradient(circle at 50% 50%,rgba(255,255,255,.04) 0 .5px,rgba(0,0,0,.2) .5px 2px),
-    radial-gradient(circle at 50% 50%,#0b0b0e 0%,#111114 68%,#18181c 100%);
-  box-shadow:0 18px 40px rgba(0,0,0,.42),inset 0 0 0 1px rgba(255,255,255,.07)}
+    repeating-radial-gradient(circle closest-side at 50% 50%,rgba(255,255,255,.03) 0 1.6px,rgba(0,0,0,.14) 1.6px 3.2px),
+    radial-gradient(circle closest-side at 50% 50%,#010102 0%,#010102 68%,#020203 76%,#030304 90%,#040405 98.4%,#020203 100%);
+  box-shadow:0 18px 40px rgba(0,0,0,.42),0 0 0 1px rgba(0,0,0,.3)}
 /* 盘外一圈半透明的光晕，像唱机上托着唱片的那个浅色圆台。 */
-.reader-vinyl-disc::before {content:'';position:absolute;inset:-4.6%;border-radius:50%;pointer-events:none;z-index:-1;
-  background:rgba(255,255,255,.075);box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
+.reader-vinyl-disc::before {content:'';position:absolute;inset:-4.2%;border-radius:50%;pointer-events:none;z-index:-1;
+  background:rgba(255,255,255,.055);box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
 .reader-vinyl-spin {position:absolute;inset:0;border-radius:50%;animation:reader-vinyl-spin 40s linear infinite;
   animation-play-state:paused;will-change:transform}
 .reader-vinyl.is-playing .reader-vinyl-spin {animation-play-state:running}
 /* 墨盘上细密的同心纹路，隐约可见即可。 */
-.reader-vinyl-grooves {position:absolute;inset:0;border-radius:50%;opacity:.5;mix-blend-mode:overlay;
+.reader-vinyl-grooves {position:absolute;inset:0;border-radius:50%;opacity:.35;mix-blend-mode:overlay;
   background:repeating-radial-gradient(circle at 50% 50%,rgba(255,255,255,.08) 0 .5px,rgba(255,255,255,0) .5px 2.4px)}
 /* 中间的圆形封面占盘的七成，没有白边，也不留中心孔。 */
 .reader-vinyl-label {position:absolute;left:50%;top:50%;width:69%;aspect-ratio:1;transform:translate(-50%,-50%);
   border-radius:50%;overflow:hidden;box-shadow:0 0 0 3px rgba(0,0,0,.35)}
 .reader-vinyl-art {width:100%;height:100%;object-fit:cover}
 .reader-vinyl-hole {display:none}
-/* 盘面只留一点极淡的扇形反光。 */
-.reader-vinyl-gloss {position:absolute;inset:0;border-radius:50%;pointer-events:none;z-index:2;opacity:.16;
+/* 盘面的反光是一横一道的亮带（左右两侧亮、上下两侧暗），亮带只铺在黑胶环上，不盖封面。 */
+.reader-vinyl-gloss {position:absolute;inset:0;border-radius:50%;pointer-events:none;z-index:2;
   mix-blend-mode:screen;
-  background:conic-gradient(from 200deg at 50% 50%,
-    rgba(255,255,255,.10) 0deg,rgba(255,255,255,.02) 26deg,rgba(255,255,255,0) 46deg,
-    rgba(255,255,255,.04) 78deg,rgba(255,255,255,0) 108deg,
-    rgba(255,255,255,.09) 172deg,rgba(255,255,255,.02) 200deg,rgba(255,255,255,0) 228deg,
-    rgba(255,255,255,.05) 292deg,rgba(255,255,255,.11) 348deg,rgba(255,255,255,.10) 360deg)}
+  -webkit-mask-image:radial-gradient(circle closest-side at 50% 50%,transparent 69%,#000 71%,#000 100%);
+  mask-image:radial-gradient(circle closest-side at 50% 50%,transparent 69%,#000 71%,#000 100%);
+  background:conic-gradient(from 0deg at 50% 50%,
+    rgba(255,255,255,0) 0deg,rgba(255,255,255,.17) 32deg,rgba(255,255,255,.27) 80deg,rgba(255,255,255,.12) 125deg,
+    rgba(255,255,255,0) 152deg,rgba(255,255,255,0) 188deg,rgba(255,255,255,.14) 218deg,rgba(255,255,255,.28) 260deg,
+    rgba(255,255,255,.12) 304deg,rgba(255,255,255,0) 332deg,rgba(255,255,255,0) 360deg)}
 /* 唱臂与盘同框：viewBox 的 120 个刻度就直接当容器百分比用。 */
 .reader-vinyl-tonearm {position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3;overflow:visible}
-.reader-vinyl-pivot-ring {fill:rgba(255,255,255,.14)}
+.reader-vinyl-pivot-ring {fill:rgba(255,255,255,.16)}
 .reader-vinyl-pivot {fill:#ffffff;opacity:.97}
-.reader-vinyl-rod {stroke:#ffffff;stroke-width:2.3;fill:none;stroke-linecap:round;opacity:.95}
-.reader-vinyl-head {fill:#ffffff}
-.reader-vinyl-arm {transform-box:view-box;transform-origin:60px 9px;transform:rotate(-18deg);
+.reader-vinyl-pivot-dot {fill:#c9c9cf}
+.reader-vinyl-rod {stroke:#ffffff;stroke-width:1.7;fill:none;stroke-linecap:round;opacity:.95}
+.reader-vinyl-head {fill:#f6f6f8}
+.reader-vinyl-head-slit {fill:rgba(60,60,66,.38)}
+.reader-vinyl-arm {transform-box:view-box;transform-origin:60px -4.2px;transform:rotate(-28deg);
   transition:transform .4s cubic-bezier(.22,.72,.28,1)}
 .reader-vinyl.is-playing .reader-vinyl-arm {transform:rotate(0deg)}
 @keyframes reader-vinyl-spin {to {transform:rotate(360deg)}}
@@ -506,7 +509,7 @@ html.reader-ios { touch-action:pan-x pan-y }
 .reader-vinyl.is-preview .reader-vinyl-rod {stroke-width:1.5;opacity:.8}
 .reader-vinyl.is-preview .reader-vinyl-spin {animation-duration:10s}
 .reader-vinyl.is-preview .reader-vinyl-arm {animation:reader-vinyl-arm-demo 3.4s cubic-bezier(.22,.72,.28,1) infinite}
-@keyframes reader-vinyl-arm-demo {0%,52% {transform:rotate(0deg)} 72%,100% {transform:rotate(-18deg)}}
+@keyframes reader-vinyl-arm-demo {0%,52% {transform:rotate(0deg)} 72%,100% {transform:rotate(-28deg)}}
 /* 黑胶形态自己带圆形轮廓，去掉方形封面那套白边、圆角与阴影。 */
 .reader-player-vinyl {width:min(96vw,400px)!important;max-width:none!important;aspect-ratio:1/1!important;
   border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;
