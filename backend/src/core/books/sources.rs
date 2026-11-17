@@ -162,9 +162,8 @@ fn store_audio_output(key: String, output: &serde_json::Value) {
         .and_then(|value| value.as_str())
         .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
     {
-        let remaining = expiry.with_timezone(&chrono::Utc)
-            - chrono::Utc::now()
-            - chrono::Duration::seconds(60);
+        let remaining =
+            expiry.with_timezone(&chrono::Utc) - chrono::Utc::now() - chrono::Duration::seconds(60);
         match remaining.to_std() {
             Ok(remaining) => ttl = ttl.min(remaining),
             Err(_) => return,
