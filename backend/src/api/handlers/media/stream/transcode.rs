@@ -221,8 +221,12 @@ pub(super) async fn transcode_stream(
 
     // Check if we can use direct URL transcoding (for WebDAV or cached files).
     // Plugin-backed formats must be decoded/decrypted before FFmpeg sees them.
-    let can_use_direct_url =
-        library.library_type != "local" && !cache_path.exists() && !plugin_handles_format;
+    // A book-source chapter path is a plugin id, not a URL: its real audio address
+    // comes from the plugin and is fetched through the Host proxy and piped in.
+    let can_use_direct_url = library.library_type != "local"
+        && library.library_type != "source"
+        && !cache_path.exists()
+        && !plugin_handles_format;
 
     if can_use_direct_url {
         let webdav_url_str = crate::core::StorageService::authenticated_media_url(
