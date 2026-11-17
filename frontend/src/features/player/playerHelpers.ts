@@ -387,8 +387,13 @@ export const useProgressSync = (options: {
   wsSendProgress: (bookId: string, chapterId: string, position: number, playbackStart?: number) => void;
 }) => {
   const { bookId, chapterId, isWsConnected, wsSendProgress } = options;
+  // 播放/暂停来回切换时每次都会触发一次保存；限流，避免一秒内连发一堆请求拖垮服务器。
+  const lastSaveAt = useRef(0);
   const save = useCallback((position: number, playbackStart?: number, durable = false) => {
     if (!bookId || !chapterId) return;
+    const now = Date.now();
+    if (!durable && now - lastSaveAt.current < 1500) return;
+    lastSaveAt.current = now;
     const value = Math.max(0, Math.floor(position));
     if (isWsConnected) wsSendProgress(bookId, chapterId, value, playbackStart);
     if (!isWsConnected || durable) {
