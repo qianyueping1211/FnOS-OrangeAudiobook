@@ -35,6 +35,9 @@ pub struct StreamQuery {
     pub seek: Option<String>,
     pub download: Option<String>,
     pub preload: Option<bool>,
+    /// Ask the server to get an online-book chapter ready (cached on disk) and
+    /// answer with JSON instead of audio. 202 means "still downloading".
+    pub prepare: Option<bool>,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -271,6 +274,7 @@ pub async fn stream_signed_chapter(
             seek: params.seek,
             download: params.download,
             preload: None,
+            prepare: None,
         }),
         method,
         headers,
