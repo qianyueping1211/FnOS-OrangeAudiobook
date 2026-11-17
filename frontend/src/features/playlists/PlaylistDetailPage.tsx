@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import apiClient from '../../core/api/client';
 import type { Book, Playlist, PlaylistItem, Series } from '../../core/types';
 import BookCard from '../../shared/cards/BookCard';
+import OnlineBookCard, { type OnlineBookItem } from '../../shared/cards/OnlineBookCard';
 import BackButton from '../../shared/widgets/BackButton';
 import { usePlayerStore } from '../../core/stores/playerStore';
 import { Check, Edit3, ListMusic, Loader2, Plus, Save, Search, Trash2, X } from 'lucide-react';
@@ -53,6 +54,12 @@ const PlaylistDetailPage: React.FC = () => {
   const [searching, setSearching] = useState(false);
   const searchTimer = useRef<number | null>(null);
   const searchSeq = useRef(0);
+  const [onlineItems, setOnlineItems] = useState<OnlineBookItem[]>([]);
+  const [onlineSearching, setOnlineSearching] = useState(false);
+  const [onlineError, setOnlineError] = useState('');
+  const [importedIds, setImportedIds] = useState<Record<string, string>>({});
+  const [importingKey, setImportingKey] = useState('');
+  const bookSourceIds = useRef<string[] | null>(null);
 
   const fetchData = async () => {
     if (!id) return;
@@ -103,20 +110,72 @@ const PlaylistDetailPage: React.FC = () => {
   // Manage content searches on demand instead of pulling the whole library:
   // nothing is requested until the reader types, then only the matching rows
   // come back.
+  // Online book sources are searched alongside the local library; their results
+  // only become real books (and playlist members) once the reader ticks them.
+  const searchOnline = async (keyword: string, seq: number) => {
+    setOnlineItems([]);
+    setOnlineError('');
+    setOnlineSearching(true);
+    try {
+      if (!bookSourceIds.current) {
+        const response = await apiClient.get('/api/scraper/sources');
+        const raw = (response.data?.sources ?? []) as { id: string; book_source?: boolean }[];
+        bookSourceIds.current = raw.filter((source) => source.book_source).map((source) => source.id);
+      }
+      const sources = bookSourceIds.current;
+      if (sources.length === 0) return;
+      const settled = await Promise.allSettled(
+        sources.map((source) => apiClient
+          .post('/api/v1/scraper/search', { source, query: keyword, page: 1, page_size: 20 }, { timeout: 15000 })
+          .then((response) => ({ source, items: (response.data?.items ?? []) as OnlineBookItem[] }))),
+      );
+      if (searchSeq.current !== seq) return;
+      const seen = new Set<string>();
+      const items: OnlineBookItem[] = [];
+      let failure = '';
+      for (const entry of settled) {
+        if (entry.status === 'rejected') {
+          failure = failure || apiErrorMessage(entry.reason, t('searchPage.onlineFailed', '检索在线书源失败'));
+          continue;
+        }
+        for (const item of entry.value.items) {
+          if (!(item.title ?? '').toLowerCase().includes(keyword.toLowerCase())) continue;
+          const dedupe = entry.value.source + ':' + item.id;
+          if (seen.has(dedupe)) continue;
+          seen.add(dedupe);
+          items.push({ ...item, sourceId: entry.value.source });
+        }
+      }
+      setOnlineItems(items);
+      setOnlineError(items.length > 0 ? '' : failure);
+    } catch (err) {
+      if (searchSeq.current === seq) setOnlineError(apiErrorMessage(err, t('searchPage.onlineFailed', '检索在线书源失败')));
+    } finally {
+      if (searchSeq.current === seq) setOnlineSearching(false);
+    }
+  };
+
   const searchCatalog = async (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) {
+      searchSeq.current += 1;
       setBooks([]);
       setSearching(false);
+      setOnlineItems([]);
+      setOnlineSearching(false);
+      setOnlineError('');
       return;
     }
     const seq = searchSeq.current + 1;
     searchSeq.current = seq;
     setSearching(true);
+    void searchOnline(trimmed, seq);
     try {
       const res = await apiClient.get('/api/books/page', { params: { search: trimmed, page_size: 30 } });
       if (searchSeq.current !== seq) return;
-      const list: Book[] = res.data?.items || [];
+      // Online books that were opened before live in the database too; they come
+      // back through the online block below, so the local block stays local.
+      const list: Book[] = ((res.data?.items || []) as Book[]).filter((book) => book.library_type !== 'source');
       setBooks(list);
       mergeKnownBooks(list);
     } catch (err) {
@@ -130,8 +189,12 @@ const PlaylistDetailPage: React.FC = () => {
     setQuery(value);
     if (searchTimer.current) window.clearTimeout(searchTimer.current);
     if (!value.trim()) {
+      searchSeq.current += 1;
       setBooks([]);
       setSearching(false);
+      setOnlineItems([]);
+      setOnlineSearching(false);
+      setOnlineError('');
       return;
     }
     searchTimer.current = window.setTimeout(() => {
@@ -211,6 +274,37 @@ const PlaylistDetailPage: React.FC = () => {
         ? prev.filter(item => !samePlaylistItem(item, 'book', bookId))
         : [...prev, { item_type: 'book', item_id: bookId }]
     ));
+  };
+
+  const toggleOnlineBook = async (item: OnlineBookItem) => {
+    if (!item.sourceId || importingKey) return;
+    const key = item.sourceId + ':' + item.id;
+    const known = importedIds[key];
+    if (known) {
+      toggleBook(known);
+      return;
+    }
+    setImportingKey(key);
+    try {
+      const { data } = await apiClient.post('/api/v1/scraper/books', {
+        source: item.sourceId,
+        book: { id: item.id, url: null },
+      });
+      const bookId = data?.book_id as string | undefined;
+      if (!bookId) return;
+      const detail = await apiClient.get<Book>('/api/books/' + encodeURIComponent(bookId));
+      mergeKnownBooks([detail.data]);
+      setImportedIds(prev => ({ ...prev, [key]: bookId }));
+      setSelectedItems(prev => (
+        prev.some(entry => samePlaylistItem(entry, 'book', bookId))
+          ? prev
+          : [...prev, { item_type: 'book', item_id: bookId }]
+      ));
+    } catch (err) {
+      setOnlineError(apiErrorMessage(err, t('searchPage.onlineOpenFailed', '打开这本书失败')));
+    } finally {
+      setImportingKey('');
+    }
   };
 
   const removeSelectedItem = (itemType: 'book' | 'series', itemId: string) => {
@@ -526,13 +620,53 @@ const PlaylistDetailPage: React.FC = () => {
                     </div>
                   ))}
                 </div>
-              ) : (
+              ) : onlineItems.length > 0 || onlineSearching ? null : (
                 <EmptyPlaylistState
                   icon={<ListMusic size={40} />}
                   title={t('playlists.noMatchedBooks')}
                   description={t('playlists.tryAnotherKeyword')}
                   compact
                 />
+              )}
+              {query.trim() && (onlineSearching || onlineItems.length > 0 || onlineError) && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-bold text-slate-500">{t('searchPage.onlineSection', '在线')}</h3>
+                  {onlineSearching ? (
+                    <div className="flex items-center justify-center gap-2 py-8 text-sm text-slate-400">
+                      <Loader2 size={20} className="animate-spin" />
+                      {t('common.loading')}
+                    </div>
+                  ) : onlineItems.length > 0 ? (
+                    <div className={`grid ${getBookshelfGridClass(iconSize)}`}>
+                      {onlineItems.map(item => {
+                        const key = (item.sourceId ?? '') + ':' + item.id;
+                        const chosen = Boolean(importedIds[key])
+                          && selectedItems.some(entry => samePlaylistItem(entry, 'book', importedIds[key]));
+                        return (
+                          <div key={key} className="relative">
+                            <div className={`absolute top-2 left-2 z-30 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all pointer-events-none ${
+                              chosen
+                                ? 'bg-primary-600 border-primary-600 text-white'
+                                : 'bg-white/90 dark:bg-slate-900/90 border-slate-300 dark:border-slate-600'
+                            }`}>
+                              {chosen && <Check size={15} />}
+                            </div>
+                            <div className={`transition-opacity ${chosen ? 'opacity-100' : 'opacity-60 grayscale-[0.4]'}`}>
+                              <OnlineBookCard
+                                item={item}
+                                coverShape={coverShape}
+                                busy={importingKey === key}
+                                onOpen={(picked) => void toggleOnlineBook(picked)}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-400">{onlineError}</p>
+                  )}
+                </div>
               )}
             </>
           )
