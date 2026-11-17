@@ -11,6 +11,8 @@ import type { Book, Chapter, Progress } from '../../core/types';
 import { sortChaptersForPlayback } from '../../core/utils/chapter';
 import { isTooLight } from '../../core/utils/color';
 import { usePlayerStore } from '../../core/stores/playerStore';
+import { useUiPreferencesStore } from '../../core/stores/uiPreferencesStore';
+import { isOnlineBookHidden, loadSourceLibraryIds } from '../../core/utils/onlineBooks';
 
 export interface PlaybackWarmup {
   book: Book;
@@ -23,13 +25,18 @@ let ready: PlaybackWarmup | null = null;
 
 const load = async (): Promise<PlaybackWarmup | null> => {
   const recent = (await apiClient.get<Progress[]>('/api/progress/recent')).data;
-  const last = [...recent].sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))[0];
+  // 关掉「在线书籍播放」后，继续收听不能接到在线书上：先读出在线书源的库 id 再过滤。
+  if (!useUiPreferencesStore.getState().onlineBooksEnabled) await loadSourceLibraryIds();
+  const last = [...recent]
+    .filter((item) => !isOnlineBookHidden(item))
+    .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))[0];
   if (!last?.book_id) return null;
   const id = encodeURIComponent(last.book_id);
   const [bookResponse, chapterResponse] = await Promise.all([
     apiClient.get<Book>('/api/books/' + id),
     apiClient.get<Chapter[]>('/api/books/' + id + '/chapters'),
   ]);
+  if (isOnlineBookHidden(bookResponse.data)) return null;
   return {
     book: bookResponse.data,
     chapters: sortChaptersForPlayback(chapterResponse.data),
