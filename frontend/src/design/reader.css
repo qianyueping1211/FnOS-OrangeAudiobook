@@ -467,29 +467,25 @@ html.reader-ios { touch-action:pan-x pan-y }
 .reader-vinyl {position:relative;width:100%;aspect-ratio:1/1;display:block;isolation:isolate}
 .reader-vinyl-disc {position:absolute;left:17%;top:17%;width:66%;height:66%;border-radius:50%;
   background:
-    repeating-radial-gradient(circle at 50% 50%,rgba(255,255,255,.05) 0 .6px,rgba(0,0,0,.13) .6px 2.2px),
-    radial-gradient(circle at 50% 48%,#1c1b26 0%,#15141d 62%,#18171f 88%,#22212b 100%);
-  box-shadow:0 22px 48px rgba(0,0,0,.34),0 3px 10px rgba(0,0,0,.26),
-    inset 0 0 0 1px rgba(255,255,255,.12),
-    inset 0 -6px 18px rgba(0,0,0,.34)}
-.reader-vinyl-disc::after {content:'';position:absolute;inset:-2.4%;border-radius:50%;pointer-events:none;
-  box-shadow:inset 0 0 0 4px rgba(255,255,255,.02),inset 0 0 0 2px rgba(0,0,0,.3),
-    inset 0 0 0 1px rgba(255,255,255,.13)}
+    repeating-radial-gradient(circle at 50% 50%,rgba(255,255,255,.04) 0 .5px,rgba(0,0,0,.2) .5px 2px),
+    radial-gradient(circle at 50% 50%,#0b0b0e 0%,#111114 68%,#18181c 100%);
+  box-shadow:0 18px 40px rgba(0,0,0,.42),inset 0 0 0 1px rgba(255,255,255,.07)}
+/* 盘外一圈半透明的光晕，像唱机上托着唱片的那个浅色圆台。 */
+.reader-vinyl-disc::before {content:'';position:absolute;inset:-4.6%;border-radius:50%;pointer-events:none;z-index:-1;
+  background:rgba(255,255,255,.075);box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
 .reader-vinyl-spin {position:absolute;inset:0;border-radius:50%;animation:reader-vinyl-spin 40s linear infinite;
   animation-play-state:paused;will-change:transform}
 .reader-vinyl.is-playing .reader-vinyl-spin {animation-play-state:running}
-/* 墨盘上若有若无的细圆圈，对比要压得很低，一眼不能当成车轮。 */
-.reader-vinyl-grooves {position:absolute;inset:0;border-radius:50%;opacity:.035;mix-blend-mode:overlay;
-  background:repeating-radial-gradient(circle at 50% 50%,rgba(255,255,255,.09) 0 .5px,rgba(255,255,255,0) .5px 2.8px)}
-/* 中间的圆形贴纸：书封裁圆，只留极软的内影与一圈细边。 */
-.reader-vinyl-label {position:absolute;left:50%;top:50%;width:53%;aspect-ratio:1;transform:translate(-50%,-50%);
-  border-radius:50%;overflow:hidden;
-  box-shadow:0 0 0 1px rgba(255,255,255,.18),inset 0 0 16px rgba(0,0,0,.32)}
-.reader-vinyl-art {width:100%;height:100%;object-fit:cover;transform:scale(1.02)}
-.reader-vinyl-hole {position:absolute;left:50%;top:50%;width:2.8%;aspect-ratio:1;transform:translate(-50%,-50%);
-  border-radius:50%;background:#08070d;box-shadow:inset 0 0 0 1px rgba(255,255,255,.22)}
-/* 光不是均匀的亮，是一道一道的扇形反射：顺着某几个方向的纹路会连着亮起来。 */
-.reader-vinyl-gloss {position:absolute;inset:0;border-radius:50%;pointer-events:none;z-index:2;opacity:.42;
+/* 墨盘上细密的同心纹路，隐约可见即可。 */
+.reader-vinyl-grooves {position:absolute;inset:0;border-radius:50%;opacity:.5;mix-blend-mode:overlay;
+  background:repeating-radial-gradient(circle at 50% 50%,rgba(255,255,255,.08) 0 .5px,rgba(255,255,255,0) .5px 2.4px)}
+/* 中间的圆形封面占盘的七成，没有白边，也不留中心孔。 */
+.reader-vinyl-label {position:absolute;left:50%;top:50%;width:69%;aspect-ratio:1;transform:translate(-50%,-50%);
+  border-radius:50%;overflow:hidden;box-shadow:0 0 0 3px rgba(0,0,0,.35)}
+.reader-vinyl-art {width:100%;height:100%;object-fit:cover}
+.reader-vinyl-hole {display:none}
+/* 盘面只留一点极淡的扇形反光。 */
+.reader-vinyl-gloss {position:absolute;inset:0;border-radius:50%;pointer-events:none;z-index:2;opacity:.16;
   mix-blend-mode:screen;
   background:conic-gradient(from 200deg at 50% 50%,
     rgba(255,255,255,.10) 0deg,rgba(255,255,255,.02) 26deg,rgba(255,255,255,0) 46deg,
@@ -498,12 +494,11 @@ html.reader-ios { touch-action:pan-x pan-y }
     rgba(255,255,255,.05) 292deg,rgba(255,255,255,.11) 348deg,rgba(255,255,255,.10) 360deg)}
 /* 唱臂与盘同框：viewBox 的 120 个刻度就直接当容器百分比用。 */
 .reader-vinyl-tonearm {position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3;overflow:visible}
-.reader-vinyl-pivot {fill:#ffffff;opacity:.96}
-.reader-vinyl-rod {stroke:#f2f1f6;stroke-width:1.9;fill:none;stroke-linecap:round;opacity:.92}
+.reader-vinyl-pivot-ring {fill:rgba(255,255,255,.14)}
+.reader-vinyl-pivot {fill:#ffffff;opacity:.97}
+.reader-vinyl-rod {stroke:#ffffff;stroke-width:2.3;fill:none;stroke-linecap:round;opacity:.95}
 .reader-vinyl-head {fill:#ffffff}
-.reader-vinyl-needle {fill:#ffffff;opacity:.9}
-.reader-vinyl-head-line {fill:rgba(24,23,32,.55)}
-.reader-vinyl-arm {transform-box:view-box;transform-origin:60px 6px;transform:rotate(-18deg);
+.reader-vinyl-arm {transform-box:view-box;transform-origin:60px 9px;transform:rotate(-18deg);
   transition:transform .4s cubic-bezier(.22,.72,.28,1)}
 .reader-vinyl.is-playing .reader-vinyl-arm {transform:rotate(0deg)}
 @keyframes reader-vinyl-spin {to {transform:rotate(360deg)}}
