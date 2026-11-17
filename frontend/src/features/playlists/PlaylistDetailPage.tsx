@@ -8,6 +8,8 @@ import BookCard from '../../shared/cards/BookCard';
 import OnlineBookCard, { type OnlineBookItem } from '../../shared/cards/OnlineBookCard';
 import BackButton from '../../shared/widgets/BackButton';
 import { usePlayerStore } from '../../core/stores/playerStore';
+import { useUiPreferencesStore } from '../../core/stores/uiPreferencesStore';
+import { useOnlineBookFilter } from '../../core/utils/onlineBooks';
 import { Check, Edit3, ListMusic, Loader2, Plus, Save, Search, Trash2, X } from 'lucide-react';
 import { getBookshelfGridClass, useBookshelfDisplaySettings } from '../../core/hooks/useBookshelfCoverShape';
 import { getPlaylistBookCount } from '../../core/utils/playlist';
@@ -38,6 +40,8 @@ const PlaylistDetailPage: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const currentChapter = usePlayerStore((state) => state.currentChapter);
+  // 个性化设置里关掉「在线书籍播放」后，书单里已有的在线书不显示，管理里也不检索在线。
+  const hideOnline = useOnlineBookFilter();
   const { coverShape, iconSize } = useBookshelfDisplaySettings();
   const [playlist, setPlaylist] = useState<Playlist | null>(() => readPlaylistSnapshot(id));
   const [books, setBooks] = useState<Book[]>([]);
@@ -113,6 +117,7 @@ const PlaylistDetailPage: React.FC = () => {
   // Online book sources are searched alongside the local library; their results
   // only become real books (and playlist members) once the reader ticks them.
   const searchOnline = async (keyword: string, seq: number) => {
+    if (!useUiPreferencesStore.getState().onlineBooksEnabled) return;
     setOnlineItems([]);
     setOnlineError('');
     setOnlineSearching(true);
@@ -407,7 +412,7 @@ const PlaylistDetailPage: React.FC = () => {
     );
   }
 
-  const playlistItems = getPlaylistItems(playlist);
+  const playlistItems = getPlaylistItems(playlist).filter(item => !(item.item_type !== 'series' && hideOnline(item.book)));
   const filteredPlaylistItems = playlistItems.filter(item => {
     const normalizedQuery = query.trim().toLowerCase();
     if (!normalizedQuery) return true;
