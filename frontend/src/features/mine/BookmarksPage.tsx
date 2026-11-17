@@ -1,8 +1,9 @@
 import { apiErrorMessage } from '../../core/api/errors';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BookMarked, Clock, MessageSquare, Pencil, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import apiClient from '../../core/api/client';
+import { useOnlineBookFilter } from '../../core/utils/onlineBooks';
 import { playBookmark, formatBookmarkPosition, type ActivityBook, type Bookmark, type ReadingPage as Page } from '../../core/api/reading';
 import { usePlayerStore } from '../../core/stores/playerStore';
 import { useBookshelfCoverShape } from '../../core/hooks/useBookshelfCoverShape';
@@ -16,7 +17,10 @@ const BookmarksPage: React.FC = () => {
   const { t } = useTranslation();
   const currentChapter = usePlayerStore((state) => state.currentChapter);
   const coverShape = useBookshelfCoverShape();
-  const [books, setBooks] = useState<ActivityBook[]>([]);
+  const [allBooks, setBooks] = useState<ActivityBook[]>([]);
+  // 个性化设置里关掉「在线书籍播放」后，书签里已有的在线书不显示。
+  const hideOnline = useOnlineBookFilter();
+  const books = useMemo(() => allBooks.filter((book) => !hideOnline(book)), [allBooks, hideOnline]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [bookmarks, setBookmarks] = useState<Record<string, Bookmark[]>>({});
   const [pages, setPages] = useState<Record<string, number>>({});
