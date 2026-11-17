@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Book } from '../../core/types';
 import { getCoverUrl } from '../../core/utils/image';
+import { usePlayerStore } from '../../core/stores/playerStore';
 
 interface Props {
   book: Book | null | undefined;
@@ -34,10 +35,14 @@ const PlayerCoverImage: React.FC<{ book: Book | null | undefined }> = ({ book })
 // 一台唱机：盘子外面套一圈半透明的光晕，封面占盘的七成，几乎没有留白的唱片中心。
 // 枢轴是盘外正上方的一颗白点，白杆先往下、再顺势斜到盘的右上缘，末端是一块斜放的圆角针头；
 // 暂停时整根抬起来往右上一摆，针就离开盘面。
-export const VinylPlayerCover: React.FC<Props> = ({ book, isPlaying, preview, sizeClass, size }) => (
+export const VinylPlayerCover: React.FC<Props> = ({ book, isPlaying, preview, sizeClass, size }) => {
+  // 缓冲中（还没有声音）：唱针先抬起来，等能出声再落下。
+  const buffering = usePlayerStore((state) => state.isBuffering);
+  const active = isPlaying && !buffering;
+  return (
   <div
-    className={`reader-vinyl ${sizeClass || ''} ${preview ? 'is-preview' : ''} ${isPlaying || preview ? 'is-playing' : ''}`}
-    data-playing={isPlaying ? 'true' : 'false'}
+    className={`reader-vinyl ${sizeClass || ''} ${preview ? 'is-preview' : ''} ${active || preview ? 'is-playing' : ''}`}
+    data-playing={active ? 'true' : 'false'}
     style={size ? { width: size, height: size, flex: 'none' } : undefined}
   >
     <div className="reader-vinyl-disc">
@@ -67,6 +72,7 @@ export const VinylPlayerCover: React.FC<Props> = ({ book, isPlaying, preview, si
       </g>
     </svg>
   </div>
-);
+  );
+};
 
 export default VinylPlayerCover;
