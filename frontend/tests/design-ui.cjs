@@ -218,13 +218,11 @@ async function fixture(context, gated = false) {
           await page.locator('.reader-book-card').first().waitFor();
           assert.ok(await page.locator('.reader-book-card').count() >= 3);
           if (mobile) {
-            // 手机首页定死一屏：只摆最新三本，其余卡片即使拿到了也不画。
-            assert.ok(await page.locator('.reader-book-card:visible').count() <= 3, name + ' home must paint at most three newest books');
-            const scrollerOverflow = await page.locator('.reader-home .reader-page-scroll').evaluate(element => getComputedStyle(element).overflowY);
-            assert.equal(scrollerOverflow, 'hidden', name + ' home must not scroll on a phone');
+            // 手机首页最新上新摆六本，不再定死一屏。
+            assert.ok(await page.locator('.reader-book-card:visible').count() <= 6, name + ' home must paint at most six newest books');
           }
           // 为你推荐 / 最近收听 / 书单与系列 只由个性化设置里的开关决定：
-          // 这份 mock 把它们关掉，首页就保持一屏三本。代码里始终保留这些区块。
+          // 这份 mock 把它们关掉，首页只剩最新上新。代码里始终保留这些区块。
           assert.equal(await page.getByRole('heading', { name: '为你推荐', exact: true }).count(), 0);
           assert.equal(await page.locator('.reader-brand strong').textContent(), '橙子听书');
           assert.equal(await page.locator('.reader-brand img').evaluate(image => image.complete && image.naturalWidth > 0), true);
