@@ -52,11 +52,17 @@ export const VinylPlayerCover: React.FC<Props> = ({ book, isPlaying, preview, si
     </div>
     <svg className="reader-vinyl-tonearm" viewBox="0 0 120 120" aria-hidden="true">
       <g className="reader-vinyl-arm">
-        <circle className="reader-vinyl-pivot-ring" cx="60" cy="9" r="5.4" />
-        <circle className="reader-vinyl-pivot" cx="60" cy="9" r="3.5" />
-        <path className="reader-vinyl-rod" d="M60 11.5 C 61.5 21, 65 29, 72 34.2" />
-        <g transform="rotate(48 72 34.2)">
-          <rect className="reader-vinyl-head" x="71" y="32.2" width="10" height="4" rx="1.5" />
+        <circle className="reader-vinyl-pivot-ring" cx="60" cy="-4.2" r="3.9" />
+        <circle className="reader-vinyl-pivot" cx="60" cy="-4.2" r="2.3" />
+        <circle className="reader-vinyl-pivot-dot" cx="60" cy="-4.2" r="0.9" />
+        <path className="reader-vinyl-rod" d="M60.3 -2 L65.0 16.2 Q 66.2 21.6 70.2 24.5" />
+        <g transform="translate(75.2 28.1) rotate(36) scale(1.1)">
+          <rect className="reader-vinyl-head" x="-5.9" y="-0.74" width="6.8" height="1.48" rx="0.5" />
+          <rect className="reader-vinyl-head-slit" x="-1.9" y="-0.3" width="1.1" height="0.6" rx="0.3" />
+          <rect className="reader-vinyl-head" x="0" y="-1.45" width="7.6" height="2.9" rx="1.2" />
+          <rect className="reader-vinyl-head" x="6.9" y="-2.15" width="3.7" height="4.3" rx="1.1" />
+          <rect className="reader-vinyl-head-slit" x="7.5" y="-1.25" width="2.5" height="0.4" rx="0.2" />
+          <rect className="reader-vinyl-head-slit" x="7.1" y="0.55" width="2.5" height="0.4" rx="0.2" />
         </g>
       </g>
     </svg>
