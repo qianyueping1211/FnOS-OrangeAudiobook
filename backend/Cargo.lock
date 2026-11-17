@@ -4589,7 +4589,7 @@ dependencies = [
 
 [[package]]
 name = "ting_reader"
-version = "2.2.55"
+version = "2.2.56"
 dependencies = [
  "aes-gcm",
  "anyhow",
