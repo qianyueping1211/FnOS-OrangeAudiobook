@@ -91,6 +91,8 @@ const PersonalizationPage: React.FC = () => {
     (state) => state.setPluginToolMenuEnabled,
   );
   const setBookshelfProgressEnabled = useUiPreferencesStore((state) => state.setBookshelfProgressEnabled);
+  const onlineBooksEnabled = useUiPreferencesStore((state) => state.onlineBooksEnabled);
+  const setOnlineBooksEnabled = useUiPreferencesStore((state) => state.setOnlineBooksEnabled);
   const { applyTheme } = useTheme();
   const { language, setLanguage } = useAppLanguage();
   const [settings, setSettings] = useState<SettingsState>(defaultSettings);
@@ -512,6 +514,12 @@ const PersonalizationPage: React.FC = () => {
               description={t("settings.bookshelfProgressDescription", "在封面上显示已读、未读或阅读百分比")}
               checked={settings.bookshelf_progress_enabled !== false}
               onChange={() => handleSaveSettings({ bookshelf_progress_enabled: settings.bookshelf_progress_enabled === false })}
+            />
+            <ToggleRow
+              title={t("settings.onlineBooks", "在线书籍播放")}
+              description={t("settings.onlineBooksDescription", "关闭后不再检索在线书，继续收听、书签、最近播放里已有的在线书也不显示。只影响这台设备。")}
+              checked={onlineBooksEnabled}
+              onChange={() => setOnlineBooksEnabled(!onlineBooksEnabled)}
             />
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
