@@ -9,6 +9,7 @@ import { Search as SearchIcon, Loader2, BookX, ChevronLeft, ChevronRight, Slider
 import BackButton from '../../shared/widgets/BackButton';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
+import { getRuntimePathname } from '../../core/utils/runtimeUrl';
 
 type FilterOption = string | { id: string; name: string };
 
@@ -130,20 +131,42 @@ const FilterRow: React.FC<FilterRowProps> = ({
   );
 };
 
+interface SavedSearchState {
+  query: string;
+  debouncedQuery: string;
+  sourceMode: 'all' | 'local' | 'online';
+  selectedLibraryId: string;
+  selectedSeries: string;
+  selectedTag: string;
+  selectedGenre: string;
+  selectedYear: string;
+  selectedAuthor: string;
+  selectedNarrator: string;
+  showFilters: boolean;
+  results: Book[];
+  onlineResult: { key: string; items: OnlineBookItem[]; error: string };
+}
+
+// Going into a book and coming back must not wipe the page: the typed keyword
+// and what it found are kept for that one round trip. Leaving for anywhere else
+// clears them, so the next visit from the shelf starts fresh.
+const searchMemory: { state: SavedSearchState | null } = { state: null };
+
 const SearchPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [query, setQuery] = useState('');
+  const [restored] = useState(() => searchMemory.state);
+  const [query, setQuery] = useState(restored?.query ?? '');
   
   // Filter states
-  const [selectedLibraryId, setSelectedLibraryId] = useState<string>('');
-  const [selectedSeries, setSelectedSeries] = useState<string>('');
-  const [selectedTag, setSelectedTag] = useState<string>('');
-  const [selectedGenre, setSelectedGenre] = useState<string>('');
-  const [selectedYear, setSelectedYear] = useState<string>('');
-  const [selectedAuthor, setSelectedAuthor] = useState<string>('');
-  const [selectedNarrator, setSelectedNarrator] = useState<string>('');
-  const [showFilters, setShowFilters] = useState(false);
+  const [selectedLibraryId, setSelectedLibraryId] = useState<string>(restored?.selectedLibraryId ?? '');
+  const [selectedSeries, setSelectedSeries] = useState<string>(restored?.selectedSeries ?? '');
+  const [selectedTag, setSelectedTag] = useState<string>(restored?.selectedTag ?? '');
+  const [selectedGenre, setSelectedGenre] = useState<string>(restored?.selectedGenre ?? '');
+  const [selectedYear, setSelectedYear] = useState<string>(restored?.selectedYear ?? '');
+  const [selectedAuthor, setSelectedAuthor] = useState<string>(restored?.selectedAuthor ?? '');
+  const [selectedNarrator, setSelectedNarrator] = useState<string>(restored?.selectedNarrator ?? '');
+  const [showFilters, setShowFilters] = useState(restored?.showFilters ?? false);
   
   // Data options
   const [libraries, setLibraries] = useState<Library[]>([]);
@@ -154,10 +177,10 @@ const SearchPage: React.FC = () => {
   const [allAuthors, setAllAuthors] = useState<string[]>([]);
   const [allNarrators, setAllNarrators] = useState<string[]>([]);
   
-  const [results, setResults] = useState<Book[]>([]);
+  const [results, setResults] = useState<Book[]>(restored?.results ?? []);
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState(restored?.debouncedQuery ?? '');
 
   // Online book sources: the shelf never queries them on its own except in the
   // default "全部" mode, where a search asks both. The source row only offers
@@ -166,16 +189,29 @@ const SearchPage: React.FC = () => {
   // The source list is still on its way: the online block must say "加载中"
   // rather than "暂无在线书源" while the answer is simply not back yet.
   const [sourcesReady, setSourcesReady] = useState(false);
-  const [sourceMode, setSourceMode] = useState<'all' | 'local' | 'online'>('all');
+  const [sourceMode, setSourceMode] = useState<'all' | 'local' | 'online'>(restored?.sourceMode ?? 'all');
   // One fetch result tagged with the query it belongs to. Anything stale is
   // dropped while rendering instead of being cleared inside an effect.
   const [onlineResult, setOnlineResult] = useState<{
     key: string;
     items: OnlineBookItem[];
     error: string;
-  }>({ key: '', items: [], error: '' });
+  }>(restored?.onlineResult ?? { key: '', items: [], error: '' });
   const [openingSourceId, setOpeningSourceId] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const latestRef = useRef<SavedSearchState | null>(null);
+  useEffect(() => {
+    latestRef.current = {
+      query, debouncedQuery, sourceMode, selectedLibraryId, selectedSeries, selectedTag,
+      selectedGenre, selectedYear, selectedAuthor, selectedNarrator, showFilters, results, onlineResult,
+    };
+  });
+  // By the time this cleanup runs the address already points at where the user
+  // went: a book means they will be back, anything else means a fresh start.
+  useEffect(() => () => {
+    searchMemory.state = /^\/book\//.test(getRuntimePathname()) ? latestRef.current : null;
+  }, []);
   
   // Cover shape and icon size settings from bookshelf
   const { coverShape, iconSize } = useBookshelfDisplaySettings();
@@ -199,11 +235,13 @@ const SearchPage: React.FC = () => {
   // The search field is the only thing this page is for: put the caret in it on
   // entry so the mobile keyboard comes up without an extra tap.
   useEffect(() => {
+    // Coming back with a keyword in place: leave the keyboard down.
+    if (restored?.query) return undefined;
     const frame = window.requestAnimationFrame(() => {
       searchInputRef.current?.focus({ preventScroll: true });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, []);
+  }, [restored]);
 
   // Fetch all metadata options on mount
   useEffect(() => {
@@ -386,7 +424,9 @@ const SearchPage: React.FC = () => {
         });
         if (controller.signal.aborted) return;
 
-        let filtered = data as Book[];
+        // Online books live in a managed source library once opened; they are not
+        // local audio and belong only to the online block below.
+        let filtered = (data as Book[]).filter((book) => book.library_type !== 'source');
         // The query is a title query: the host also matches author and narrator,
         // which made "论语" return unrelated books whose reader happens to share
         // a character. Keep only titles that contain the typed keyword.
@@ -437,7 +477,7 @@ const SearchPage: React.FC = () => {
             <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
             <input 
               ref={searchInputRef}
-              autoFocus
+              autoFocus={!restored?.query}
               type="search"
               enterKeyHint="search"
               aria-label={t('searchPage.placeholder')}
