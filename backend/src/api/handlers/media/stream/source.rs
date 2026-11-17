@@ -2,15 +2,177 @@ use super::{
     Result, StreamContext, TingError, create_decrypted_stream, get_remote_media_reader,
     is_download_query, preload, stream_mime_type_from_path,
 };
-use crate::core::app::error::{InputErrorKind, LookupErrorKind, PluginErrorKind};
+use crate::core::app::error::{InputErrorKind, LookupErrorKind, NetworkErrorKind, PluginErrorKind};
 use axum::{
     body::Body,
     http::{StatusCode, header},
     response::IntoResponse,
 };
+use futures::FutureExt;
+use futures::future::{BoxFuture, Shared};
 use ting_plugin_contract::format::FormatOperation;
-use tokio::io::{AsyncReadExt, AsyncSeekExt};
+use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tokio_util::io::ReaderStream;
+
+type SourceDownload = Shared<BoxFuture<'static, std::result::Result<(), String>>>;
+
+/// One in-flight full download per source chapter. Concurrent Range requests
+/// (and a browser that aborts and re-asks) all wait on the same download.
+static SOURCE_DOWNLOADS: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::HashMap<String, SourceDownload>>,
+> = std::sync::LazyLock::new(Default::default);
+
+const SOURCE_DOWNLOAD_ATTEMPTS: u32 = 6;
+
+/// Fetch a source chapter completely into the disk cache before serving it.
+/// Streaming it straight from the upstream CDN produced truncated responses and
+/// a player that kept stopping and restarting; a local file seeks reliably.
+/// An interrupted download resumes from the bytes already written.
+async fn download_source_chapter(
+    state: &crate::api::state::AppState,
+    library: &crate::db::models::Library,
+    chapter_id: &str,
+    chapter_path: &str,
+) -> Result<()> {
+    let cache_path = state.cache_manager.get_cache_path(chapter_id);
+    if cache_path.exists() {
+        return Ok(());
+    }
+    let disk_limit = state.config.read().await.storage.max_disk_usage;
+    let temp_path = cache_path.with_extension(format!("dl-{}.tmp", uuid::Uuid::new_v4()));
+    let outcome =
+        download_source_to_file(state, library, chapter_path, &temp_path, disk_limit).await;
+    if outcome.is_err() {
+        let _ = tokio::fs::remove_file(&temp_path).await;
+        return outcome;
+    }
+    tokio::fs::rename(&temp_path, &cache_path).await?;
+    let config = state.config.read().await;
+    if let Err(error) = state
+        .cache_manager
+        .enforce_limits(50, config.storage.max_disk_usage)
+        .await
+    {
+        tracing::warn!(chapter_id, error = %error, "Failed to enforce cache limits");
+    }
+    Ok(())
+}
+
+async fn download_source_to_file(
+    state: &crate::api::state::AppState,
+    library: &crate::db::models::Library,
+    chapter_path: &str,
+    temp_path: &std::path::Path,
+    disk_limit: u64,
+) -> Result<()> {
+    let mut file = tokio::fs::File::create(temp_path).await?;
+    let mut buffer = vec![0u8; 64 * 1024];
+    let mut written: u64 = 0;
+    let mut failures: u32 = 0;
+    loop {
+        let audio = state
+            .scraper_service
+            .resolve_source_audio(library, chapter_path)
+            .await?;
+        let range = (written > 0).then_some((written, 0));
+        let (mut reader, total) = match audio.reader(&state.storage_service, range).await {
+            Ok(opened) => opened,
+            Err(error) => {
+                failures += 1;
+                if failures >= SOURCE_DOWNLOAD_ATTEMPTS {
+                    return Err(error);
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(400 * u64::from(failures)))
+                    .await;
+                continue;
+            }
+        };
+        let mut read_failed = false;
+        loop {
+            match reader.read(&mut buffer).await {
+                Ok(0) => break,
+                Ok(read) => {
+                    file.write_all(&buffer[..read]).await?;
+                    written += read as u64;
+                    if written > disk_limit {
+                        return Err(TingError::invalid_request(
+                            InputErrorKind::OutOfRange,
+                            "stream_source::invalid_request",
+                            "Source chapter exceeds the disk cache limit".to_string(),
+                        ));
+                    }
+                }
+                Err(error) => {
+                    tracing::warn!(error = %error, written, "Source chapter download interrupted");
+                    read_failed = true;
+                    break;
+                }
+            }
+        }
+        if !read_failed && (total == 0 || written >= total) {
+            break;
+        }
+        failures += 1;
+        if failures >= SOURCE_DOWNLOAD_ATTEMPTS {
+            return Err(TingError::network(
+                NetworkErrorKind::Transport,
+                "stream_source::download",
+                format!("Source chapter download incomplete: {written} of {total} bytes"),
+            ));
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(400 * u64::from(failures))).await;
+    }
+    file.flush().await?;
+    Ok(())
+}
+
+async fn ensure_source_cached(
+    state: &crate::api::state::AppState,
+    library: &crate::db::models::Library,
+    chapter_id: &str,
+    chapter_path: &str,
+) -> Result<()> {
+    if state.cache_manager.get_cache_path(chapter_id).exists() {
+        return Ok(());
+    }
+    let existing = SOURCE_DOWNLOADS
+        .lock()
+        .ok()
+        .and_then(|downloads| downloads.get(chapter_id).cloned());
+    let shared = match existing {
+        Some(shared) => shared,
+        None => {
+            let task_state = state.clone();
+            let task_library = library.clone();
+            let id = chapter_id.to_string();
+            let path = chapter_path.to_string();
+            let handle = tokio::spawn(async move {
+                let result = download_source_chapter(&task_state, &task_library, &id, &path)
+                    .await
+                    .map_err(|error| error.to_string());
+                if let Ok(mut downloads) = SOURCE_DOWNLOADS.lock() {
+                    downloads.remove(&id);
+                }
+                result
+            });
+            let shared: SourceDownload =
+                async move { handle.await.unwrap_or_else(|error| Err(error.to_string())) }
+                    .boxed()
+                    .shared();
+            if let Ok(mut downloads) = SOURCE_DOWNLOADS.lock() {
+                downloads.insert(chapter_id.to_string(), shared.clone());
+            }
+            shared
+        }
+    };
+    shared.await.map_err(|message| {
+        TingError::network(
+            NetworkErrorKind::Transport,
+            "stream_source::download",
+            message,
+        )
+    })
+}
 
 async fn remote_reader(
     state: &crate::api::state::AppState,
@@ -26,6 +188,51 @@ async fn remote_reader(
     }
 }
 
+/// How long one "prepare" request waits for the download. Kept well below the
+/// gateway's request timeout; the client polls until the chapter is ready.
+const SOURCE_PREPARE_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
+
+async fn prepare_source_chapter(
+    state: &crate::api::state::AppState,
+    library: &crate::db::models::Library,
+    chapter: &crate::db::models::Chapter,
+    has_source_audio: bool,
+) -> Result<axum::response::Response> {
+    if library.library_type != "source" || !has_source_audio {
+        return Ok((
+            StatusCode::OK,
+            axum::Json(serde_json::json!({ "ready": true })),
+        )
+            .into_response());
+    }
+    match tokio::time::timeout(
+        SOURCE_PREPARE_WAIT,
+        ensure_source_cached(state, library, &chapter.id, &chapter.path),
+    )
+    .await
+    {
+        Ok(Ok(())) => Ok((
+            StatusCode::OK,
+            axum::Json(serde_json::json!({ "ready": true })),
+        )
+            .into_response()),
+        Ok(Err(error)) => {
+            // Caching failed; let the player fall back to direct streaming.
+            tracing::warn!(chapter_id = %chapter.id, error = %error, "Source chapter prepare failed");
+            Ok((
+                StatusCode::OK,
+                axum::Json(serde_json::json!({ "ready": true })),
+            )
+                .into_response())
+        }
+        Err(_) => Ok((
+            StatusCode::ACCEPTED,
+            axum::Json(serde_json::json!({ "ready": false })),
+        )
+            .into_response()),
+    }
+}
+
 pub(super) async fn stream_source(context: StreamContext) -> Result<axum::response::Response> {
     let StreamContext {
         state,
@@ -38,6 +245,9 @@ pub(super) async fn stream_source(context: StreamContext) -> Result<axum::respon
         user,
         source_audio,
     } = context;
+    if params.prepare.unwrap_or(false) {
+        return prepare_source_chapter(&state, &library, &chapter, source_audio.is_some()).await;
+    }
     let mime_type = source_audio
         .as_ref()
         .map(|source| {
@@ -51,7 +261,8 @@ pub(super) async fn stream_source(context: StreamContext) -> Result<axum::respon
     let chapter_id = chapter.id.clone();
     let is_head_request = method == axum::http::Method::HEAD;
     let is_download_request = is_download_query(&params);
-    if !is_download_request && !params.preload.unwrap_or(false) {
+    if !is_download_request && !params.preload.unwrap_or(false) && library.library_type != "source"
+    {
         preload::maybe_spawn_auto_preload(&state, user.as_ref(), &book, &chapter_id, &library)
             .await;
     }
@@ -117,6 +328,19 @@ pub(super) async fn stream_source(context: StreamContext) -> Result<axum::respon
             tracing::debug!(target: "media", chapter_id = %chapter_id, "Serving preloaded prefix with streaming remainder");
             return Ok(response);
         }
+    }
+
+    // Online-book chapters are cached whole first, then served from disk.
+    if library.library_type == "source"
+        && source_audio.is_some()
+        && !is_head_request
+        && let Err(error) = ensure_source_cached(&state, &library, &chapter_id, &chapter.path).await
+    {
+        tracing::warn!(
+            chapter_id = %chapter_id,
+            error = %error,
+            "Source chapter caching failed; streaming it directly"
+        );
     }
 
     // 2. Check Disk Cache
