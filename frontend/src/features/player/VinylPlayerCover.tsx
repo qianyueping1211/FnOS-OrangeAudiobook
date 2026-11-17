@@ -31,8 +31,9 @@ const PlayerCoverImage: React.FC<{ book: Book | null | undefined }> = ({ book })
 };
 
 // ─── VinylPlayerCover ──────────────────────────────────────────────────────
-// 一台唱机：盘子只占方框六成多，四周留白给唱臂。枢轴是盘外正上方的一颗小白点，
-// 细长白杆往右下伸，末端只搭在盘边；暂停时整根抬起来往右上一摆，针就离开盘面。
+// 一台唱机：盘子外面套一圈半透明的光晕，封面占盘的七成，几乎没有留白的唱片中心。
+// 枢轴是盘外正上方的一颗白点，白杆先往下、再顺势斜到盘的右上缘，末端是一块斜放的圆角针头；
+// 暂停时整根抬起来往右上一摆，针就离开盘面。
 export const VinylPlayerCover: React.FC<Props> = ({ book, isPlaying, preview, sizeClass, size }) => (
   <div
     className={`reader-vinyl ${sizeClass || ''} ${preview ? 'is-preview' : ''} ${isPlaying || preview ? 'is-playing' : ''}`}
@@ -51,12 +52,11 @@ export const VinylPlayerCover: React.FC<Props> = ({ book, isPlaying, preview, si
     </div>
     <svg className="reader-vinyl-tonearm" viewBox="0 0 120 120" aria-hidden="true">
       <g className="reader-vinyl-arm">
-        <circle className="reader-vinyl-pivot" cx="60" cy="6" r="3.2" />
-        <path className="reader-vinyl-rod" d="M60 9.4 C 61 20, 62.6 32, 63.4 41 C 64 48.4, 70 52.6, 85 52.6" />
-        <g transform="rotate(10 90 52)">
-          <rect className="reader-vinyl-head" x="84.5" y="49.6" width="9" height="4.4" rx="1.5" />
-          <rect className="reader-vinyl-head-line" x="86.4" y="50.4" width="0.7" height="3.4" rx="0.35" />
-          <rect className="reader-vinyl-needle" x="93" y="51" width="3" height="1.2" rx="0.6" />
+        <circle className="reader-vinyl-pivot-ring" cx="60" cy="9" r="5.4" />
+        <circle className="reader-vinyl-pivot" cx="60" cy="9" r="3.5" />
+        <path className="reader-vinyl-rod" d="M60 11.5 C 61.5 21, 65 29, 72 34.2" />
+        <g transform="rotate(48 72 34.2)">
+          <rect className="reader-vinyl-head" x="71" y="32.2" width="10" height="4" rx="1.5" />
         </g>
       </g>
     </svg>
