@@ -139,6 +139,27 @@ function pkcs7Strip(bytes) {
   return bytes.subarray(0, bytes.length - padding);
 }
 
+// 插件运行时没有 atob，这里自带一个 base64 解码，返回每个字符对应一个字节的字符串。
+function base64ToBinary(input) {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  const clean = String(input).replace(/=+$/, "");
+  let out = "";
+  let buffer = 0;
+  let bits = 0;
+  for (let index = 0; index < clean.length; index += 1) {
+    const value = alphabet.indexOf(clean.charAt(index));
+    if (value < 0) throw new Error("播放地址密文不是合法的 base64");
+    buffer = (buffer << 6) | value;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      out += String.fromCharCode((buffer >> bits) & 0xff);
+      buffer &= (1 << bits) - 1;
+    }
+  }
+  return out;
+}
+
 /**
  * 解密一段 AES-128-ECB 密文。keyHex 是 32 个十六进制字符（16 字节）。
  * 输入是 base64url 字符串或字节数组，返回 UTF-8 明文。
@@ -150,7 +171,7 @@ export function decryptAes128EcbBase64(keyHex, base64Url) {
   }
   const normalized = String(base64Url).replace(/-/g, "+").replace(/_/g, "/");
   const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
-  const binary = atob(padded);
+  const binary = base64ToBinary(padded);
   const cipher = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) {
     cipher[index] = binary.charCodeAt(index);
