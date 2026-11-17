@@ -232,11 +232,8 @@ input::placeholder,textarea::placeholder {color:var(--reader-muted);opacity:.8}
 }
 
 @media(max-width:959px) {
-  /* 手机首页定死一屏：只画最新三本、页面本身不滚动，留白交给背景。 */
-  .reader-home .reader-grid>:nth-child(n+4),.reader-home .reader-recent-grid>:nth-child(n+3) {display:none}
-  /* 权重必须高于下面的 .reader-locked-page .reader-page-scroll{overflow-y:auto}，
-     否则首页的滚动壳会把这条盖掉。 */
-  .reader-home.reader-locked-page .reader-page-scroll {overflow-y:hidden}
+  /* 手机首页最新上新摆六本（三列两行），不再定死一屏，内容多了就滚动。 */
+  .reader-home .reader-recent-grid>:nth-child(n+3) {display:none}
 }
 
 /* The playback page reuses the expanded player while keeping navigation available. */
@@ -532,3 +529,6 @@ html.reader-ios { touch-action:pan-x pan-y }
   filter:blur(58px) saturate(1.5) brightness(.58);transform:scale(1.3)}
 .reader-vinyl-ambient::after {content:'';position:absolute;inset:0;
   background:linear-gradient(180deg,rgba(8,8,12,.5) 0%,rgba(8,8,12,.68) 46%,rgba(8,8,12,.82) 100%)}
+
+/* 首页自己带底部让位（HomePage 的 tail）；壳层在有迷你播放条时再补一份会叠成大片空白。 */
+.reader-content:has(> .reader-home) {padding-bottom:0}
