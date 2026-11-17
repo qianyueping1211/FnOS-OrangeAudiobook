@@ -300,7 +300,7 @@ export async function resolve_audio(input) {
   return success({
     type: "proxy",
     url: audioUrl,
-    headers: { Referer: WEB + "/" },
+    headers: { Referer: WEB + "/", "User-Agent": UA },
     expires_at: null,
     seekable: true,
     mime: trimmed(picked.type).startsWith("M4A") ? "audio/mp4" : "audio/mpeg",
