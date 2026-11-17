@@ -1,7 +1,7 @@
 {
   "name": "ting-reader-frontend",
   "private": true,
-  "version": "2.2.64",
+  "version": "2.2.65",
   "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
@@ -67,6 +67,6 @@
   },
   "engines": {
     "node": ">=24 <25",
-    "npm": ">=11 <12"
+    "npm": "^11"
   }
 }
