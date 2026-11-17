@@ -75,7 +75,7 @@ export default function HomePage() {
         booksReady = ready;
         setData({ ...current, identity, loading: !booksReady });
         if (booksReady) {
-          const latest = [...current.books].sort((a,b) => Date.parse(b.created_at)-Date.parse(a.created_at)).slice(0,3);
+          const latest = [...current.books].sort((a,b) => Date.parse(b.created_at)-Date.parse(a.created_at)).slice(0,6);
           const lastId = [...current.recent].sort((a,b) => Date.parse(b.updated_at)-Date.parse(a.updated_at))[0]?.book_id;
           const lastBook = current.books.find(book => book.id === lastId);
           if (lastBook && !latest.some(book => book.id === lastId)) latest.push(lastBook);
@@ -97,7 +97,7 @@ export default function HomePage() {
       // ships every row before the page can paint.
       void apiClient.get<{ items: Book[]; total: number }>('/api/books/page', {
         ...options,
-        // 首页只摆最新三本（手机端固定一屏），系列书照旧交给书架的系列区块，
+        // 首页摆最新六本，系列书照旧交给书架的系列区块，
         // 所以这里仍按接口默认过滤，只把 page_size 收小省一次往返体积。
         params: { page_size: 6, sort: 'created' },
       }).then(({ data }) => update({
@@ -152,7 +152,7 @@ export default function HomePage() {
     });
   const latest = [...books]
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
-    .slice(0, 3);
+    .slice(0, 6);
   // "为你推荐" is the shelf's own signal: favourites first, then the newest
   // arrivals, so a small library still fills the row. It is only painted when
   // the reader keeps the switch on in 个性化设置.
@@ -162,10 +162,6 @@ export default function HomePage() {
       .filter(book => { if (seen.has(book.id)) return false; seen.add(book.id); return true; })
       .slice(0, 6);
   }, [favorites, latest]);
-  // The mobile home is pinned to one screen only while the reader keeps every
-  // extra section off: turning any of them on has to scroll, so the lock is
-  // dropped here instead of deleting the sections from the page.
-  const extraHomeSections = layout.showRecommended || layout.showRecent || layout.showCollections;
   const last = recentBooks[0];
   // 手机端页面高度按内容算，不按屏幕撑：内容没占满一屏时底部不留空格，
   // 只有真的需要滚动（最后一行会被浮层压住）时才补上底部让位。
@@ -251,7 +247,7 @@ export default function HomePage() {
     }
   }, [hero?.id, hero?.title, heroCredit]);
 
-  return <div ref={homeRef} className={`reader-page reader-home flex flex-1 flex-col ${extraHomeSections ? '' : 'reader-locked-page'}`}>
+  return <div ref={homeRef} className="reader-page reader-home flex flex-1 flex-col">
     <header className="reader-heading reader-page-toolbar">
       <div><div className="reader-eyebrow">{t('reader.privateLibrary')}</div><h1>{t('reader.homeTitle')}</h1><p>{t('reader.homeSubtitle')}</p></div>
       <Link to="/search" className="reader-search-link"><Search size={19} /><span>{t('reader.searchPlaceholder')}</span></Link>
