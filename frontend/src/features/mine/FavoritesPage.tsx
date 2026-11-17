@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import apiClient from '../../core/api/client';
+import { useOnlineBookFilter } from '../../core/utils/onlineBooks';
 import { getBookshelfGridClass, useBookshelfDisplaySettings } from '../../core/hooks/useBookshelfCoverShape';
 import type { Book } from '../../core/types';
 import BookCard from '../../shared/cards/BookCard';
@@ -13,7 +14,10 @@ import { useTranslation } from 'react-i18next';
 const FavoritesPage: React.FC = () => {
   const { t } = useTranslation();
   const currentChapter = usePlayerStore((state) => state.currentChapter);
-  const [books, setBooks] = useState<Book[]>([]);
+  const [allBooks, setBooks] = useState<Book[]>([]);
+  // 个性化设置里关掉「在线书籍播放」后，收藏里的在线书不显示。
+  const hideOnline = useOnlineBookFilter();
+  const books = useMemo(() => allBooks.filter((book) => !hideOnline(book)), [allBooks, hideOnline]);
   const [loading, setLoading] = useState(true);
   const { coverShape, iconSize } = useBookshelfDisplaySettings();
 
