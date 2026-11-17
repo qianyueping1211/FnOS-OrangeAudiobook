@@ -112,6 +112,35 @@ export const usePlayback = () => {
     ? Math.max(chapterStart, currentChapter.end_time / 1000)
     : null;
   const chapterSegmentDuration = chapterEnd !== null ? Math.max(0, chapterEnd - chapterStart) : 0;
+  // 在线书籍：服务器先把整集缓存到磁盘，缓存完成前不给播放器设置音频地址，
+  // 期间按钮转圈、唱针抬起；缓存好了再开始播放，避免边下边播反复启停。
+  const isSourceBook = currentBook?.library_type === 'source';
+  const [preparedChapterId, setPreparedChapterId] = useState<string | null>(null);
+  const sourceReady = !isSourceBook || preparedChapterId === currentChapter?.id;
+  useEffect(() => {
+    if (!isSourceBook || !currentChapterId) return;
+    const controller = new AbortController();
+    const chapterId = currentChapterId;
+    usePlayerStore.getState().setIsBuffering(usePlayerStore.getState().isPlaying);
+    void (async () => {
+      for (let attempt = 0; attempt < 240 && !controller.signal.aborted; attempt++) {
+        try {
+          const response = await apiClient.get<{ ready?: boolean }>(`/api/stream/${chapterId}`, {
+            params: { prepare: true, ...(token ? { token } : {}) },
+            signal: controller.signal,
+            timeout: 20000,
+          });
+          if (response.data?.ready) break;
+        } catch {
+          if (controller.signal.aborted) return;
+          await new Promise((resolve) => window.setTimeout(resolve, 1500));
+        }
+      }
+      // 准备失败也放行：服务器会退回直接流式播放，不让播放器卡死在转圈上。
+      if (!controller.signal.aborted) setPreparedChapterId(chapterId);
+    })();
+    return () => controller.abort();
+  }, [isSourceBook, currentChapterId, token]);
   const isInitialLoadRef = useRef(true);
   const pendingMediaSeek = useRef(new PendingMediaSeek());
   const chapterAdvanceRef = useRef(new ChapterAdvance());
@@ -438,6 +467,10 @@ export const usePlayback = () => {
   useEffect(() => {
     if (!audioRef.current || !currentChapter) return;
     if (shouldUseHlsForCurrentChapter && !hlsStreamUrl) return;
+    if (!sourceReady) {
+      usePlayerStore.getState().setIsBuffering(isPlaying);
+      return;
+    }
     // Reset retry count when chapter changes (this is also handled in another effect, but safe to double check)
     // IMPORTANT: If source changes due to transcoding, we do NOT want to reset retry count immediately here
     // or we might enter a loop.
@@ -458,6 +491,7 @@ export const usePlayback = () => {
     seekOffset,
     hlsStreamUrl,
     hlsSeekOffset,
+    sourceReady,
     t,
   ]);
 
@@ -833,7 +867,7 @@ export const usePlayback = () => {
     ? hlsChapterId === currentChapter.id
       ? hlsStreamUrl || ""
       : ""
-    : getStreamUrl(currentChapter.id);
+    : !sourceReady ? "" : getStreamUrl(currentChapter.id);
 
   React.useLayoutEffect(() => {
     sourceSwitchingRef.current = true;
@@ -867,8 +901,22 @@ export const usePlayback = () => {
     advanceToNextChapter();
   };
 
+  // 想播放但数据还不够继续播（刚开始加载、网络缓冲）：显示缓冲中，不把它当作暂停。
+  const syncBuffering = () => {
+    const audio = audioRef.current;
+    const loading = !!audio && !audio.error && !!audio.getAttribute('src')
+      && audio.readyState < HTMLMediaElement.HAVE_FUTURE_DATA;
+    usePlayerStore.getState().setIsBuffering(loading && usePlayerStore.getState().isPlaying);
+  };
+
   const audioProps: React.AudioHTMLAttributes<HTMLAudioElement> & { ref: React.RefObject<HTMLAudioElement | null> } = {
     ref: audioRef,
+    onLoadStart: syncBuffering,
+    onWaiting: syncBuffering,
+    onStalled: syncBuffering,
+    onPlaying: syncBuffering,
+    onEmptied: syncBuffering,
+    onSeeking: syncBuffering,
     src: audioSrc || undefined,
     onTimeUpdate: handleTimeUpdate,
     onProgress: handleProgress,
@@ -883,10 +931,12 @@ export const usePlayback = () => {
       if (audio && audio.paused && usePlayerStore.getState().isPlaying) {
         requestAudioPlayback(audio);
       }
+      syncBuffering();
     },
     onEnded: handleEnded,
     onSeeked: () => {
       if (audioRef.current) pendingMediaSeek.current.apply(audioRef.current.getAttribute('src') ?? '', audioRef.current);
+      syncBuffering();
     },
     onPlay: () => {
       if (audioRef.current && audioRef.current.readyState >= 3) {
