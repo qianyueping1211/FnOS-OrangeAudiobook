@@ -141,6 +141,45 @@ async fn source_theme_color(
     }
 }
 
+/// Resolved playback descriptors keyed by library/plugin/chapter. One chapter is
+/// fetched with many Range requests; resolving each time hits the upstream API.
+static AUDIO_CACHE: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::HashMap<String, (serde_json::Value, std::time::Instant)>>,
+> = std::sync::LazyLock::new(Default::default);
+/// Serialises resolves so concurrent Range requests share one plugin call.
+static AUDIO_RESOLVE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+fn cached_audio_output(key: &str) -> Option<serde_json::Value> {
+    let cache = AUDIO_CACHE.lock().ok()?;
+    let (output, expires_at) = cache.get(key)?;
+    (*expires_at > std::time::Instant::now()).then(|| output.clone())
+}
+
+fn store_audio_output(key: String, output: &serde_json::Value) {
+    let mut ttl = std::time::Duration::from_secs(300);
+    if let Some(expiry) = output
+        .get("expires_at")
+        .and_then(|value| value.as_str())
+        .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+    {
+        let remaining = expiry.with_timezone(&chrono::Utc)
+            - chrono::Utc::now()
+            - chrono::Duration::seconds(60);
+        match remaining.to_std() {
+            Ok(remaining) => ttl = ttl.min(remaining),
+            Err(_) => return,
+        }
+    }
+    if let Ok(mut cache) = AUDIO_CACHE.lock() {
+        let now = std::time::Instant::now();
+        cache.retain(|_, (_, expires_at)| *expires_at > now);
+        if cache.len() >= 200 {
+            cache.clear();
+        }
+        cache.insert(key, (output.clone(), now + ttl));
+    }
+}
+
 impl ScraperService {
     /// Fetch and persist only the source chapter page needed by the detail
     /// view. Ordinary book libraries and legacy source plugins are untouched.
@@ -382,14 +421,31 @@ impl ScraperService {
             })?;
         let source = self.book_source(&binding.plugin_id, true).await?;
         let plugin = self.plugin_manager.get_plugin(&source.id)?;
-        let output = self
-            .plugin_manager
-            .invoke_metadata(
-                &source.id,
-                MetadataOperation::ResolveAudio,
-                serde_json::json!({ "chapter_id": chapter_id }),
-            )
-            .await?;
+        // One chapter is fetched with many Range requests (buffering, seeking,
+        // retries). Re-resolving for each of them hits the upstream API every
+        // time, adds latency to every segment and eventually gets throttled.
+        let cache_key = format!("{}\u{1f}{}\u{1f}{}", library.id, source.id, chapter_id);
+        let cached = cached_audio_output(&cache_key);
+        let output = match cached {
+            Some(output) => output,
+            None => {
+                let _guard = AUDIO_RESOLVE_LOCK.lock().await;
+                if let Some(output) = cached_audio_output(&cache_key) {
+                    output
+                } else {
+                    let output = self
+                        .plugin_manager
+                        .invoke_metadata(
+                            &source.id,
+                            MetadataOperation::ResolveAudio,
+                            serde_json::json!({ "chapter_id": chapter_id }),
+                        )
+                        .await?;
+                    store_audio_output(cache_key, &output);
+                    output
+                }
+            }
+        };
         let descriptor: MediaSourceDescriptor =
             serde_json::from_value(output).map_err(|error| source_error(error.to_string()))?;
         descriptor.validate().map_err(source_error)?;
