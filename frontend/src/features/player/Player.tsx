@@ -484,9 +484,10 @@ const Player: React.FC = () => {
               if (isPlayerPage) navigate("/bookshelf");
             }}
             onClosePlayer={() => {
-              // 全屏播放只剩一条路径（/player），关闭也只有这一套语义：把播放器收进
-              // 后台，不清 currentBook、不打断播放，也不退化成迷你条，然后回首页。
+              // 关闭播放器 = 暂停并收进后台：保留 currentBook（首页「继续收听」还能接着听），
+              // 但声音必须停下，不能窗口没了还在后台继续播。然后回首页。
               // PC 微件没有 tab 路由，那里只收起展开态。
+              usePlayerStore.setState({ isPlaying: false });
               setShowSettings(false);
               if (isWidgetMode) {
                 setIsExpanded(false);
