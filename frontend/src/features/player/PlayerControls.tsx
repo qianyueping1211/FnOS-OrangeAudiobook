@@ -1,7 +1,8 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Play, Pause, SkipBack, SkipForward, RotateCcw, RotateCw,
-  Volume2, VolumeX, ChevronLeft, Maximize2, Zap, ListMusic, Bookmark } from 'lucide-react';
+  Volume2, VolumeX, ChevronLeft, Maximize2, Zap, ListMusic, Bookmark, Loader2 } from 'lucide-react';
+import { usePlayerStore } from '../../core/stores/playerStore';
 import { setAlpha, toSolidColor, isLight } from '../../core/utils/color';
 import ProgressBar, { type ProgressBarProps } from './ProgressBar';
 import { SleepTimerPopover, VolumeSliderPanel } from './PlayerSettingsControls';
@@ -35,9 +36,10 @@ const PlayerPlayButton: React.FC<{
   expanded?: boolean;
 }> = ({ playing, onClick, themeColor, expanded = false }) => {
   const { t } = useTranslation();
+  const buffering = usePlayerStore((state) => state.isBuffering) && playing;
   const Icon = playing ? Pause : Play;
   return (
-    <button onClick={onClick} aria-label={t(playing ? 'player.pause' : 'player.play')}
+    <button onClick={onClick} aria-label={t(playing ? 'player.pause' : 'player.play')} aria-busy={buffering}
       className={`rounded-full text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-transform ${
         expanded ? 'w-20 h-20 sm:w-24 sm:h-24 shadow-2xl' : 'w-10 h-10 max-[380px]:w-8 max-[380px]:h-8 shadow-md'
       } ${themeColor ? '' : 'bg-primary-600'}`}
@@ -45,8 +47,13 @@ const PlayerPlayButton: React.FC<{
         backgroundColor: toSolidColor(themeColor),
         color: isLight(themeColor) ? '#475569' : '#ffffff',
       } : undefined}>
-      <Icon size={expanded ? 32 : 20} fill="currentColor"
-        className={`${expanded ? 'sm:w-12 sm:h-12' : 'max-[380px]:w-4 max-[380px]:h-4'} ${playing ? '' : 'ml-1'}`} />
+      {buffering ? (
+        <Loader2 size={expanded ? 32 : 20}
+          className={`animate-spin ${expanded ? 'sm:w-12 sm:h-12' : 'max-[380px]:w-4 max-[380px]:h-4'}`} />
+      ) : (
+        <Icon size={expanded ? 32 : 20} fill="currentColor"
+          className={`${expanded ? 'sm:w-12 sm:h-12' : 'max-[380px]:w-4 max-[380px]:h-4'} ${playing ? '' : 'ml-1'}`} />
+      )}
     </button>
   );
 };
