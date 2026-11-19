@@ -81,6 +81,22 @@ export function apiErrorPayload(error: unknown, fallback: string): ApiErrorBody 
   };
 }
 
+/** Request cancellation is an expected control-flow event when a page, book,
+ * chapter group, or account changes. It must never be shown as a user error. */
+export function isRequestCancelled(error: unknown): boolean {
+  if (axios.isCancel(error)) return true;
+  const value = record(error);
+  const name = text(value?.name);
+  const code = text(value?.code);
+  const message = text(value?.message)?.toLowerCase();
+  return name === 'AbortError'
+    || name === 'CanceledError'
+    || code === 'ERR_CANCELED'
+    || message === 'canceled'
+    || message === 'cancelled'
+    || message === 'book operation cancelled';
+}
+
 export function apiErrorMessage(error: unknown, fallback: string): string {
   const body = readApiError(error);
   const message = body?.message?.trim();
