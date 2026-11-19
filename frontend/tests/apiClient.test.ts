@@ -6,7 +6,7 @@ import { BookOperations, readChapterGroupOrders } from '../src/core/api/books.ts
 import type { Book } from '../src/core/types/index.ts';
 import { createSingleFlightAdapter } from '../src/core/api/mutations.ts';
 import { getGatewayBasePath, getRuntimeAssetUrl, getRuntimePath, getRuntimeUrl } from '../src/core/utils/runtimeUrl.ts';
-import { apiErrorCode, apiErrorMessage, apiErrorPayload, ApiRequestError, readApiError } from '../src/core/api/errors.ts';
+import { apiErrorCode, apiErrorMessage, apiErrorPayload, ApiRequestError, isRequestCancelled, readApiError } from '../src/core/api/errors.ts';
 
 function sessionHarness() {
   const user = { id: 'listener', username: 'Reader' };
@@ -140,6 +140,14 @@ test('API errors tolerate malformed and non JSON responses without throwing', ()
   assert.deepEqual(details?.context, ['safe']);
   assert.equal(apiErrorMessage(new Error('transport failed'), 'fallback'), 'transport failed');
   assert.equal(apiErrorMessage({ response: { data: { error: 'NotFound' } } }, 'fallback'), 'NotFound');
+});
+
+test('request cancellation is classified as control flow instead of a user error', () => {
+  assert.equal(isRequestCancelled(new axios.CanceledError('canceled')), true);
+  assert.equal(isRequestCancelled(Object.assign(new Error('late request'), { code: 'ERR_CANCELED' })), true);
+  assert.equal(isRequestCancelled(new DOMException('Aborted', 'AbortError')), true);
+  assert.equal(isRequestCancelled(new Error('Book operation cancelled')), true);
+  assert.equal(isRequestCancelled(new Error('network unavailable')), false);
 });
 
 test('bridge payloads preserve error metadata without serializing request credentials', () => {
