@@ -530,3 +530,19 @@ html.reader-ios { touch-action:pan-x pan-y }
 
 /* 首页自己带底部让位（HomePage 的 tail）；壳层在有迷你播放条时再补一份会叠成大片空白。 */
 .reader-content:has(> .reader-home) {padding-bottom:0}
+
+/* The book-detail back action stays reachable while the mobile detail body scrolls. */
+@media (max-width: 959px) {
+  .reader-book-backbar {
+    position: sticky;
+    top: 0;
+    z-index: 35;
+    display: flex;
+    align-items: center;
+    min-height: 54px;
+    padding: 7px 0;
+    background: color-mix(in srgb, var(--reader-bg) 92%, transparent);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+}
