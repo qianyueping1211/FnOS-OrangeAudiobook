@@ -1,4 +1,4 @@
-import { apiErrorMessage } from '../../core/api/errors';
+import { apiErrorMessage, isRequestCancelled } from '../../core/api/errors';
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router';
 import type { Book, Chapter } from '../../core/types';
@@ -122,6 +122,7 @@ const BookDetailPage: React.FC = () => {
       const result = await operationsRef.current?.generateRegex(genFilename, genNum, genTitle);
       setGenResult(result ?? null);
     } catch (error) {
+      if (isRequestCancelled(error)) return;
       alert(apiErrorMessage(error, t('bookshelf.generateFailed')));
     }
   };
@@ -476,6 +477,7 @@ const BookDetailPage: React.FC = () => {
     try {
       await saveFavorite();
     } catch (err) {
+      if (isRequestCancelled(err)) return;
       console.error('Failed to toggle favorite', err);
     }
   };
@@ -501,7 +503,9 @@ const BookDetailPage: React.FC = () => {
   };
   const openScrape = () => {
     setIsScrapeDiffOpen(true);
-    void refreshFiles().catch(error => alert(apiErrorMessage(error, t('bookshelf.refreshFilesFailed'))));
+    void refreshFiles().catch(error => {
+      if (!isRequestCancelled(error)) alert(apiErrorMessage(error, t('bookshelf.refreshFilesFailed')));
+    });
   };
 
   const handleEditSave = async () => {
@@ -542,6 +546,7 @@ const BookDetailPage: React.FC = () => {
       setEditCoverFile(null);
       setEditLockTouched(false);
     } catch (error) {
+      if (isRequestCancelled(error)) return;
       setEditSaveError(apiErrorMessage(error, t(editCoverFile ? 'bookshelf.coverUploadFailed' : 'common.saveFailed')));
     } finally {
       setEditSaving(false);
@@ -554,6 +559,7 @@ const BookDetailPage: React.FC = () => {
       await operationsRef.current?.deleteBooks([id!], deleteSourceFiles);
       navigate('/', { replace: true });
     } catch (err) {
+      if (isRequestCancelled(err)) return;
       console.error('Failed to delete book', err);
       alert(apiErrorMessage(err, t('bookshelf.deleteBookFailed')));
     } finally {
@@ -649,7 +655,9 @@ const BookDetailPage: React.FC = () => {
     >
       <div className="flex-1 max-w-6xl mx-auto space-y-8 w-full">
         {/* Header */}
-        <BackButton fallback="/bookshelf" />
+        <div className="reader-book-backbar">
+          <BackButton fallback="/bookshelf" />
+        </div>
 
         {/* Book Info Section */}
         <BookHeaderSection
@@ -757,7 +765,9 @@ const BookDetailPage: React.FC = () => {
           bookId={book.id}
           onClose={() => setIsScrapeDiffOpen(false)}
           onSave={() => {
-            void refreshFiles().catch(error => alert(apiErrorMessage(error, t('bookshelf.refreshFilesFailed'))));
+            void refreshFiles().catch(error => {
+              if (!isRequestCancelled(error)) alert(apiErrorMessage(error, t('bookshelf.refreshFilesFailed')));
+            });
           }}
         />
       )}
