@@ -10,6 +10,14 @@
     <meta name="referrer" content="no-referrer" />
     <link rel="apple-touch-icon" href="%BASE_URL%pwa-256-maskable.png" />
     <title>橙子听书</title>
+    <!-- 脚本还没下载完时先显示底色和转圈，打开应用不再是一片空白；React 挂载后这段样式不再起作用。 -->
+    <style>
+      html, body { margin: 0; background: #0f0e14; }
+      @media (prefers-color-scheme: light) { html, body { background: #f8fafc; } }
+      #root:empty { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+      #root:empty::after { content: ""; width: 28px; height: 28px; border-radius: 50%; border: 3px solid rgba(249, 115, 22, 0.25); border-top-color: #f97316; animation: boot-spin 0.8s linear infinite; }
+      @keyframes boot-spin { to { transform: rotate(360deg); } }
+    </style>
   </head>
   <body>
     <div id="root"></div>
