@@ -191,6 +191,7 @@ const Layout: React.FC = () => {
   const setIsExpanded = usePlayerStore(state => state.setIsExpanded);
   const setPluginToolMenuEnabled = useUiPreferencesStore(state => state.setPluginToolMenuEnabled);
   const setBookshelfProgressEnabled = useUiPreferencesStore(state => state.setBookshelfProgressEnabled);
+  const setOnlineBooksEnabled = useUiPreferencesStore(state => state.setOnlineBooksEnabled);
   const { registry: pluginExtensionRegistry } = useClientExtensions();
   const { info: updateInfo } = useSystemUpdate(user?.role === 'admin');
 
@@ -274,10 +275,13 @@ const Layout: React.FC = () => {
             ?? true,
         );
         setBookshelfProgressEnabled(settings.bookshelf_progress_enabled ?? settings.settings_json?.bookshelf_progress_enabled ?? true);
+        // 在线书籍开关跟账号走；服务器没有记录时保留这台设备原来的选择。
+        const onlineBooks = settings.online_books_enabled ?? settings.settings_json?.online_books_enabled;
+        if (typeof onlineBooks === 'boolean') setOnlineBooksEnabled(onlineBooks);
       }).catch(err => { if (active) console.error('Failed to sync user settings', err); });
       return () => { active = false; };
     }
-  }, [user, setPlaybackSpeed, connectionError, setLanguage, setPluginToolMenuEnabled, setBookshelfProgressEnabled, applyTheme]);
+  }, [user, setPlaybackSpeed, connectionError, setLanguage, setPluginToolMenuEnabled, setBookshelfProgressEnabled, setOnlineBooksEnabled, applyTheme]);
 
   React.useEffect(() => {
     if (!user || connectionError) return;
