@@ -8,7 +8,7 @@ type UiPreferencesStore = {
   sidebarCollapsed: boolean;
   pluginToolMenuEnabled: boolean;
   bookshelfProgressEnabled: boolean;
-  /** 在线书籍总开关（按设备保存）。关闭后不检索、也不显示任何在线书。 */
+  /** 在线书籍总开关。以账号设置为准、各设备同步，本机只留一份作为启动时的缓存。关闭后不检索、也不显示任何在线书。 */
   onlineBooksEnabled: boolean;
   /** 在线书源对应的托管库 id，只在开关关闭时用来识别并隐藏在线书。 */
   sourceLibraryIds: string[];
