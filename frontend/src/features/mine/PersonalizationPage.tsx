@@ -127,6 +127,11 @@ const PersonalizationPage: React.FC = () => {
             data.bookshelf_progress_enabled
             ?? data.settings_json?.bookshelf_progress_enabled
             ?? true,
+          // 在线书籍开关跟账号走：服务器没有记录时先沿用这台设备已有的选择。
+          online_books_enabled:
+            data.online_books_enabled
+            ?? data.settings_json?.online_books_enabled
+            ?? useUiPreferencesStore.getState().onlineBooksEnabled,
           widget_css: data.widget_css ?? "",
           theme: normalizeTheme(data.theme),
           language: normalizeLanguage(
@@ -139,6 +144,7 @@ const PersonalizationPage: React.FC = () => {
         setSettings(fetchedSettings);
         setPluginToolMenuEnabled(fetchedSettings.plugin_tool_menu_enabled);
         setBookshelfProgressEnabled(fetchedSettings.bookshelf_progress_enabled !== false);
+        setOnlineBooksEnabled(fetchedSettings.online_books_enabled !== false);
         applyTheme(fetchedSettings.theme);
         void setLanguage(fetchedSettings.language, false);
       } catch (err) {
@@ -223,6 +229,9 @@ const PersonalizationPage: React.FC = () => {
       }
       if (typeof patch.bookshelf_progress_enabled === "boolean") {
         setBookshelfProgressEnabled(patch.bookshelf_progress_enabled);
+      }
+      if (typeof patch.online_books_enabled === "boolean") {
+        setOnlineBooksEnabled(patch.online_books_enabled);
       }
 
       setSaved(true);
@@ -517,9 +526,9 @@ const PersonalizationPage: React.FC = () => {
             />
             <ToggleRow
               title={t("settings.onlineBooks", "在线书籍播放")}
-              description={t("settings.onlineBooksDescription", "关闭后不再检索在线书，继续收听、书签、最近播放里已有的在线书也不显示。只影响这台设备。")}
+              description={t("settings.onlineBooksDescription", "关闭后不再检索在线书，继续收听、书签、最近播放里已有的在线书也不显示。同一账号的所有设备同步。")}
               checked={onlineBooksEnabled}
-              onChange={() => setOnlineBooksEnabled(!onlineBooksEnabled)}
+              onChange={() => void handleSaveSettings({ online_books_enabled: !onlineBooksEnabled })}
             />
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
