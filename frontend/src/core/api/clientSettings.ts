@@ -4,10 +4,10 @@ import { createScopedMemo } from './sharedRead';
 
 export type ClientSettings = {
   theme?: 'light' | 'dark' | 'system'; language?: string; playback_speed?: number; auto_preload?: boolean;
-  plugin_tool_menu_enabled?: boolean; bookshelf_progress_enabled?: boolean; home_layout?: unknown;
+  plugin_tool_menu_enabled?: boolean; bookshelf_progress_enabled?: boolean; online_books_enabled?: boolean; home_layout?: unknown;
   settings_json?: {
     language?: string; home_layout?: unknown; bookshelf_cover_shape?: string; bookshelf_icon_size?: string;
-    plugin_tool_menu_enabled?: boolean; bookshelf_progress_enabled?: boolean;
+    plugin_tool_menu_enabled?: boolean; bookshelf_progress_enabled?: boolean; online_books_enabled?: boolean;
   };
 };
 // One request serves the whole shell for the next few seconds: the layout, the
