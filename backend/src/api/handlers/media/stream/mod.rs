@@ -216,7 +216,12 @@ pub async fn stream_chapter(
         return transcode::transcode_stream(&state, &chapter, &library, &params).await;
     }
 
-    let source_audio = if library.library_type == "source" {
+    // A chapter that is already cached on disk is served as a plain file.
+    // Asking the plugin to resolve its audio URL again on every Range request
+    // only made each seek wait for a round trip to the book source.
+    let source_cached = library.library_type == "source"
+        && state.cache_manager.get_cache_path(&chapter.id).exists();
+    let source_audio = if library.library_type == "source" && !source_cached {
         Some(
             state
                 .scraper_service
