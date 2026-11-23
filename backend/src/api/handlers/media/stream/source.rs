@@ -233,6 +233,37 @@ async fn prepare_source_chapter(
     }
 }
 
+/// Content type of a cached online chapter, read from the file header because
+/// the source descriptor is not resolved for cached chapters.
+async fn sniff_cached_mime(path: &std::path::Path) -> Option<String> {
+    let mut file = tokio::fs::File::open(path).await.ok()?;
+    let mut head = [0u8; 12];
+    let mut filled = 0;
+    while filled < head.len() {
+        match file.read(&mut head[filled..]).await {
+            Ok(0) | Err(_) => break,
+            Ok(read) => filled += read,
+        }
+    }
+    let head = &head[..filled];
+    let mime = if head.len() >= 8 && &head[4..8] == b"ftyp" {
+        "audio/mp4"
+    } else if head.starts_with(b"ID3")
+        || (head.len() >= 2 && head[0] == 0xFF && head[1] & 0xE0 == 0xE0)
+    {
+        "audio/mpeg"
+    } else if head.starts_with(b"OggS") {
+        "audio/ogg"
+    } else if head.starts_with(b"fLaC") {
+        "audio/flac"
+    } else if head.starts_with(b"RIFF") {
+        "audio/wav"
+    } else {
+        return None;
+    };
+    Some(mime.to_string())
+}
+
 pub(super) async fn stream_source(context: StreamContext) -> Result<axum::response::Response> {
     let StreamContext {
         state,
@@ -248,6 +279,11 @@ pub(super) async fn stream_source(context: StreamContext) -> Result<axum::respon
     if params.prepare.unwrap_or(false) {
         return prepare_source_chapter(&state, &library, &chapter, source_audio.is_some()).await;
     }
+    let sniffed_mime = if library.library_type == "source" && source_audio.is_none() {
+        sniff_cached_mime(&state.cache_manager.get_cache_path(&chapter.id)).await
+    } else {
+        None
+    };
     let mime_type = source_audio
         .as_ref()
         .map(|source| {
@@ -257,6 +293,7 @@ pub(super) async fn stream_source(context: StreamContext) -> Result<axum::respon
                 .clone()
                 .unwrap_or_else(|| stream_mime_type_from_path(&source.descriptor.url))
         })
+        .or(sniffed_mime)
         .unwrap_or_else(|| stream_mime_type_from_path(&chapter.path));
     let chapter_id = chapter.id.clone();
     let is_head_request = method == axum::http::Method::HEAD;
@@ -270,7 +307,7 @@ pub(super) async fn stream_source(context: StreamContext) -> Result<axum::respon
     let cached_size_unknown = cached
         .as_ref()
         .is_some_and(|entry| entry.total_size.is_none());
-    let plugin_handles_format = if cached.is_some() && source_audio.is_none() {
+    let plugin_handles_format = if cached.is_some() && library.library_type != "source" {
         state
             .plugin_manager
             .has_format_operation(
@@ -349,7 +386,8 @@ pub(super) async fn stream_source(context: StreamContext) -> Result<axum::respon
         tracing::debug!(target: "media", chapter_id = %chapter_id, "Serving from disk cache");
 
         // Check if we need to use a format plugin even for cached files (source file is cached)
-        let plugin_handles_format = source_audio.is_none()
+        let plugin_handles_format = library.library_type != "source"
+            && source_audio.is_none()
             && state
                 .plugin_manager
                 .has_format_operation(
