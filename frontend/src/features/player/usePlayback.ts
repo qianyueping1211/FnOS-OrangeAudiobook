@@ -190,6 +190,9 @@ export const usePlayback = () => {
     isUsingHlsForCurrentChapter ? hlsSeekOffset : getTranscodeStartOffset();
 
   const tryTranscodeFallback = () => {
+    // An online chapter is served from the server's disk cache; a transcode of
+    // it cannot be seeked and made the player restart again and again.
+    if (isSourceBook) return false;
     if (!currentChapter || retryCount >= 3) return false;
     if (shouldTranscode && !shouldUseHlsForCurrentChapter) return false;
     if (!shouldTranscode && transcodeFallbackChapterRef.current === currentChapter.id) {
@@ -718,6 +721,12 @@ export const usePlayback = () => {
       duration > 0 ? Math.min(time, duration) : time,
     );
     const absoluteTarget = chapterStart + targetTime;
+    if (!sourceReady) {
+      // The online chapter is still being cached and the player has no audio
+      // source yet; remember the position and resume from it once it loads.
+      setCurrentTime(targetTime);
+      return;
+    }
     isInitialLoadRef.current = false;
     pendingMediaSeek.current.cancel();
 
@@ -902,11 +911,25 @@ export const usePlayback = () => {
   };
 
   // 想播放但数据还不够继续播（刚开始加载、网络缓冲）：显示缓冲中，不把它当作暂停。
+  // 短暂的停顿（拖动进度、网络抖动）不立刻显示转圈，否则按钮和唱针会来回闪；
+  // 持续缓冲超过 0.6 秒才显示，恢复播放则马上取消。
+  const bufferingTimerRef = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(bufferingTimerRef.current), []);
   const syncBuffering = () => {
     const audio = audioRef.current;
     const loading = !!audio && !audio.error && !!audio.getAttribute('src')
       && audio.readyState < HTMLMediaElement.HAVE_FUTURE_DATA;
-    usePlayerStore.getState().setIsBuffering(loading && usePlayerStore.getState().isPlaying);
+    window.clearTimeout(bufferingTimerRef.current);
+    if (loading && usePlayerStore.getState().isPlaying) {
+      bufferingTimerRef.current = window.setTimeout(() => {
+        const current = audioRef.current;
+        const stillLoading = !!current && !current.error && !!current.getAttribute('src')
+          && current.readyState < HTMLMediaElement.HAVE_FUTURE_DATA;
+        usePlayerStore.getState().setIsBuffering(stillLoading && usePlayerStore.getState().isPlaying);
+      }, 600);
+    } else {
+      usePlayerStore.getState().setIsBuffering(false);
+    }
   };
 
   const audioProps: React.AudioHTMLAttributes<HTMLAudioElement> & { ref: React.RefObject<HTMLAudioElement | null> } = {
